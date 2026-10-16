@@ -25,8 +25,8 @@ export interface RivalAIConfig {
   readonly retreatRange: number;
   /** Max facing error (deg) before it commits to an attack. */
   readonly attackFacingDeg: number;
-  /** Beam charge (0..1) it waits for before releasing. */
-  readonly beamChargeTarget: number;
+  /** How long it holds the beam once it fires (s). */
+  readonly beamFireSeconds: number;
   readonly attacks: readonly AIAttack[];
 }
 
@@ -42,13 +42,10 @@ export interface RivalConfig {
 
 const noBeam: BeamConfig = {
   chargeTime: 1,
-  minCharge: 1,
   minEnergyToCharge: Number.MAX_SAFE_INTEGER,
   energyPerSecond: 0,
-  durationMin: 0,
-  durationMax: 0,
-  dpsMin: 0,
-  dpsMax: 0,
+  maxDuration: 0,
+  dps: 0,
   range: 0,
   impactRadius: 0,
   impactDpsFraction: 0,
@@ -60,6 +57,7 @@ const noBeam: BeamConfig = {
   recovery: 0,
   cooldown: 0,
   traumaPerSecond: 0,
+  cancelRecovery: 0,
   glowCharged: 1,
   kaijuDamageFraction: 0,
   poiseFraction: 0,
@@ -168,7 +166,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
       sprintRange: 180,
       retreatRange: 0,
       attackFacingDeg: 30,
-      beamChargeTarget: 1,
+      beamFireSeconds: 0,
       attacks: [
         { move: 'claw', minRange: 0, maxRange: 62, weight: 5 },
         { move: 'stomp', minRange: 0, maxRange: 65, weight: 1.5 },
@@ -268,10 +266,10 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         },
       },
       beam: {
-        chargeTime: 1.6, minCharge: 0.25, minEnergyToCharge: 0, energyPerSecond: 0,
-        durationMin: 1.5, durationMax: 2.5, dpsMin: 500, dpsMax: 900, range: 520, impactRadius: 16, impactDpsFraction: 0.35,
+        chargeTime: 1.6, minEnergyToCharge: 0, energyPerSecond: 0,
+        maxDuration: 3, dps: 800, range: 520, impactRadius: 16, impactDpsFraction: 0.35,
         turnRate: 0.5, maxYawOffsetDeg: 30, minPitchDeg: -50, maxPitchDeg: 20, startup: 0.2, recovery: 0.8, cooldown: 7,
-        traumaPerSecond: 0, glowCharged: 4, kaijuDamageFraction: 0.08, poiseFraction: 0.12,
+        traumaPerSecond: 0, cancelRecovery: 0.3, glowCharged: 4, kaijuDamageFraction: 0.08, poiseFraction: 0.12,
       },
       roar: { duration: 2, cooldown: 20, stunRadius: 0, stunSeconds: 0, trauma: 0.4 },
       health: { maxHealth: 1400, maxPoise: 100, poiseRegen: 18, staggerSeconds: 0.7, knockdownThreshold: 260, knockdownSeconds: 2.8, getUpInvulnerable: 1 },
@@ -285,7 +283,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
       sprintRange: 600,
       retreatRange: 140,
       attackFacingDeg: 20,
-      beamChargeTarget: 0.85,
+      beamFireSeconds: 2.2,
       attacks: [
         { move: 'volley', minRange: 150, maxRange: 480, weight: 4 },
         { move: 'beam', minRange: 120, maxRange: 450, weight: 2 },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT } from '../../config/combat';
-import { beamShot, clampBeamAim, Cooldowns, falloffDamage, inArc, movePhase } from './rules';
+import { clampBeamAim, Cooldowns, falloffDamage, inArc, movePhase } from './rules';
 import { Health } from './Health';
 
 const deg = (d: number) => (d * Math.PI) / 180;
@@ -65,20 +65,8 @@ describe('Cooldowns', () => {
 });
 
 describe('beam', () => {
-  it('fizzles below min charge', () => {
-    expect(beamShot(COMBAT.beam.minCharge - 0.01, COMBAT.beam)).toBeNull();
-  });
-
-  it('full charge fires longest and hardest', () => {
-    const lo = beamShot(COMBAT.beam.minCharge, COMBAT.beam)!;
-    const hi = beamShot(1, COMBAT.beam)!;
-    expect(lo.duration).toBeCloseTo(COMBAT.beam.durationMin);
-    expect(hi.duration).toBeCloseTo(COMBAT.beam.durationMax);
-    expect(hi.dps).toBeGreaterThan(lo.dps);
-  });
-
   it('a full beam costs less than max energy', () => {
-    expect(COMBAT.beam.durationMax * COMBAT.beam.energyPerSecond).toBeLessThanOrEqual(100);
+    expect(COMBAT.beam.maxDuration * COMBAT.beam.energyPerSecond).toBeLessThanOrEqual(100);
   });
 
   it('clamps aim to the body facing and pitch limits', () => {

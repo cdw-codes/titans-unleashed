@@ -68,24 +68,43 @@ describe('KaijuCombat', () => {
     expect(body.state).toBe('attack');
   });
 
-  it('beam: charge, release, fire spends energy and emits beam ticks', () => {
+  it('beam: hold to charge, fires at full charge while held, spends energy', () => {
     const { body, pool, combat } = setup();
-    run(combat, COMBAT.beam.chargeTime + 0.1, { ...none, beamHeld: true });
+    const held = { ...none, beamHeld: true };
+    run(combat, COMBAT.beam.chargeTime - 0.1, held);
     expect(body.state).toBe('beamCharge');
-    expect(combat.charge).toBe(1);
-    combat.update(DT, none);
+    run(combat, 0.2, held);
     expect(body.state).toBe('beamFire');
-    const attacks = run(combat, COMBAT.beam.startup + COMBAT.beam.durationMax + COMBAT.beam.recovery + 0.1);
+    const attacks = run(combat, COMBAT.beam.startup + COMBAT.beam.maxDuration + 0.05, held);
     expect(attacks.filter((a) => a.type === 'beam').length).toBeGreaterThan(100);
-    expect(pool.energy).toBeLessThan(100 - COMBAT.beam.energyPerSecond * COMBAT.beam.durationMax * 0.9);
+    expect(pool.energy).toBeLessThan(100 - COMBAT.beam.energyPerSecond * COMBAT.beam.maxDuration * 0.9);
+    run(combat, COMBAT.beam.recovery + 0.1, held);
     expect(body.state).toBe('idle');
   });
 
-  it('beam fizzles on a quick tap and needs energy to charge', () => {
-    const { body, combat } = setup();
-    run(combat, 0.1, { ...none, beamHeld: true });
+  it('letting go while charging cancels at no cost and no cooldown', () => {
+    const { body, pool, combat } = setup();
+    run(combat, COMBAT.beam.chargeTime * 0.5, { ...none, beamHeld: true });
     combat.update(DT, none);
     expect(body.state).toBe('idle');
+    expect(pool.energy).toBe(100);
+    combat.update(DT, { ...none, beamHeld: true });
+    expect(body.state).toBe('beamCharge');
+  });
+
+  it('letting go while firing stops the beam at once with a short recovery', () => {
+    const { body, combat } = setup();
+    const held = { ...none, beamHeld: true };
+    run(combat, COMBAT.beam.chargeTime + COMBAT.beam.startup + 0.5, held);
+    expect(combat.isBeamFiring).toBe(true);
+    const after = run(combat, COMBAT.beam.cancelRecovery + 0.05);
+    expect(after.filter((a) => a.type === 'beam')).toHaveLength(0);
+    expect(body.state).toBe('idle');
+    // Short burst = reduced cooldown.
+    expect(combat.cooldowns.remainingFraction('beam', COMBAT.beam.cooldown)).toBeLessThan(0.5);
+  });
+
+  it('needs energy to charge', () => {
     const poor = setup(0);
     poor.combat.update(DT, { ...none, beamHeld: true });
     expect(poor.body.state).toBe('idle');
@@ -93,9 +112,7 @@ describe('KaijuCombat', () => {
 
   it('running out of energy cuts the beam short', () => {
     const { body, combat } = setup(20);
-    run(combat, COMBAT.beam.chargeTime, { ...none, beamHeld: true });
-    combat.update(DT, none);
-    run(combat, COMBAT.beam.startup + 1.5 + COMBAT.beam.recovery);
+    run(combat, COMBAT.beam.chargeTime + COMBAT.beam.startup + 1.5 + COMBAT.beam.recovery, { ...none, beamHeld: true });
     expect(body.state).toBe('idle');
   });
 
@@ -128,6 +145,7 @@ describe('KaijuCombat', () => {
     combat.mods = { ...combat.mods, chargeTime: 0.5 };
     run(combat, COMBAT.beam.chargeTime * 0.5 + 0.05, { ...none, beamHeld: true });
     expect(combat.charge).toBe(1);
+    expect(combat.isBeamFiring || combat.currentMove === null).toBe(true);
   });
 
   it('defeat holds until respawn', () => {

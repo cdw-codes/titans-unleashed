@@ -66,18 +66,6 @@ export class Cooldowns<K extends string> {
   }
 }
 
-export interface BeamShot {
-  duration: number;
-  dps: number;
-}
-
-/** What a release at `charge` (0..1) fires, or null if it fizzles. */
-export function beamShot(charge: number, b: BeamConfig): BeamShot | null {
-  if (charge < b.minCharge) return null;
-  const t = clamp((charge - b.minCharge) / (1 - b.minCharge), 0, 1);
-  return { duration: lerp(b.durationMin, b.durationMax, t), dps: lerp(b.dpsMin, b.dpsMax, t) };
-}
-
 /** Clamp a beam direction (yaw/pitch, radians) to the body's facing and pitch limits. */
 export function clampBeamAim(aimYaw: number, aimPitch: number, facingYaw: number, b: BeamConfig): { yaw: number; pitch: number } {
   const maxOff = (b.maxYawOffsetDeg * Math.PI) / 180;

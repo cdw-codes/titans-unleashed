@@ -1,6 +1,6 @@
 import type { CombatConfig, MoveConfig } from '../../config/combat';
 import { clamp, wrapAngle } from '../../core/math';
-import { beamShot, clampBeamAim, Cooldowns, moveLength, movePhase, type MovePhase } from '../../systems/combat/rules';
+import { clampBeamAim, Cooldowns, moveLength, movePhase, type MovePhase } from '../../systems/combat/rules';
 import { Health, type HitReaction } from '../../systems/combat/Health';
 import type { KaijuState } from './locomotion';
 import { baseModifiers, type KaijuModifiers } from '../../systems/progression/Upgrades';
@@ -96,8 +96,9 @@ export class KaijuCombat {
   private emitted = 0;
   private queued: { move: MoveId | 'roar'; age: number } | null = null;
   private beamCharge = 0;
-  private beamDps = 0;
-  private beamDuration = 0;
+  /** Time (in beamFire) the beam stopped, or +Infinity while it runs. */
+  private fireEnd = Number.POSITIVE_INFINITY;
+  private stopRecovery = 0;
   private clawSide: 1 | -1 = 1;
   private aim: CombatInput['aim'] = null;
 
@@ -214,10 +215,9 @@ export class KaijuCombat {
     this.toIdle();
   }
 
-  /** Beam firing right now (after startup, before recovery)? */
+  /** Beam firing right now (after startup, still held)? */
   get isBeamFiring(): boolean {
-    const b = this.cfg.beam;
-    return this.body.state === 'beamFire' && this.action.t >= b.startup && this.action.t < b.startup + this.beamDuration;
+    return this.body.state === 'beamFire' && this.fireEnd === Number.POSITIVE_INFINITY && this.action.t >= this.cfg.beam.startup;
   }
 
   // ------------------------------------------------------------- states
@@ -336,17 +336,16 @@ export class KaijuCombat {
 
   private updateCharge(dt: number, input: CombatInput): MovementAllowance {
     const b = this.cfg.beam;
+    if (!input.beamHeld) {
+      // Let go before it fired: cancel, no cost, no cooldown.
+      this.beamCharge = 0;
+      this.toIdle();
+      return FREE;
+    }
     this.beamCharge = clamp(this.beamCharge + dt / (b.chargeTime * this.mods.chargeTime), 0, 1);
     this.action.charge = this.beamCharge;
-    if (!input.beamHeld) {
-      const shot = beamShot(this.beamCharge, b);
-      if (!shot) {
-        this.beamCharge = 0;
-        this.toIdle();
-        return FREE;
-      }
-      this.beamDps = shot.dps;
-      this.beamDuration = shot.duration;
+    if (this.beamCharge >= 1) {
+      this.fireEnd = Number.POSITIVE_INFINITY;
       this.enter('beamFire');
       this.action.charge = 1;
     }
@@ -356,22 +355,33 @@ export class KaijuCombat {
   private updateFire(dt: number, input: CombatInput): MovementAllowance {
     const b = this.cfg.beam;
     const t = this.action.t;
-    const firing = t >= b.startup && t < b.startup + this.beamDuration;
-    if (firing) {
-      if (!this.energy.spend(b.energyPerSecond * dt)) {
-        // Out of energy: cut the beam short.
-        this.action.t = b.startup + this.beamDuration;
-      } else {
-        this.emitBeam(input, this.beamDps * this.mods.beamDamage * dt);
+    if (this.fireEnd === Number.POSITIVE_INFINITY) {
+      if (!input.beamHeld) {
+        // Let go: stop right away with a short recovery.
+        this.fireEnd = t;
+        this.stopRecovery = b.cancelRecovery;
+      } else if (t >= b.startup + b.maxDuration) {
+        this.fireEnd = t;
+        this.stopRecovery = b.recovery;
+      } else if (t >= b.startup) {
+        if (this.energy.spend(b.energyPerSecond * dt)) {
+          this.emitBeam(input, b.dps * this.mods.beamDamage * dt);
+        } else {
+          // Out of energy.
+          this.fireEnd = t;
+          this.stopRecovery = b.recovery;
+        }
       }
     }
-    if (t >= b.startup + this.beamDuration + b.recovery) {
-      this.cooldowns.start('beam', b.cooldown);
+    if (this.fireEnd !== Number.POSITIVE_INFINITY && t >= this.fireEnd + this.stopRecovery) {
+      // Cooldown scales with how long the beam actually ran.
+      const fired = Math.max(0, this.fireEnd - b.startup) / Math.max(0.01, b.maxDuration);
+      this.cooldowns.start('beam', b.cooldown * clamp(fired, 0.25, 1));
       this.beamCharge = 0;
       this.toIdle();
       return FREE;
     }
-    this.action.charge = firing ? 1 : Math.max(0, 1 - (t - b.startup - this.beamDuration) / b.recovery);
+    this.action.charge = this.fireEnd === Number.POSITIVE_INFINITY ? 1 : Math.max(0, 1 - (t - this.fireEnd) / Math.max(0.01, this.stopRecovery));
     return this.aimAllowance(input);
   }
 

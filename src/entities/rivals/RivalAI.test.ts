@@ -8,7 +8,7 @@ const DT = 1 / 60;
 
 function perception(over: Partial<Perception> = {}): Perception {
   return {
-    x: 0, z: 0, yaw: 0, busy: false, charging: false, charge: 0,
+    x: 0, z: 0, yaw: 0, busy: false, charging: false, firing: false, charge: 0,
     canStart: () => true,
     target: { x: 0, y: 50, z: 100 },
     ...over,
@@ -84,11 +84,14 @@ describe('RivalAI', () => {
     expect(Math.abs(ai.intent.x)).toBeGreaterThan(0.5);
   });
 
-  it('holds the beam until the charge target, then releases', () => {
+  it('holds the beam through the charge and for beamFireSeconds of firing, then lets go', () => {
     const ai = ranged();
     ai.update(DT, perception({ charging: true, charge: 0.3 }));
     expect(ai.combat.beamHeld).toBe(true);
-    ai.update(DT, perception({ charging: true, charge: RIVALS.vesperion.ai.beamChargeTarget }));
+    const fire = RIVALS.vesperion.ai.beamFireSeconds;
+    for (let i = 0; i < (fire - 0.1) / DT; i++) ai.update(DT, perception({ firing: true }));
+    expect(ai.combat.beamHeld).toBe(true);
+    for (let i = 0; i < 0.2 / DT; i++) ai.update(DT, perception({ firing: true }));
     expect(ai.combat.beamHeld).toBe(false);
   });
 

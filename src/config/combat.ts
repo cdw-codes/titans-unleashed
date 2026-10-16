@@ -55,19 +55,19 @@ export interface ProjectileConfig {
   readonly color: number;
 }
 
+/**
+ * Hold to charge; at full charge it fires and keeps firing while held (up to
+ * maxDuration / energy). Letting go at any point cancels.
+ */
 export interface BeamConfig {
-  /** Seconds to reach full charge. */
+  /** Seconds of holding before the beam fires. */
   readonly chargeTime: number;
-  /** Charge below this on release fizzles (no beam, no cost). */
-  readonly minCharge: number;
   readonly minEnergyToCharge: number;
   readonly energyPerSecond: number;
-  /** Fire duration at min and full charge. */
-  readonly durationMin: number;
-  readonly durationMax: number;
-  /** Damage per second to the structure the beam touches, at min and full charge. */
-  readonly dpsMin: number;
-  readonly dpsMax: number;
+  /** Longest a single beam can be held (s). */
+  readonly maxDuration: number;
+  /** Damage per second to the structure the beam touches. */
+  readonly dps: number;
   /** Must stay within CITY.physicsRadius: structures have no colliders beyond it. */
   readonly range: number;
   /** Radius (m) of the impact blast that crushes small things and hurts large ones. */
@@ -83,6 +83,8 @@ export interface BeamConfig {
   readonly recovery: number;
   readonly cooldown: number;
   readonly traumaPerSecond: number;
+  /** Recovery (s) after letting go mid-beam (the full `recovery` plays when it runs out). */
+  readonly cancelRecovery: number;
   /** Plate glow intensity at full charge / while firing. */
   readonly glowCharged: number;
   /** Fraction of the beam's structure DPS dealt to kaiju, and its poise damage fraction. */
@@ -213,13 +215,10 @@ export const COMBAT: CombatConfig = {
   },
   beam: {
     chargeTime: 1.4,
-    minCharge: 0.25,
     minEnergyToCharge: 8,
     energyPerSecond: 18,
-    durationMin: 1.2,
-    durationMax: 4,
-    dpsMin: 500,
-    dpsMax: 1100,
+    maxDuration: 4,
+    dps: 1100,
     range: 600,
     impactRadius: 18,
     impactDpsFraction: 0.35,
@@ -231,6 +230,7 @@ export const COMBAT: CombatConfig = {
     recovery: 0.6,
     cooldown: 1.5,
     traumaPerSecond: 0.9,
+    cancelRecovery: 0.25,
     glowCharged: 4,
     kaijuDamageFraction: 0.12,
     poiseFraction: 0.15,

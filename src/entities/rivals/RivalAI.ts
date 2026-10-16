@@ -13,8 +13,9 @@ export interface Perception {
   yaw: number;
   /** Rooted in a move, staggered, down... (no new decisions). */
   busy: boolean;
-  /** In beamCharge: current charge 0..1. */
+  /** Charging or firing the beam (the AI must keep holding the key). */
   charging: boolean;
+  firing: boolean;
   charge: number;
   canStart(id: CooldownId): boolean;
   target: { x: number; y: number; z: number } | null;
@@ -32,6 +33,7 @@ export class RivalAI {
   private circleDir: 1 | -1 = 1;
   private pending: AIAttack['move'] | null = null;
   private aimTime = 0;
+  private beamTime = 0;
   readonly intent: MoveIntent = { x: 0, z: 0, sprint: false, faceYaw: null };
   readonly combat: CombatInput = { claw: false, tail: false, stomp: false, roar: false, beamHeld: false, lunge: false, volley: false, aim: null };
   private readonly aimPoint = { x: 0, y: 0, z: 0 };
@@ -58,10 +60,11 @@ export class RivalAI {
     const dist = Math.hypot(dx, dz);
     const toTarget = Math.atan2(dx, dz);
 
-    // Holding a beam: release once charged enough.
-    if (p.charging) {
+    // Beam: keep holding through the charge, then for beamFireSeconds of firing.
+    if (p.charging || p.firing) {
       this.state = 'charging';
-      this.combat.beamHeld = p.charge < this.cfg.beamChargeTarget;
+      this.beamTime = p.firing ? this.beamTime + dt : 0;
+      this.combat.beamHeld = this.beamTime < this.cfg.beamFireSeconds;
       this.setMove(0, 0, false, toTarget);
       return;
     }
