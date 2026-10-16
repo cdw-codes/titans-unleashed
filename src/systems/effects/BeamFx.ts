@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { COMBAT } from '../../config/combat';
 import { BEAM_VISUAL as V, FIRE } from '../../config/effects';
 import type { Kaiju } from '../../entities/kaiju/Kaiju';
 import type { DustSystem } from './DustSystem';
@@ -10,9 +9,8 @@ const _dir = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const UP = new THREE.Vector3(0, 1, 0);
 
-/** HDR colors (values > 1 feed the bloom pass). */
-const CORE = new THREE.Color(0xd8fbff).multiplyScalar(3);
-const GLOW = new THREE.Color(0x3fc8ff).multiplyScalar(1.4);
+/** Default (player) colors; HDR values > 1 feed the bloom pass. */
+export const PLAYER_BEAM_COLORS = { core: 0xd8fbff, glow: 0x3fc8ff };
 
 /**
  * Beam visuals for one kaiju: charge orb at the mouth, a two-layer energy
@@ -28,14 +26,20 @@ export class BeamFx {
   private fireTimer = 0;
   private time = 0;
 
-  constructor(scene: THREE.Scene, private readonly fire: DustSystem) {
+  constructor(
+    private readonly scene: THREE.Scene,
+    private readonly fire: DustSystem,
+    colors: { core: number; glow: number } = PLAYER_BEAM_COLORS,
+  ) {
+    const CORE = new THREE.Color(colors.core).multiplyScalar(3);
+    const GLOW = new THREE.Color(colors.glow).multiplyScalar(1.4);
     // Unit cylinders along +Y from 0 to 1; scaled to the beam length each frame.
     const geo = new THREE.CylinderGeometry(1, 1, 1, 14, 1, true).translate(0, 0.5, 0);
     this.core = new THREE.Mesh(
       geo,
       new THREE.MeshBasicMaterial({ color: CORE, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false }),
     );
-    this.sheath = new THREE.Mesh(geo, this.sheathMaterial());
+    this.sheath = new THREE.Mesh(geo, this.sheathMaterial(GLOW));
     const flareTex = radialTexture();
     const flare = () =>
       new THREE.Sprite(
@@ -63,7 +67,7 @@ export class BeamFx {
     const state = kaiju.state;
     const charging = state === 'beamCharge';
     const firing = c.isBeamFiring;
-    this.group.visible = charging || state === 'beamFire';
+    this.group.visible = (charging || state === 'beamFire') && kaiju.model.object.visible;
     if (!this.group.visible) return;
 
     kaiju.model.mouth.getWorldPosition(_origin);
@@ -78,7 +82,7 @@ export class BeamFx {
     if (!firing) return;
 
     if (c.beamEnd.hit) _end.set(c.beamEnd.x, c.beamEnd.y, c.beamEnd.z);
-    else _end.set(c.beamDir.x, c.beamDir.y, c.beamDir.z).multiplyScalar(COMBAT.beam.range).add(_origin);
+    else _end.set(c.beamDir.x, c.beamDir.y, c.beamDir.z).multiplyScalar(c.cfg.beam.range).add(_origin);
     _dir.subVectors(_end, _origin);
     const len = _dir.length();
     _q.setFromUnitVectors(UP, _dir.normalize());
@@ -103,9 +107,13 @@ export class BeamFx {
     }
   }
 
-  private sheathMaterial(): THREE.ShaderMaterial {
+  dispose(): void {
+    this.scene.remove(this.group);
+  }
+
+  private sheathMaterial(glow: THREE.Color): THREE.ShaderMaterial {
     return new THREE.ShaderMaterial({
-      uniforms: { uColor: { value: GLOW }, uTime: { value: 0 }, uLength: { value: 100 } },
+      uniforms: { uColor: { value: glow }, uTime: { value: 0 }, uLength: { value: 100 } },
       vertexShader: /* glsl */ `
         varying vec2 vUv;
         varying float vFacing;

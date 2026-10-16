@@ -22,6 +22,10 @@ export async function createDevGui(game: Game): Promise<GUI> {
     heavy: () => game.hurtPlayer(300),
     kill: () => game.hurtPlayer(1e6),
     energy: () => game.fillEnergy(),
+    encounter: () => game.startEncounter(),
+    thornmaw: () => game.spawnRival('thornmaw'),
+    vesperion: () => game.spawnRival('vesperion'),
+    defeatRival: () => game.defeatRival(),
   };
   gui.add(state, 'quality', QUALITY_LEVELS).name('Quality preset').onChange((v: typeof state.quality) => game.setQuality(v));
   gui.add(game.loop, 'timeScale', 0.05, 2, 0.05).name('Time scale');
@@ -33,6 +37,11 @@ export async function createDevGui(game: Game): Promise<GUI> {
   dbg.add(state, 'hurt').name('Hit player (60)');
   dbg.add(state, 'heavy').name('Heavy hit (knockdown)');
   dbg.add(state, 'kill').name('Defeat player');
+  const enc = gui.addFolder('Encounters').close();
+  enc.add(state, 'encounter').name('Start encounter now');
+  enc.add(state, 'thornmaw').name('Spawn Thornmaw (300 m)');
+  enc.add(state, 'vesperion').name('Spawn Vesperion (300 m)');
+  enc.add(state, 'defeatRival').name('Defeat rival');
 
   createTuning(gui, game);
   return gui;

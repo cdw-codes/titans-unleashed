@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { CityConfig } from '../../config/city';
 import { DESTRUCTION } from '../../config/destruction';
-import type { PhysicsSystem } from '../../systems/PhysicsSystem';
+import { ALL_GROUPS, collisionGroups, GROUP, type PhysicsSystem } from '../../systems/PhysicsSystem';
 import { maxHpFor } from '../../systems/destruction/damage';
 import type { CityGenerator } from './CityGenerator';
 import type { CityPools } from './CityPools';
@@ -224,7 +224,7 @@ export class ChunkManager {
         ? RAPIER.ColliderDesc.cylinder(st.height / 2, st.halfW)
         : RAPIER.ColliderDesc.cuboid(st.halfW, st.height / 2, st.halfD);
       _q.setFromAxisAngle(UP, st.rotY);
-      desc.setTranslation(st.x, st.height / 2, st.z).setRotation(_q);
+      desc.setTranslation(st.x, st.height / 2, st.z).setRotation(_q).setCollisionGroups(collisionGroups(GROUP.STRUCTURE, ALL_GROUPS));
       s.collider = this.physics.world.createCollider(desc);
       this.byCollider.set(s.collider.handle, s);
     }

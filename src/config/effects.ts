@@ -167,6 +167,28 @@ export const FIRE: FireConfig = {
   interval: 0.06,
 };
 
+/** Glowing trail puffs behind plasma projectiles (additive). */
+export const PLASMA_TRAIL = {
+  capacity: 400,
+  color: 0xc77dff,
+  drag: 0.3,
+  additive: true,
+  brightness: 2.5,
+  puff: {
+    count: 1,
+    ringRadius: 0,
+    speedMin: 0,
+    speedMax: 2,
+    riseMin: 0,
+    riseMax: 2,
+    sizeStart: 9,
+    sizeEnd: 3,
+    lifeMin: 0.35,
+    lifeMax: 0.5,
+    opacity: 0.8,
+  },
+};
+
 export const SHOCKWAVE: ShockwaveConfig = {
   duration: 0.7,
   stompColor: 0xc9bca3,

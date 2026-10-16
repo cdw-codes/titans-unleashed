@@ -54,7 +54,7 @@ describe('RivalAI', () => {
   it('lunges from mid range', () => {
     const ai = brawler({ aggression: 1 });
     const p = perception({ target: { x: 0, y: 50, z: 150 } });
-    expect(runUntil(ai, p, () => ai.combat.lunge)).toBe(true);
+    expect(runUntil(ai, p, () => ai.combat.lunge === true)).toBe(true);
   });
 
   it('only decides every reactionDelay seconds', () => {

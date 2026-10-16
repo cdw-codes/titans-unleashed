@@ -29,7 +29,13 @@ export class CameraSystem {
   private fovBoost = 0;
   private initialized = false;
   private readonly probe = new RAPIER.Ball(CAMERA.collisionRadius);
+  /** Lock-on: world yaw the camera should look along (toward the target), or null. */
+  lockYaw: number | null = null;
   private exclude: RAPIER.RigidBody | undefined;
+
+  get renderCamera(): THREE.PerspectiveCamera {
+    return this.camera;
+  }
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -43,7 +49,8 @@ export class CameraSystem {
   }
 
   applyMouse(dx: number, dy: number): void {
-    this.yaw -= dx * MOUSE.sensitivity;
+    // Locked on: horizontal look is driven by the target; mouse still controls pitch.
+    if (this.lockYaw === null) this.yaw -= dx * MOUSE.sensitivity;
     this.pitch += dy * MOUSE.sensitivity * (MOUSE.invertY ? -1 : 1);
     this.pitch = clamp(this.pitch, CAMERA.minPitch, CAMERA.maxPitch);
   }
@@ -53,6 +60,12 @@ export class CameraSystem {
     if (!this.initialized) {
       this.focus.copy(target);
       this.initialized = true;
+    }
+    if (this.lockYaw !== null) {
+      // Camera sits opposite the look direction (yaw 0 looks toward -Z).
+      const want = this.lockYaw + Math.PI + C.lockOnSideAngle;
+      const d = Math.atan2(Math.sin(want - this.yaw), Math.cos(want - this.yaw));
+      this.yaw += d * Math.min(1, dt * C.lockOnTracking);
     }
     this.focus.x = damp(this.focus.x, target.x, C.followHalfLife, dt);
     this.focus.z = damp(this.focus.z, target.z, C.followHalfLife, dt);

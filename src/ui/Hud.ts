@@ -29,6 +29,7 @@ export class Hud {
   private readonly healthFill: HTMLDivElement;
   private readonly slots = new Map<PlayerAbility, { el: HTMLDivElement; fill: HTMLDivElement }>();
   private readonly last = new Map<string, string | number | boolean>();
+  private readonly vignette: HTMLDivElement;
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -39,6 +40,9 @@ export class Hud {
       <div class="hud-bar"><span class="hud-label">ENERGY</span><div class="hud-bar-track"><div class="hud-bar-fill energy"></div></div></div>
       <div class="hud-abilities"></div>`;
     parent.appendChild(this.root);
+    this.vignette = document.createElement('div');
+    this.vignette.className = 'hud-damage';
+    parent.appendChild(this.vignette);
     this.score = this.root.querySelector('.hud-score-value')!;
     this.energyFill = this.root.querySelector('.hud-bar-fill.energy')!;
     this.healthFill = this.root.querySelector('.hud-bar-fill.health')!;
@@ -54,6 +58,14 @@ export class Hud {
 
   set visible(v: boolean) {
     this.root.style.display = v ? '' : 'none';
+  }
+
+  /** Red edge flash when the player is hurt; stronger for bigger hits. */
+  flashDamage(amount: number): void {
+    this.vignette.style.setProperty('--strength', String(Math.min(1, 0.35 + amount / 250)));
+    this.vignette.classList.remove('flash');
+    void this.vignette.offsetWidth; // restart the animation
+    this.vignette.classList.add('flash');
   }
 
   update(s: HudState): void {

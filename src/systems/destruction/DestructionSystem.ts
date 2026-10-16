@@ -33,12 +33,18 @@ export class DestructionSystem {
     private readonly events: GameEventBus,
     private readonly feedback: DestructionFeedback,
   ) {
-    events.on('kaiju:footstep', (e) => this.onFootstep(e.x, e.z, e.scale));
+    events.on('kaiju:footstep', (e) => this.onFootstep(e.x, e.z, e.scale, e.isPlayer));
   }
 
-  fixedUpdate(dt: number, kaiju: Kaiju): void {
+  /** Advance the shared clock once per tick (before per-kaiju updates). */
+  tick(dt: number): void {
     this.time += dt;
+  }
+
+  /** Body contact and walk-through crushing for one kaiju. */
+  fixedUpdate(dt: number, kaiju: Kaiju): void {
     const pos = kaiju.position;
+    const byPlayer = kaiju.isPlayer;
 
     // Pushing into large structures.
     for (const handle of kaiju.contacts) {
@@ -48,31 +54,35 @@ export class DestructionSystem {
       if (this.time - s.lastContact > D.impactCooldown) {
         dmg += impactDamage(kaiju.impactSpeed, D);
         this.chip(s, pos.x, pos.z, 3);
-        this.feedback.addTrauma(0.12 + kaiju.impactSpeed * 0.01);
+        if (byPlayer) this.feedback.addTrauma(0.12 + kaiju.impactSpeed * 0.01);
       } else if (Math.random() < dt * 4) {
         this.chip(s, pos.x, pos.z, 1);
       }
       s.lastContact = this.time;
-      this.damage(s, dmg, pos.x, pos.z);
+      this.damage(s, dmg, pos.x, pos.z, byPlayer);
     }
 
-    // Walking through small structures and props crushes them.
+    // Walking through small structures and props crushes them; rivals plow through big ones too.
     const bodyR = kaiju.spec.body.capsuleRadius * D.bodyCrushRadiusScale;
     this.chunks.forEachNear(pos.x, pos.z, bodyR, (s) => {
-      if (s.spec.size !== 'large') this.crush(s);
+      if (s.spec.size !== 'large') this.crush(s, byPlayer);
+      else if (kaiju.plowsThrough) {
+        if (Math.random() < dt * 5) this.chip(s, pos.x, pos.z, 1);
+        this.damage(s, D.plowDps * dt, pos.x, pos.z, byPlayer);
+      }
     });
   }
 
-  private onFootstep(x: number, z: number, scale: number): void {
+  private onFootstep(x: number, z: number, scale: number, byPlayer: boolean): void {
     const r = D.footCrushRadius * scale;
     this.chunks.forEachNear(x, z, r, (s) => {
-      if (s.spec.size === 'large') this.damage(s, D.footstepDamage, x, z);
-      else this.crush(s);
+      if (s.spec.size === 'large') this.damage(s, D.footstepDamage, x, z, byPlayer);
+      else this.crush(s, byPlayer);
     });
   }
 
   /** Damage a large structure; collapses it at 0 HP. Used by contact, footsteps and combat. */
-  damage(s: Structure, amount: number, fromX: number, fromZ: number): void {
+  damage(s: Structure, amount: number, fromX: number, fromZ: number, byPlayer = true): void {
     s.hp -= amount;
     this.recentlyDamaged.add(s);
     if (s.hp > 0) {
@@ -84,11 +94,11 @@ export class DestructionSystem {
     this.collapse.start(s, st.x - fromX, st.z - fromZ);
     if (st.height >= D.hitPauseMinHeight) this.feedback.hitPause(D.hitPauseSeconds);
     this.feedback.addTrauma(collapseTrauma(st.height, this.feedback.cameraDistanceTo(st.x, st.z), D));
-    this.emitDestroyed(s);
+    this.emitDestroyed(s, byPlayer);
   }
 
   /** Instantly destroy a small structure or prop. */
-  crush(s: Structure): void {
+  crush(s: Structure, byPlayer = true): void {
     const st = s.spec;
     this.chunks.destroyInstant(s);
     if (st.size === 'small') {
@@ -97,7 +107,7 @@ export class DestructionSystem {
     } else {
       this.dust.burst(st.x, 0, st.z, DUST.crush, 0.8);
     }
-    this.emitDestroyed(s);
+    this.emitDestroyed(s, byPlayer);
   }
 
   /** Small debris knocked off a structure's face toward the kaiju. */
@@ -125,7 +135,7 @@ export class DestructionSystem {
     });
   }
 
-  private emitDestroyed(s: Structure): void {
+  private emitDestroyed(s: Structure, byPlayer: boolean): void {
     const st = s.spec;
     this.events.emit('structure:destroyed', {
       kind: st.kind,
@@ -134,6 +144,7 @@ export class DestructionSystem {
       z: st.z,
       height: st.height,
       points: pointsFor(st, D),
+      byPlayer,
     });
   }
 }

@@ -71,6 +71,7 @@ export class RivalAI {
       this.setMove(0, 0, false, null);
       return;
     }
+    if (this.state === 'busy') this.state = 'idle';
 
     this.timer -= dt;
     if (this.timer <= 0 && this.state !== 'aim') {

@@ -14,6 +14,8 @@ export interface DestructionConfig {
   /** Footstep: radius (m, at kaiju scale 1) that crushes small structures/props, and damage to large ones in reach. */
   readonly footCrushRadius: number;
   readonly footstepDamage: number;
+  /** Damage/s to large structures a rival plows through (rivals don't collide with buildings). */
+  readonly plowDps: number;
   /** Body radius multiplier for crushing small things the kaiju walks through. */
   readonly bodyCrushRadiusScale: number;
   /** Large structures darken toward this fraction of their color as HP drops. */
@@ -58,6 +60,7 @@ export const DESTRUCTION: DestructionConfig = {
   impactCooldown: 0.6,
   footCrushRadius: 14,
   footstepDamage: 60,
+  plowDps: 700,
   bodyCrushRadiusScale: 1.1,
   damagedDarken: 0.55,
 

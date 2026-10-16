@@ -25,6 +25,10 @@ export interface CameraConfig {
   readonly easeOutHalfLife: number;
   /** Never go below this height above the ground (m). */
   readonly groundClearance: number;
+  /** Lock-on: camera swings this far (rad) off the player→target line so the target shows past the shoulder. */
+  readonly lockOnSideAngle: number;
+  /** Lock-on: how fast the camera turns to track the target (1/s). */
+  readonly lockOnTracking: number;
 }
 
 export interface ShakeConfig {
@@ -61,6 +65,8 @@ export const CAMERA: CameraConfig = {
   pullInHalfLife: 0.04,
   easeOutHalfLife: 0.6,
   groundClearance: 4,
+  lockOnSideAngle: 0.32,
+  lockOnTracking: 4,
 };
 
 export const SHAKE: ShakeConfig = {

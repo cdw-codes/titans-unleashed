@@ -216,7 +216,7 @@ export const COMBAT: CombatConfig = {
   health: {
     maxHealth: 1000,
     maxPoise: 100,
-    poiseRegen: 30,
+    poiseRegen: 15,
     staggerSeconds: 0.6,
     knockdownThreshold: 250,
     knockdownSeconds: 2.6,

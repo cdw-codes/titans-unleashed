@@ -22,7 +22,7 @@ export interface GameEvents {
   /** A kaiju reacted to a hit. */
   'kaiju:hurt': { reaction: 'stagger' | 'knockdown' | 'defeated'; isPlayer: boolean; x: number; z: number };
   /** A structure was destroyed (crushed instantly or started collapsing). */
-  'structure:destroyed': { kind: StructureKind; size: SizeClass; x: number; z: number; height: number; points: number };
+  'structure:destroyed': { kind: StructureKind; size: SizeClass; x: number; z: number; height: number; points: number; byPlayer: boolean };
 }
 
 export type GameEventBus = EventBus<GameEvents>;

@@ -3,7 +3,9 @@ import { QUALITY_PRESETS, type QualityLevel } from '../config/quality';
 import { SIM } from '../config/sim';
 import { KAIJU_FEEDBACK } from '../config/kaiju';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { DUST, FIRE, SHOCKWAVE, SMOKE } from '../config/effects';
+import { DUST, FIRE, PLASMA_TRAIL, SHOCKWAVE, SMOKE } from '../config/effects';
+import { ENCOUNTERS } from '../config/encounters';
+import type { RivalId } from '../config/rivals';
 import { COMBAT } from '../config/combat';
 import { CITY } from '../config/city';
 import { DESTRUCTION } from '../config/destruction';
@@ -34,6 +36,10 @@ import { BeamFx } from '../systems/effects/BeamFx';
 import { ShockwaveFx } from '../systems/effects/ShockwaveFx';
 import type { PlayerAbility } from '../ui/Hud';
 import { PLAYER_SPEC } from '../entities/kaiju/KaijuSpec';
+import { ProjectileSystem } from '../systems/combat/ProjectileSystem';
+import { BarrierFx } from '../systems/effects/BarrierFx';
+import { EncounterDirector } from '../systems/encounters/EncounterDirector';
+import { EncounterHud } from '../ui/EncounterHud';
 
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
@@ -68,6 +74,9 @@ export class Game {
   private readonly shockwaves: ShockwaveFx;
   private readonly beamFx: BeamFx;
   private readonly combatSystem: CombatSystem;
+  private readonly projectiles: ProjectileSystem;
+  private readonly plasmaTrail = new DustSystem(PLASMA_TRAIL);
+  readonly director: EncounterDirector;
   private readonly defeatOverlay: DefeatOverlay;
   private lastReactionT = 0;
   private readonly hudState = {
@@ -91,6 +100,8 @@ export class Game {
       `particles  dust ${this.dust.count}  smoke ${this.smoke.count}`,
       `score      ${this.progress.score}  energy ${this.progress.energy.toFixed(0)}`,
       `player     hp ${this.player.combat.health.health.toFixed(0)}  poise ${this.player.combat.health.poise.toFixed(0)}  ${this.player.combat.currentMove ?? ''}`,
+      `encounter  ${this.director.encounter.phase} ${this.director.encounter.t.toFixed(0)}s  (next in ${Math.max(0, this.director.encounter.roamingDelay - this.director.encounter.t).toFixed(0)}s)`,
+      `projectiles ${this.projectiles.count}`,
     ],
   };
 
@@ -112,7 +123,7 @@ export class Game {
     this.chunks = new ChunkManager(CITY, new CityGenerator(CITY), this.cityPools, physics, new DestructionState());
     this.crates = new TestCrates(scene, physics);
     this.debris = new DebrisSystem(scene, physics, preset.debrisCap);
-    scene.add(this.dust.mesh, this.smoke.mesh, this.fire.mesh);
+    scene.add(this.dust.mesh, this.smoke.mesh, this.fire.mesh, this.plasmaTrail.mesh);
     this.shockwaves = new ShockwaveFx(scene);
     this.beamFx = new BeamFx(scene, this.fire);
     this.collapse = new CollapseSystem(this.chunks, this.cityPools, this.dust, this.smoke, this.debris);
@@ -147,8 +158,28 @@ export class Game {
       hitPause: (s) => this.loop.hitStop(s),
       addTrauma: (a) => this.camera.shake.addTrauma(a),
       addKick: (v) => this.camera.shake.addKick(v),
+      playerHurt: (amount) => this.hud.flashDamage(amount),
     });
-    this.events.on('structure:destroyed', (e) => this.progress.onDestroyed(e.points, e.size));
+    this.projectiles = new ProjectileSystem(scene, physics, this.chunks, this.destruction, this.fire, this.plasmaTrail, this.combatSystem.onProjectileHit);
+    this.combatSystem.projectiles = this.projectiles;
+    this.director = new EncounterDirector({
+      scene,
+      physics,
+      events: this.events,
+      player: this.player,
+      controller: this.playerController,
+      camera: this.camera,
+      hud: new EncounterHud(uiRoot),
+      barrier: new BarrierFx(scene, ENCOUNTERS.barrierHeight),
+      dust: this.dust,
+      fire: this.fire,
+      shockwaves: this.shockwaves,
+      progress: this.progress,
+      hitPause: (s) => this.loop.hitStop(s),
+    });
+    this.events.on('structure:destroyed', (e) => {
+      if (e.byPlayer) this.progress.onDestroyed(e.points, e.size);
+    });
     this.events.on('combat:impact', (e) => {
       if (e.move === 'stomp') {
         this.shockwaves.spawn(e.x, 1, e.z, e.radius * 1.15, SHOCKWAVE.duration, SHOCKWAVE.stompColor, SHOCKWAVE.stompOpacity);
@@ -169,6 +200,10 @@ export class Game {
       if (e.isPlayer) {
         this.camera.shake.addTrauma(e.sprinting ? KAIJU_FEEDBACK.sprintStepTrauma : KAIJU_FEEDBACK.walkStepTrauma);
         this.camera.shake.addKick(e.sprinting ? KAIJU_FEEDBACK.sprintStepKick : KAIJU_FEEDBACK.walkStepKick);
+      } else {
+        // Other kaiju: felt through the ground, fading with distance.
+        const k = this.proximity(e.x, e.z, 700);
+        this.camera.shake.addTrauma(KAIJU_FEEDBACK.walkStepTrauma * k * k);
       }
     });
     this.input.onLockChange((locked) => this.setPaused(!locked));
@@ -213,6 +248,25 @@ export class Game {
     this.camera.shake.addTrauma(r === 'stagger' ? 0.35 : 0.6);
   }
 
+  /** Debug: encounters. */
+  startEncounter(): void {
+    this.director.encounter.forceStart();
+  }
+
+  spawnRival(id: RivalId): void {
+    this.director.debugSpawn(id);
+  }
+
+  defeatRival(): void {
+    this.director.debugDefeatRival();
+  }
+
+  /** 1 at the camera, 0 at `range` meters or beyond. */
+  private proximity(x: number, z: number, range: number): number {
+    const c = this.render.camera.position;
+    return Math.max(0, 1 - Math.hypot(c.x - x, c.z - z) / range);
+  }
+
   /** Debug: fill beam energy. */
   fillEnergy(): void {
     this.progress.energy = DESTRUCTION.maxEnergy;
@@ -238,10 +292,24 @@ export class Game {
   }
 
   private fixedUpdate(dt: number): void {
-    const intent = this.playerController.update(this.input.state, this.camera.yaw);
+    if (this.input.state.wasPressed('lockOn')) this.director.toggleLock();
+    this.director.preparePlayer();
+    const p = this.player.position;
+    const intent = this.playerController.update(this.input.state, this.camera.yaw, p.x, p.z);
     this.player.fixedUpdate(dt, intent, this.playerController.combat);
-    this.combatSystem.fixedUpdate(dt, this.player);
-    this.destruction.fixedUpdate(dt, this.player);
+    this.director.fixedUpdateRival(dt);
+    this.director.constrain();
+
+    const kaijus = this.director.kaijus;
+    this.combatSystem.fixedUpdate(dt, kaijus);
+    this.projectiles.fixedUpdate(dt, kaijus);
+    for (const ex of this.projectiles.explosions) {
+      const k = this.proximity(ex.x, ex.z, 500);
+      this.camera.shake.addTrauma(0.35 * k * k);
+    }
+    this.destruction.tick(dt);
+    for (const k of kaijus) this.destruction.fixedUpdate(dt, k);
+    this.director.fixedUpdateEncounter(dt);
     this.physics.step();
     this.debris.fixedUpdate(dt);
     this.crates.instances.snapshot();
@@ -253,6 +321,7 @@ export class Game {
     const visualDt = this.loop.paused ? 0 : Math.min(frameDelta, SIM.maxFrameDelta) * this.loop.timeScale;
 
     this.player.render(alpha, visualDt);
+    this.director.render(alpha, visualDt);
     this.crates.instances.render(alpha);
     this.debris.render(alpha);
     // Visual effects crawl during hit-pause instead of freezing outright.
@@ -263,6 +332,8 @@ export class Game {
     this.fire.update(fxDt);
     this.shockwaves.update(fxDt);
     this.beamFx.update(this.player, fxDt);
+    this.projectiles.render(alpha, fxDt);
+    this.plasmaTrail.update(fxDt);
     this.updateReactions();
 
     const { dx, dy } = this.input.consumeMouseDelta();
@@ -296,10 +367,20 @@ export class Game {
         }
         this.debug.label({ x: s.spec.x, y: s.spec.height + 5, z: s.spec.z }, `${s.spec.kind} ${s.hp.toFixed(0)}/${s.maxHp.toFixed(0)}`);
       }
+      const r = this.director.rival;
+      if (r) {
+        const rp = r.kaiju.renderPosition;
+        this.debug.label(
+          { x: rp.x, y: rp.y + r.kaiju.spec.body.height + 10, z: rp.z },
+          `${r.kaiju.spec.name} · AI ${r.ai.state} · ${r.kaiju.state} · hp ${r.kaiju.combat.health.health.toFixed(0)}`,
+        );
+      }
+      const arena = this.director.encounter.arena;
+      if (arena.active) this.debug.draw.sphere({ x: arena.x, y: 0, z: arena.z }, arena.radius, 0x6fd6ff, 64);
       this.drawCombatDebug();
     }
     this.debug.preRender(info);
-    this.render.render(this.beamFx.glowing);
+    this.render.render(this.beamFx.glowing || this.director.glowing || this.projectiles.count > 0);
     this.debug.postRender(info);
   }
 

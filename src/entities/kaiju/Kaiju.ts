@@ -5,7 +5,8 @@ import { SIM } from '../../config/sim';
 import { StateMachine } from '../../core/StateMachine';
 import { wrapAngle } from '../../core/math';
 import type { GameEventBus } from '../../core/events';
-import type { PhysicsSystem } from '../../systems/PhysicsSystem';
+import { ALL_GROUPS, collisionGroups, GROUP, type PhysicsSystem } from '../../systems/PhysicsSystem';
+import { constrainToCircle } from '../../systems/encounters/EncounterSystem';
 import { Gait } from './Gait';
 import { KaijuModel, MODEL_DESIGN_HEIGHT, MOUTH_DESIGN } from './KaijuModel';
 import { KaijuCombat, type CombatInput, type EnergyPool } from './KaijuCombat';
@@ -47,6 +48,14 @@ export class Kaiju {
   private time = 0;
   /** Model scale relative to its design height; also scales foot offsets and dust. */
   readonly scale: number;
+  /**
+   * Rivals don't collide with buildings (no pathfinding needed): they plow
+   * through, wrecking whatever they overlap (see DestructionSystem).
+   */
+  readonly plowsThrough: boolean;
+  /** Visual sink below the ground (m), for despawn animations. */
+  sink = 0;
+  private readonly kccGroups: number | undefined;
 
   constructor(
     private readonly physics: PhysicsSystem,
@@ -55,7 +64,10 @@ export class Kaiju {
     readonly isPlayer: boolean,
     energy: EnergyPool,
     readonly spec: KaijuSpec,
+    opts: { plowsThrough?: boolean } = {},
   ) {
+    this.plowsThrough = opts.plowsThrough ?? false;
+    this.kccGroups = this.plowsThrough ? collisionGroups(GROUP.KAIJU, ALL_GROUPS & ~GROUP.STRUCTURE) : undefined;
     this.model = new KaijuModel(spec.design, spec.combat);
     this.motor = new KaijuMotor(spec.movement);
     this.gait = new Gait(spec.gait);
@@ -131,7 +143,7 @@ export class Kaiju {
     _desired.z = this.motor.velocityZ * dt;
 
     // Debris (dynamic bodies) never blocks the kaiju; it walks through and kicks it via footsteps.
-    this.controller.computeColliderMovement(this.collider, _desired, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC);
+    this.controller.computeColliderMovement(this.collider, _desired, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.kccGroups);
     const moved = this.controller.computedMovement();
     this.grounded = this.controller.computedGrounded();
     this.contacts.length = 0;
@@ -165,8 +177,17 @@ export class Kaiju {
     this.fsm.update(dt);
   }
 
+  /** Keep the body inside a circle (arena barrier). Call after fixedUpdate. Returns true if it pushed. */
+  constrain(cx: number, cz: number, radius: number): boolean {
+    if (!constrainToCircle(this.position, cx, cz, radius - this.spec.body.capsuleRadius)) return false;
+    this.motor.speed *= 0.5;
+    this.body.setNextKinematicTranslation({ x: this.position.x, y: this.position.y + this.centerOffset, z: this.position.z });
+    return true;
+  }
+
   render(alpha: number, frameDt: number): void {
     this.renderPosition.lerpVectors(this.prevPosition, this.position, alpha);
+    this.renderPosition.y -= this.sink;
     const yaw = this.prevYaw + wrapAngle(this.motor.yaw - this.prevYaw) * alpha;
     this.model.object.position.copy(this.renderPosition);
     this.model.object.rotation.y = yaw;

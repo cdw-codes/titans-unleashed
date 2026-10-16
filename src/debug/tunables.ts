@@ -4,6 +4,8 @@ import { MOUSE } from '../config/input';
 import { BEAM_VISUAL, DUST, FIRE, SHOCKWAVE, SMOKE } from '../config/effects';
 import { COMBAT } from '../config/combat';
 import { POSTFX } from '../config/postfx';
+import { RIVALS } from '../config/rivals';
+import { ENCOUNTERS } from '../config/encounters';
 import { DESTRUCTION } from '../config/destruction';
 import { CITY } from '../config/city';
 import { ENVIRONMENT } from '../config/environment';
@@ -48,6 +50,8 @@ export const TUNABLES: Tunable[] = [
   { folder: 'Beam fire', file: 'effects.ts', exportName: 'FIRE', obj: FIRE, exclude: ['capacity', 'brightness'] },
   { folder: 'Shockwaves', file: 'effects.ts', exportName: 'SHOCKWAVE', obj: SHOCKWAVE },
   { folder: 'Bloom', file: 'postfx.ts', exportName: 'POSTFX', obj: POSTFX, reloadOnly: true, ranges: { bloomThreshold: [0, 3, 0.05] } },
+  { folder: 'Rivals', file: 'rivals.ts', exportName: 'RIVALS', obj: RIVALS, exclude: ['thornmaw.combat.beam'] },
+  { folder: 'Encounters', file: 'encounters.ts', exportName: 'ENCOUNTERS', obj: ENCOUNTERS },
   { folder: 'Destruction', file: 'destruction.ts', exportName: 'DESTRUCTION', obj: DESTRUCTION },
   { folder: 'Dust', file: 'effects.ts', exportName: 'DUST', obj: DUST, exclude: ['capacity'] },
   { folder: 'Smoke', file: 'effects.ts', exportName: 'SMOKE', obj: SMOKE, exclude: ['capacity'] },

@@ -9,8 +9,11 @@ export class PlayerController {
   /** World point under the crosshair, refreshed every render frame by the camera. */
   readonly aimPoint = { x: 0, y: 0, z: 0 };
   hasAim = false;
+  /** Lock-on target: strafe facing it, and aim at its chest. */
+  lockTarget: { x: number; y: number; z: number; aimHeight: number } | null = null;
+  private readonly lockAim = { x: 0, y: 0, z: 0 };
 
-  update(input: InputState, cameraYaw: number): MoveIntent {
+  update(input: InputState, cameraYaw: number, selfX = 0, selfZ = 0): MoveIntent {
     const f = Number(input.isDown('moveForward')) - Number(input.isDown('moveBack'));
     const r = Number(input.isDown('moveRight')) - Number(input.isDown('moveLeft'));
     // Camera yaw 0 looks toward -Z.
@@ -26,6 +29,8 @@ export class PlayerController {
     this.intent.x = x;
     this.intent.z = z;
     this.intent.sprint = input.isDown('sprint');
+    const lock = this.lockTarget;
+    this.intent.faceYaw = lock ? Math.atan2(lock.x - selfX, lock.z - selfZ) : null;
 
     const c = this.combat;
     c.claw = input.wasPressed('claw');
@@ -33,7 +38,14 @@ export class PlayerController {
     c.stomp = input.wasPressed('stomp');
     c.roar = input.wasPressed('roar');
     c.beamHeld = input.isDown('beam');
-    c.aim = this.hasAim ? this.aimPoint : null;
+    if (lock) {
+      this.lockAim.x = lock.x;
+      this.lockAim.y = lock.y + lock.aimHeight;
+      this.lockAim.z = lock.z;
+      c.aim = this.lockAim;
+    } else {
+      c.aim = this.hasAim ? this.aimPoint : null;
+    }
     return this.intent;
   }
 }
