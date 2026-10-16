@@ -6,12 +6,13 @@ import type { PhysicsSystem } from '../systems/PhysicsSystem';
 
 /**
  * Placeholder ground: a tiled plane with a 10 m grid (for reading scale) that
- * recenters on the player in whole-tile steps, plus one large static slab collider.
+ * recenters on the player in whole-tile steps, plus a recentering static slab collider.
  * The city replaces most of this visually in Milestone 3.
  */
 export class Ground {
   readonly mesh: THREE.Mesh;
   private readonly size: number;
+  private readonly body: RAPIER.RigidBody;
 
   constructor(scene: THREE.Scene, physics: PhysicsSystem, maxAnisotropy: number, drawDistance: number) {
     this.size = Math.ceil((drawDistance * 2.2) / ENV.groundTile) * ENV.groundTile;
@@ -29,8 +30,8 @@ export class Ground {
     scene.add(this.mesh);
 
     const h = WORLD.groundHalfSize;
-    const body = physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -5, 0));
-    physics.world.createCollider(RAPIER.ColliderDesc.cuboid(h, 5, h).setFriction(0.9), body);
+    this.body = physics.world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0, -5, 0));
+    physics.world.createCollider(RAPIER.ColliderDesc.cuboid(h, 5, h).setFriction(0.9), this.body);
   }
 
   follow(focus: THREE.Vector3): void {
@@ -40,6 +41,11 @@ export class Ground {
     if (x !== this.mesh.position.x || z !== this.mesh.position.z) {
       this.mesh.position.set(x, 0, z);
       this.mesh.updateMatrix();
+    }
+    // Recenter the physics slab well before the player nears its edge.
+    const t2 = this.body.translation();
+    if (Math.abs(focus.x - t2.x) > WORLD.groundHalfSize / 4 || Math.abs(focus.z - t2.z) > WORLD.groundHalfSize / 4) {
+      this.body.setTranslation({ x: x, y: -5, z: z }, false);
     }
   }
 

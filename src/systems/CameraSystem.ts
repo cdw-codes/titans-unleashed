@@ -1,33 +1,114 @@
 import * as THREE from 'three';
-import { CAMERA } from '../config/camera';
+import RAPIER from '@dimforge/rapier3d-compat';
+import { CAMERA, SHAKE } from '../config/camera';
 import { MOUSE } from '../config/input';
+import { clamp, damp } from '../core/math';
+import type { PhysicsSystem } from './PhysicsSystem';
+import { CameraShake } from './CameraShake';
+
+const _desired = new THREE.Vector3();
+const _dir = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _ray = { x: 0, y: 0, z: 0 };
+const _identity = { x: 0, y: 0, z: 0, w: 1 };
 
 /**
- * Basic third-person orbit around a follow target. Runs at render rate on
- * interpolated positions. Milestone 2 adds smoothing, collision avoidance and shake.
+ * Third-person orbit camera at render rate: mouse-driven yaw/pitch, lagged
+ * follow for weight, sphere-cast collision (snap in fast, ease out slowly),
+ * trauma shake + footstep kick, sprint FOV.
  */
 export class CameraSystem {
   /** 0 = camera at +Z of the target, looking toward -Z. */
   yaw = 0;
   pitch = CAMERA.initialPitch;
-  private readonly target = new THREE.Vector3();
+  readonly shake = new CameraShake(SHAKE);
+  /** Smoothed follow point (kaiju feet). */
+  readonly focus = new THREE.Vector3();
+  private readonly pivot = new THREE.Vector3();
+  private distance = CAMERA.distance;
+  private fovBoost = 0;
+  private initialized = false;
+  private readonly probe = new RAPIER.Ball(CAMERA.collisionRadius);
+  private exclude: RAPIER.RigidBody | undefined;
 
-  constructor(private readonly camera: THREE.PerspectiveCamera) {}
+  constructor(
+    private readonly camera: THREE.PerspectiveCamera,
+    private readonly physics: PhysicsSystem,
+  ) {}
+
+  /** The followed body is ignored by collision probes. */
+  setTarget(body: RAPIER.RigidBody, facingYaw: number): void {
+    this.exclude = body;
+    this.yaw = facingYaw + Math.PI;
+  }
 
   applyMouse(dx: number, dy: number): void {
     this.yaw -= dx * MOUSE.sensitivity;
     this.pitch += dy * MOUSE.sensitivity * (MOUSE.invertY ? -1 : 1);
-    this.pitch = THREE.MathUtils.clamp(this.pitch, CAMERA.minPitch, CAMERA.maxPitch);
+    this.pitch = clamp(this.pitch, CAMERA.minPitch, CAMERA.maxPitch);
   }
 
-  update(focus: THREE.Vector3): void {
-    this.target.set(focus.x, focus.y + CAMERA.targetHeight, focus.z);
+  update(target: THREE.Vector3, dt: number, sprintAmount: number): void {
+    const C = CAMERA;
+    if (!this.initialized) {
+      this.focus.copy(target);
+      this.initialized = true;
+    }
+    this.focus.x = damp(this.focus.x, target.x, C.followHalfLife, dt);
+    this.focus.z = damp(this.focus.z, target.z, C.followHalfLife, dt);
+    this.focus.y = damp(this.focus.y, target.y, C.followHalfLifeY, dt);
+
+    // Pivot above the kaiju, nudged to the camera's right.
+    _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    this.pivot.copy(this.focus).addScaledVector(_right, C.shoulderOffset);
+    this.pivot.y += C.pivotHeight;
+
     const cp = Math.cos(this.pitch);
-    this.camera.position.set(
-      this.target.x + Math.sin(this.yaw) * cp * CAMERA.distance,
-      Math.max(2, this.target.y + Math.sin(this.pitch) * CAMERA.distance),
-      this.target.z + Math.cos(this.yaw) * cp * CAMERA.distance,
+    _dir.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
+
+    // Collision: snap in immediately-ish, ease back out slowly.
+    const allowed = this.probeDistance(C.distance);
+    const halfLife = allowed < this.distance ? C.pullInHalfLife : C.easeOutHalfLife;
+    this.distance = damp(this.distance, allowed, halfLife, dt);
+
+    _desired.copy(this.pivot).addScaledVector(_dir, this.distance);
+    _desired.y = Math.max(_desired.y, this.focus.y + C.groundClearance);
+
+    this.shake.update(dt);
+    const o = this.shake.offset;
+    this.camera.position.copy(_desired).addScaledVector(_right, o.x);
+    this.camera.position.y += o.y;
+    this.camera.lookAt(this.pivot);
+    this.camera.rotateZ(o.roll);
+    this.camera.rotateY(o.yaw);
+    this.camera.rotateX(o.pitch);
+
+    this.fovBoost = damp(this.fovBoost, sprintAmount * C.sprintFovBoost, 0.6, dt);
+    const fov = C.fov + this.fovBoost;
+    if (Math.abs(this.camera.fov - fov) > 0.01) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  private probeDistance(max: number): number {
+    _ray.x = _dir.x;
+    _ray.y = _dir.y;
+    _ray.z = _dir.z;
+    const hit = this.physics.world.castShape(
+      this.pivot,
+      _identity,
+      _ray,
+      this.probe,
+      0,
+      max,
+      false,
+      RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC,
+      undefined,
+      undefined,
+      this.exclude,
     );
-    this.camera.lookAt(this.target);
+    if (!hit) return max;
+    return clamp(hit.time_of_impact - CAMERA.collisionMargin, CAMERA.minDistance, max);
   }
 }
