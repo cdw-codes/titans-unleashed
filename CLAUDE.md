@@ -42,10 +42,11 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   StateMachine, math (damp/Spring/noise), Random (seeded), settings
 - `src/world` — environment, ground, water; `city/` (CityGenerator → ChunkSpec data, ChunkManager
   streaming, CityPools, DestructionState); `materials/` (world-space window shader)
-- `src/entities` — `kaiju/` (Kaiju body, KaijuMotor, Gait, KaijuCombat, KaijuModel, PlayerController)
+- `src/entities` — `kaiju/` (Kaiju, KaijuSpec, KaijuMotor, Gait, KaijuCombat, KaijuModel, designs,
+  PlayerController); `rivals/` (RivalAI, rival specs)
 - `src/systems` — render, physics, camera, InstancePool, PhysicsInstances, Progress (score/energy),
   `destruction/` (gameplay, Collapse visuals, Debris pool, rules), `combat/` (CombatSystem, rules,
-  Health), `effects/` (dust/smoke/fire particles, BeamFx, ShockwaveFx)
+  Health, Projectiles), `encounters/` (EncounterSystem pure flow + EncounterDirector), `effects/`
 - `src/input` — InputState (pure, tested) + Input (DOM, pointer lock)
 - `src/ui` — HUD, menus, overlays, styles.css
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
@@ -57,8 +58,7 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 ## Architecture rules
 - Units: meters, seconds. Kaiju ≈ 100 m tall (`KAIJU_BODY.height`; model authored at 80 m and
   scaled, so foot offsets/dust use `kaiju.scale`). Real gravity (looks slow at this scale — good).
-- Kaiju bodies take a `MoveIntent` (world dir + sprint); player input and rival AI both just
-  produce intents. Footsteps are `kaiju:footstep` events; shake/dust/crushing subscribe.
+- Footsteps are `kaiju:footstep` events; shake/dust/crushing subscribe.
 - Rapier KCC gotchas: never push down while grounded (stalls horizontal motion; rely on
   snap-to-ground); keep static colliders a few km max (huge slabs break precision).
 - Placeholder kaiju = primitives rigidly skinned to bones, merged into ONE SkinnedMesh.
@@ -69,22 +69,25 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   stay deterministic — changing generator code reshuffles indices (fine pre-save-games).
 - Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops, crushed on
   contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
-- Combat: `KaijuCombat` (per kaiju, pure, tested) turns CombatInput into AttackEvents + a
-  movement allowance; `CombatSystem` resolves them against the world (and later other kaiju).
-  All damage to structures goes through `DestructionSystem.damage/crush`. Rivals reuse both.
+- Every kaiju (player or rival) is the same `Kaiju` class built from a `KaijuSpec` (body,
+  movement, gait, combat config, design). Controllers only produce MoveIntent + CombatInput:
+  PlayerController from input, RivalAI from perception. Never special-case rivals in Kaiju.
+- `KaijuCombat` (pure, tested) turns CombatInput into AttackEvents + a movement allowance;
+  `CombatSystem` resolves them against structures and all other kaiju. Structure damage goes
+  through `DestructionSystem.damage/crush` with `byPlayer` (only player kills score).
+- Rivals plow through buildings: their KCC ignores `GROUP.STRUCTURE` colliders and
+  DestructionSystem wrecks what they overlap. No pathfinding — keep it that way.
 - Bloom runs only on frames that request it (beam glow); HDR (>1) colors are for FX only.
 - Gameplay settles destruction at collapse START (persist, remove collider); CollapseSystem is
   visual-only at render rate and tolerates chunks unloading mid-collapse.
 - Fixed 60 Hz sim (`GameLoop` → `Game.fixedUpdate`) for physics + gameplay; render at display
   rate with interpolation (`alpha`). Anything moved in the sim stores prev/curr state and
   lerps in `render(alpha)`. Camera/visual-only effects run at render rate.
-- Input presses/releases are buffered until a sim tick consumes them (`InputState.endTick`).
-  UI toggles (F1) use `Input.onImmediateAction`.
+- Input presses are buffered until a sim tick consumes them; UI toggles use `onImmediateAction`.
 - Plain classes + systems, no ECS. Systems talk via typed `EventBus` (`core/events.ts`).
-- Kaiju (player and rivals) use explicit state machines: idle, walk, sprint, attack, stomp,
-  beam-charge, beam-fire, roar, stagger, knockdown, defeated.
-- Rival AI: small readable decision system with tunable aggression / reaction delay /
-  preferred range. No ML.
+- Kaiju states: idle, walk, sprint, attack, stomp, beamCharge, beamFire, roar, stagger,
+  knockdown, defeated. Rival AI: small readable decision system (aggression, reaction delay,
+  preferred range), no ML.
 - All gameplay values in typed `src/config` files; bindings only in `config/input.ts`.
 - Debug (F1): overlay stats, collider wireframes, chunk grid; gameplay code draws hitboxes
   via `debug.draw` and AI labels via `debug.label()` — both are no-ops when debug is off.
@@ -118,14 +121,14 @@ hold E charge beam / release fire · R roar · Q or MMB lock-on · F1 debug.
 8. Perf + ship — profiling per preset, loading screen, key remapping, prod build, static-host deploy
 
 ## Current status
-**Milestone 4 done — awaiting playtest/go-ahead for Milestone 5.**
+**Milestone 5 done — awaiting playtest/go-ahead for Milestone 6.**
 
-Done: M1 foundation · M2 kaiju + heavy camera · M3 streamed destructible city · M4 combat
-(claw/tail/stomp/beam/roar, health/poise/reactions, bloom beam, HUD, respawn).
+Done: M1 foundation · M2 kaiju + heavy camera · M3 streamed destructible city · M4 combat ·
+M5 rival encounters (Thornmaw brawler, Vesperion ranged, AI, barrier, lock-on, boss HUD).
 
-Next (M5): rival kaiju = `Kaiju` + AI controller producing MoveIntent/CombatInput; extend
-CombatSystem to hit kaiju (beam raycast vs kaiju colliders, arcs vs positions); `kaiju:roar`
-stun; encounter trigger + barrier arena; lock-on camera; victory/defeat flow.
+Next (M6): military (pooled tanks/helicopters escalating with destruction, attacking via the
+same CombatSystem/ProjectileSystem paths) and upgrades granted on `victory` (health, beam
+power, charge speed, new move) — apply as modifiers on the player's spec/configs.
 
 Known issues:
 - Rapier compat bundle is ~1.7 MB gzip (base64 wasm). Revisit in M8 (non-compat build
@@ -148,4 +151,6 @@ Decisions:
   not RAM).
 - Movement is facing-based (tank-like): the body turns toward the wished direction at a
   limited rate and withholds speed while misaligned. Lock-on strafing comes in M5.
-- Defeat (M5): show a defeat screen with a Respawn option; no game-over/run reset for now.
+- Defeat: defeat screen with Respawn (in place, full health); no game-over/run reset.
+- Audio deferred to M7 (user declined placeholder audio).
+- Tuning: ship genre-typical defaults; the user tunes from player feedback later.
