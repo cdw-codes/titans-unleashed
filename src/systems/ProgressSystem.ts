@@ -8,6 +8,11 @@ export class ProgressSystem {
   destroyed = 0;
   /** Upgrade multiplier on energy gained from destruction. */
   energyMultiplier = 1;
+  /** Run stats. */
+  unitsDestroyed = 0;
+  rivalsDefeated = 0;
+  time = 0;
+  threatPeak = 0;
 
   constructor(private readonly cfg: DestructionConfig) {}
 

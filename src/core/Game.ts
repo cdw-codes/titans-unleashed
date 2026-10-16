@@ -30,7 +30,6 @@ import { CollapseSystem } from '../systems/destruction/CollapseSystem';
 import { DestructionSystem } from '../systems/destruction/DestructionSystem';
 import { ProgressSystem } from '../systems/ProgressSystem';
 import { Hud } from '../ui/Hud';
-import { DefeatOverlay } from '../ui/DefeatOverlay';
 import { CombatSystem } from '../systems/combat/CombatSystem';
 import { BeamFx } from '../systems/effects/BeamFx';
 import { ShockwaveFx } from '../systems/effects/ShockwaveFx';
@@ -47,6 +46,8 @@ import { Threat } from '../systems/military/Threat';
 import { modifiersFor, rollChoices } from '../systems/progression/Upgrades';
 import { ThreatHud } from '../ui/ThreatHud';
 import { EvolutionOverlay } from '../ui/EvolutionOverlay';
+import { AudioSystem } from '../systems/audio/AudioSystem';
+import { AudioDirector } from '../systems/audio/AudioDirector';
 
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
@@ -55,7 +56,7 @@ import { Kaiju } from '../entities/kaiju/Kaiju';
 import { PlayerController } from '../entities/kaiju/PlayerController';
 import { DebugSystem } from '../debug/DebugSystem';
 import { TestCrates } from '../debug/TestCrates';
-import { PauseOverlay } from '../ui/PauseOverlay';
+import { GameOverScreen, PauseMenu, TitleScreen, type RunStats } from '../ui/menus';
 import { Crosshair } from '../ui/Crosshair';
 
 /** Composition root: builds systems, owns the update order. */
@@ -88,9 +89,13 @@ export class Game {
   readonly threat = new Threat(MILITARY.threat);
   private readonly threatHud: ThreatHud;
   private readonly evolution: EvolutionOverlay;
+  readonly audio = new AudioSystem();
+  private readonly audioDirector: AudioDirector;
   /** Upgrades owned this session (count per id). */
   readonly upgrades: Partial<Record<UpgradeId, number>> = {};
-  private readonly defeatOverlay: DefeatOverlay;
+  private readonly gameOver: GameOverScreen;
+  private readonly title: TitleScreen;
+  private started = false;
   private lastReactionT = 0;
   private readonly hudState = {
     score: 0, energy: 0, health: 1, charge: 0,
@@ -104,7 +109,7 @@ export class Game {
   private readonly collapse: CollapseSystem;
   private readonly destruction: DestructionSystem;
   private readonly crates: TestCrates;
-  private readonly pauseOverlay: PauseOverlay;
+  private readonly pauseMenu: PauseMenu;
   private readonly crosshair: Crosshair;
   private readonly hud: Hud;
   private readonly frameInfo = {
@@ -157,8 +162,18 @@ export class Game {
     this.debug = new DebugSystem(scene, this.render.renderer, this.render.camera, physics, uiRoot);
     this.crosshair = new Crosshair(uiRoot);
     this.hud = new Hud(uiRoot);
-    this.pauseOverlay = new PauseOverlay(uiRoot, () => void this.input.requestLock());
-    this.defeatOverlay = new DefeatOverlay(uiRoot, () => this.respawn());
+    const resume = () => {
+      this.audio.unlock();
+      void this.input.requestLock();
+    };
+    const newGame = () => location.reload();
+    this.pauseMenu = new PauseMenu(uiRoot, resume, newGame);
+    this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
+    this.title = new TitleScreen(uiRoot, () => {
+      this.started = true;
+      this.title.visible = false;
+      resume();
+    });
 
     this.loop = new GameLoop({
       fixedUpdate: (dt) => this.fixedUpdate(dt),
@@ -174,7 +189,10 @@ export class Game {
       hitPause: (s) => this.loop.hitStop(s),
       addTrauma: (a) => this.camera.shake.addTrauma(a),
       addKick: (v) => this.camera.shake.addKick(v),
-      playerHurt: (amount) => this.hud.flashDamage(amount),
+      playerHurt: (amount) => {
+        this.hud.flashDamage(amount);
+        this.events.emit('player:damaged', { amount });
+      },
     });
     this.projectiles = new ProjectileSystem(scene, physics, this.chunks, this.destruction, this.fire, this.plasmaTrail, this.combatSystem.onProjectileHit);
     this.combatSystem.projectiles = this.projectiles;
@@ -202,6 +220,7 @@ export class Game {
       unitDestroyed: (kind) => {
         const c = kind === 'tank' ? MILITARY.tank : MILITARY.heli;
         this.progress.score += c.points;
+        this.progress.unitsDestroyed++;
         this.progress.gainEnergy(c.energy);
         this.threat.addDestruction(c.points);
         if (kind === 'heli') this.camera.shake.addTrauma(0.15);
@@ -209,7 +228,16 @@ export class Game {
       explosion: (x, z, size) => {
         const k = this.proximity(x, z, 400);
         this.camera.shake.addTrauma(0.3 * size * k * k);
+        this.events.emit('fx:explosion', { x, y: 0, z, size });
       },
+      fired: (kind, x, y, z) => this.events.emit('military:fire', { kind, x, y, z }),
+    });
+    this.audioDirector = new AudioDirector(this.audio, this.events, {
+      player: this.player,
+      camera: this.render.camera,
+      inEncounter: () => this.director.encounter.phase === 'approaching' || this.director.encounter.phase === 'arena',
+      threatLevel: () => this.threat.level,
+      heliPositions: (out) => this.military.heliPositions(out),
     });
     this.combatSystem.military = this.military;
     this.threatHud = new ThreatHud(uiRoot);
@@ -218,6 +246,9 @@ export class Game {
       if (!e.byPlayer) return;
       this.progress.onDestroyed(e.points, e.size);
       this.threat.addDestruction(e.points);
+    });
+    this.events.on('encounter:event', (e) => {
+      if (e.type === 'victory') this.progress.rivalsDefeated++;
     });
     this.events.on('combat:impact', (e) => {
       if (e.move === 'pulse') {
@@ -254,7 +285,10 @@ export class Game {
     this.input.onImmediateAction((action) => {
       if (action === 'debug') this.events.emit('debug:toggle', { enabled: this.debug.toggle() });
     });
-    this.render.canvas.addEventListener('click', () => void this.input.requestLock());
+    this.render.canvas.addEventListener('click', () => {
+      if (!this.started) return;
+      resume();
+    });
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) this.setPaused(true);
     });
@@ -311,6 +345,11 @@ export class Game {
     return Math.max(0, 1 - Math.hypot(c.x - x, c.z - z) / range);
   }
 
+  private runStats(): RunStats {
+    const p = this.progress;
+    return { score: p.score, structures: p.destroyed, units: p.unitsDestroyed, rivals: p.rivalsDefeated, time: p.time, threatPeak: p.threatPeak };
+  }
+
   /** After a victory: pick 1 of 3 upgrades. The game pauses while choosing. */
   offerEvolution(): void {
     const ids = rollChoices(this.upgrades, UPGRADE_CHOICES, Math.random);
@@ -363,7 +402,7 @@ export class Game {
     this.player.combat.respawn();
     // A fresh start: the military loses track of you.
     this.threat.heat = 0;
-    this.defeatOverlay.visible = false;
+    this.gameOver.visible = false;
     void this.input.requestLock();
   }
 
@@ -374,9 +413,13 @@ export class Game {
   private setPaused(paused: boolean): void {
     // Pause = pointer not locked. Rendering continues so the dev GUI stays live.
     this.loop.paused = paused;
-    this.pauseOverlay.visible = paused && !this.defeatOverlay.isVisible && !this.evolution.isVisible;
+    const showPause = paused && this.started && !this.gameOver.isVisible && !this.evolution.isVisible;
+    if (showPause) this.pauseMenu.show(this.runStats());
+    else this.pauseMenu.visible = false;
     this.crosshair.visible = !paused;
     this.hud.visible = !paused;
+    this.threatHud.visible = !paused;
+    this.audio.setPaused(paused);
     this.events.emit('game:pause', { paused });
   }
 
@@ -395,10 +438,13 @@ export class Game {
     for (const ex of this.projectiles.explosions) {
       const k = this.proximity(ex.x, ex.z, 500);
       this.camera.shake.addTrauma(0.35 * k * k);
+      this.events.emit('fx:explosion', { x: ex.x, y: ex.y, z: ex.z, size: 0.6 });
     }
     this.destruction.tick(dt);
     for (const k of kaijus) this.destruction.fixedUpdate(dt, k);
     this.threat.update(dt);
+    this.progress.time += dt;
+    this.progress.threatPeak = Math.max(this.progress.threatPeak, this.threat.level);
     this.military.fixedUpdate(dt, this.player, this.threat.level, this.director.encounter.phase !== 'roaming');
     this.military.crushAt(p.x, p.z, this.player.spec.body.capsuleRadius * DESTRUCTION.bodyCrushRadiusScale);
     this.director.fixedUpdateEncounter(dt);
@@ -441,6 +487,7 @@ export class Game {
     this.chunks.update(focus.x, focus.z, QUALITY_PRESETS[this.qualityLevel].drawDistance);
     this.cityPools.flush();
     this.updateHud();
+    this.audioDirector.update();
 
     const info = this.frameInfo;
     info.frameMs = frameDelta * 1000;
@@ -513,8 +560,8 @@ export class Game {
       this.camera.shake.addKick(20);
     }
     this.lastReactionT = down ? a.t : 0;
-    if (a.kind === 'defeated' && a.t > 1.5 && !this.defeatOverlay.isVisible) {
-      this.defeatOverlay.visible = true;
+    if (a.kind === 'defeated' && a.t > 1.5 && !this.gameOver.isVisible) {
+      this.gameOver.show(this.runStats());
       document.exitPointerLock();
     }
   }
