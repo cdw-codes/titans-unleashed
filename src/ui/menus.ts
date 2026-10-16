@@ -14,8 +14,8 @@ const CONTROLS = [
   ['Space', 'Stomp'], ['Hold E', 'Charge & fire beam'], ['R', 'Roar'], ['F', 'Atomic Pulse (evolve)'], ['Q / MMB', 'Lock on'],
 ];
 
-/** Required attributions (CC-BY). Everything else is CC0; see docs/ASSETS.md. */
-const CREDITS = 'Helicopter: "Attack Chopper" by Geibu3D (CC-BY 4.0) · All other assets CC0';
+/** All third-party assets are CC0 (no attribution required); see docs/ASSETS.md. */
+const CREDITS = 'Assets: Kenney, Quaternius and OpenGameArt contributors (CC0)';
 
 function controlsHtml(): string {
   return `<dl class="menu-controls">${CONTROLS.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
