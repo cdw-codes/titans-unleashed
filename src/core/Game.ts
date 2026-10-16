@@ -48,6 +48,7 @@ import { ThreatHud } from '../ui/ThreatHud';
 import { EvolutionOverlay } from '../ui/EvolutionOverlay';
 import { AudioSystem } from '../systems/audio/AudioSystem';
 import { AudioDirector } from '../systems/audio/AudioDirector';
+import { Minimap } from '../ui/Minimap';
 
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
@@ -91,6 +92,7 @@ export class Game {
   private readonly evolution: EvolutionOverlay;
   readonly audio = new AudioSystem();
   private readonly audioDirector: AudioDirector;
+  private readonly minimap: Minimap;
   /** Upgrades owned this session (count per id). */
   readonly upgrades: Partial<Record<UpgradeId, number>> = {};
   private readonly gameOver: GameOverScreen;
@@ -241,6 +243,7 @@ export class Game {
     });
     this.combatSystem.military = this.military;
     this.threatHud = new ThreatHud(uiRoot);
+    this.minimap = new Minimap(uiRoot);
     this.evolution = new EvolutionOverlay(uiRoot);
     this.events.on('structure:destroyed', (e) => {
       if (!e.byPlayer) return;
@@ -345,6 +348,22 @@ export class Game {
     return Math.max(0, 1 - Math.hypot(c.x - x, c.z - z) / range);
   }
 
+  private updateMinimap(dt: number): void {
+    const r = this.director.rival?.kaiju;
+    const a = this.director.encounter.arena;
+    this.minimap.update(dt, {
+      playerX: this.player.renderPosition.x,
+      playerZ: this.player.renderPosition.z,
+      cameraYaw: this.camera.yaw,
+      chunks: this.chunks.chunks.values(),
+      coastX: CITY.coastX,
+      pitch: CITY.blockSize + CITY.streetWidth,
+      rival: r && r.state !== 'defeated' ? { x: r.renderPosition.x, z: r.renderPosition.z, yaw: r.yaw } : null,
+      arena: a.active ? a : null,
+      units: (cb) => this.military.forEachUnit(cb),
+    });
+  }
+
   private runStats(): RunStats {
     const p = this.progress;
     return { score: p.score, structures: p.destroyed, units: p.unitsDestroyed, rivals: p.rivalsDefeated, time: p.time, threatPeak: p.threatPeak };
@@ -419,6 +438,7 @@ export class Game {
     this.crosshair.visible = !paused;
     this.hud.visible = !paused;
     this.threatHud.visible = !paused;
+    this.minimap.visible = !paused;
     this.audio.setPaused(paused);
     this.events.emit('game:pause', { paused });
   }
@@ -487,6 +507,7 @@ export class Game {
     this.chunks.update(focus.x, focus.z, QUALITY_PRESETS[this.qualityLevel].drawDistance);
     this.cityPools.flush();
     this.updateHud();
+    this.updateMinimap(visualDt);
     this.audioDirector.update();
 
     const info = this.frameInfo;

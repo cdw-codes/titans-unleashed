@@ -508,6 +508,12 @@ export class MilitarySystem {
     for (const m of [this.hull, this.turret, this.heliBody, this.heliRotor, this.tracers]) m.instanceMatrix.needsUpdate = true;
   }
 
+  /** Visit every unit's ground position (minimap). */
+  forEachUnit(cb: (kind: UnitKind, x: number, z: number) => void): void {
+    for (const t of this.tanks) cb('tank', t.x, t.z);
+    for (const h of this.helis) if (!h.falling) cb('heli', h.x, h.z);
+  }
+
   /** Flying helicopters (for rotor audio). */
   heliPositions(out: { x: number; y: number; z: number }[]): number {
     let n = 0;
