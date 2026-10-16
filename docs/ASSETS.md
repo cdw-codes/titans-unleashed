@@ -4,8 +4,18 @@ Everything below was checked on the source page on 2026-10-16. Put each download
 `assets-src/` (zips as-is). Raw files stay out of git; the processed, compressed versions go
 to `public/` and are committed.
 
-Decisions: kaiju, rivals and buildings stay code-built (original designs, true scale,
-~25 draw calls for the city). Downloaded models replace cars, tanks and the helicopter.
+Decisions: kaiju, rivals, buildings and the helicopter stay code-built (original designs,
+true scale, ~25 draw calls for the city). Downloaded models replace cars and tanks.
+
+**Pipeline:** put downloads in `assets-src/`, run `npm run assets`. The script
+(`tools/build-assets.mjs`) holds the exact file lists: cars are merged into one meshopt +
+WebP `cars.glb` (simplified), tanks compressed, sounds copied, big WAVs downmixed to mono
+(no ffmpeg here — installing it would allow proper OGG encoding). Sound ids → files live
+in `src/config/audio.ts`; model files in `src/config/models.ts`.
+
+**Status (2026-10-16):** all items below are in use except the Attack Chopper (not
+downloaded; the code-built gunship stays, so no CC-BY credit is needed) and the second
+Poly Pizza "tank" (it is a walker/fuel-tank shape).
 
 ## Models
 | ✔ | Asset | Download from | License | Used for |
@@ -37,6 +47,5 @@ CC0) as roaming music. It is a 19 MB WAV, so it needs `ffmpeg` to convert (`brew
 
 Skipped on purpose: packs shipped as `.7z` (no 7-Zip on this machine) and FBX-only packs.
 
-## Credits (shown in game)
-- "Attack Chopper" by Geibu3D, CC-BY 4.0 — https://opengameart.org/content/attack-chopper
-- All other assets are CC0 (no attribution required); listed above for reference.
+## Credits
+All assets in use are CC0 (no attribution required). The menus carry a short courtesy line.

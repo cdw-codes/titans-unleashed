@@ -53,7 +53,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
 - `src/debug` — F1 debug system, DebugDraw, DebugLabels, dev GUI + tunables registry, test tools
 - `tools` — dev-only Node code: Vite tuning-save plugin + config source patcher (tested)
-- `src/assets` — asset loading (M7)
+- `src/assets` — ModelLibrary (glTF load + bake for instancing, fallbacks); `public/` holds
+  processed assets; `assets-src/` raw downloads (git-ignored)
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
 
 ## Architecture rules
@@ -102,11 +103,9 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   stable 30 on an integrated-GPU laptop at "medium". Presets low/medium/high in
   `config/quality.ts` stay internal (no player setting); `?quality=` overrides for testing.
 - City streams in chunks around the player; fog hides the edge (fog end = draw distance).
-- InstancedMesh for anything repeated. Watch draw calls in F1 overlay.
-- Buildings are static colliders until destroyed → pooled debris bodies under a hard global
-  cap → static rubble or fade. No runtime mesh fracturing.
-- Pool debris, particles, projectiles, military units. No per-frame allocations in hot paths
-  (reuse module-level temp vectors).
+- InstancedMesh/BatchedMesh for anything repeated; watch draw calls + tris in F1.
+- Destroyed buildings → pooled capped debris → rubble; no runtime fracturing. Pool debris,
+  particles, projectiles, units. No per-frame allocations in hot paths.
 - Exactly one shadow-casting light (sun); its frustum follows the player, texel-snapped.
 - Post-processing only where it earns its cost (beam bloom); off on low.
 
@@ -121,24 +120,25 @@ hold E charge beam / release fire · R roar · F Atomic Pulse (unlock) · Q or M
 8. Perf + ship — profiling per preset, loading screen, key remapping, prod build, static-host deploy
 
 ## Current status
-**Milestone 7 in progress — waiting for the user to download assets (docs/ASSETS.md).**
+**Milestone 7 done — awaiting playtest/go-ahead for Milestone 8.**
 
 Done: M1 foundation · M2 kaiju + heavy camera · M3 streamed destructible city · M4 combat ·
 M5 rival encounters · M6 military (threat stars, tanks, helicopters) + evolution upgrades,
 Atomic Pulse, health regen.
 
-M7 so far: AudioSystem + AudioDirector (silent until files exist), title/pause/game-over
-screens with run stats, minimap, credits line. Next: process `assets-src/` downloads →
-compressed `public/audio` + `public/models` (gltf-transform: meshopt + WebP), fill
-`config/audio.ts` file lists, glTF loader with code-built fallbacks for cars/tanks/helicopter.
+M7: spatial audio (AudioSystem/AudioDirector, real CC0 sounds + music), title/pause/
+game-over screens, minimap, asset pipeline (`npm run assets`, docs/ASSETS.md), Kenney cars
+(BatchedMesh, culled at 320 m) and Quaternius tank models with code-built fallbacks.
+
+Next (M8): profile each preset (target 30 FPS integrated GPU), loading screen (preload city +
+assets, replace the blocking build), key remapping UI over `config/input.ts`, production
+build, deploy to a free static host. Consider ffmpeg OGG encoding / Safari audio formats.
 
 Known issues:
 - Rapier compat bundle ~1.7 MB gzip (base64 wasm); M8 may switch builds (needs a plugin: ask).
 - Camera can still clip into towers in dense downtown (occluder fading not built).
-- Global pools draw every loaded instance (~550k tris at medium); levers: draw distance,
-  propRadius, shadow casting of small pools.
-- Initial city build is blocking (loading screen in M8); big dust puffs cost overdraw.
-- Beam range is capped by `CITY.physicsRadius` (no colliders beyond; tested).
+- ~630k tris at medium (pools draw every loaded instance); levers: draw distance,
+  propRadius, carDrawDistance, small-pool shadows. Initial city build blocks (M8 loader).
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
 
 Decisions:
@@ -150,6 +150,7 @@ Decisions:
   street intersection, 5 s invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
 - Audio deferred to M7 (user declined placeholder audio).
 - Tuning: ship genre-typical defaults; the user tunes from player feedback later.
-- Art: kaiju, rivals and buildings stay code-built; downloaded models only for cars, tanks,
-  helicopter (CC-BY Attack Chopper: credit in menus). Compression: meshopt + WebP (no
-  Draco/KTX2 decoder files). Beam = hold to charge/fire, release cancels.
+- Art: kaiju, rivals, buildings, helicopter stay code-built (kaiju anim = procedural skeletal
+  with blended layers); downloaded CC0 models for cars and tanks only. Compression: meshopt
+  + WebP (no Draco/KTX2 decoders). Thousands of small props: simplify, no shadows, cull by
+  distance. Beam = hold to charge/fire, release cancels.
