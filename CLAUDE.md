@@ -33,9 +33,10 @@ Three.js (WebGLRenderer) · TypeScript strict (TS 7) · Vite 8 · Rapier
 lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | typecheck`.
 
 ## Folder structure
-- `src/core` — Game (composition root + update order), GameLoop, FixedStepper, EventBus, events, settings
+- `src/core` — Game (composition root + update order), GameLoop, FixedStepper, EventBus, events,
+  StateMachine, math (damp/Spring/noise), Random (seeded), settings
 - `src/world` — environment (sky/sun/fog), ground, chunks, city generation
-- `src/entities` — kaiju, rivals, military, vehicles
+- `src/entities` — `kaiju/` (Kaiju body, KaijuMotor, Gait, KaijuModel, PlayerController), rivals, military
 - `src/systems` — render, physics, camera, combat, destruction, encounters, spawning, audio
 - `src/input` — InputState (pure, tested) + Input (DOM, pointer lock)
 - `src/ui` — HUD, menus, overlays, styles.css
@@ -46,6 +47,12 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 
 ## Architecture rules
 - Units: meters, seconds. Kaiju ≈ 80 m tall; real gravity (looks slow at this scale — good).
+- Kaiju bodies take a `MoveIntent` (world dir + sprint); player input and rival AI both just
+  produce intents. Footsteps are `kaiju:footstep` events; shake/dust/crushing subscribe.
+- Rapier KCC gotchas: never push down while grounded (stalls horizontal motion; rely on
+  snap-to-ground); keep static colliders a few km max (huge slabs break precision).
+- Placeholder kaiju = primitives rigidly skinned to bones, merged into ONE SkinnedMesh.
+  Keep that pattern (1 draw call) until M7 swaps in authored models.
 - Fixed 60 Hz sim (`GameLoop` → `Game.fixedUpdate`) for physics + gameplay; render at display
   rate with interpolation (`alpha`). Anything moved in the sim stores prev/curr state and
   lerps in `render(alpha)`. Camera/visual-only effects run at render rate.
@@ -88,25 +95,32 @@ hold E charge beam / release fire · R roar · Q or MMB lock-on · F1 debug.
 8. Perf + ship — profiling per preset, loading screen, key remapping, prod build, static-host deploy
 
 ## Current status
-**Milestone 1 done — awaiting playtest/go-ahead for Milestone 2.**
+**Milestone 2 done — awaiting playtest/go-ahead for Milestone 3.**
 
-Done: tooling; FixedStepper/GameLoop; RenderSystem; Environment (sky dome, sun with
-following snapped shadow, hemi fill, fog); recentering grid ground + slab collider; static
-instanced reference blocks; PhysicsInstances (interpolated instanced bodies, debris base);
-Input + pause overlay; F1 debug; dev GUI; DevProxy capsule + basic orbit camera.
+Done (M1): tooling, fixed-step loop, renderer/sky/sun/fog, recentering ground + slab,
+PhysicsInstances (interpolated instanced bodies = debris base), input + pause, F1 debug.
+Done (M2): Kaiju (motor, gait, KCC, footstep events, locomotion states), skinned primitive
+model with procedural animation, heavy camera (lag, collision, shake, kick, sprint FOV),
+crosshair, pooled DustSystem, `world/TestArea` (seeded grid, windowed building material),
+dev GUI live-tuning folders (kaiju, footsteps, camera).
 
-Next (M2): replace `entities/DevProxy` and `systems/CameraSystem` with the kaiju, Rapier
-KCC, smoothed camera with collision, footstep shake + dust; delete `debug/TestCrates`
-usage from Game once debris exists (keep the tool).
+Next (M3): replace `world/TestArea` with chunk-streamed districts reusing its layout code
+and `materials/buildingMaterial`; destructible buildings + debris on PhysicsInstances;
+crushing via `kaiju:footstep`.
 
 Known issues:
 - Rapier compat bundle is ~1.7 MB gzip (base64 wasm). Revisit in M8 (non-compat build
   with a separate .wasm needs a Vite wasm plugin → ask before adding).
-- DevProxy has no collision (walks through blocks) — intentional, M2 replaces it.
+- Houses, trees, cars have no colliders yet (kaiju walks through); M3 crushes them.
+- Camera collision clamps at minDistance; inside very dense towers it can still clip.
+  Fallback planned: fade occluding buildings (M3, needs per-instance opacity).
 - Changing quality to/from "low" toggles MSAA, which only applies after reload.
 
 Decisions:
 - 1 unit = 1 m; kaiju ≈ 80 m; real gravity for heavy-feeling debris.
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
 - F1 debug ships in production builds (needed for M8 perf checks); lil-gui is dev-only.
-- Quality precedence: `?quality=` URL param > saved choice > medium.
+- Quality precedence: `?quality=` URL param > saved choice > medium (no GPU auto-detect).
+- Movement is facing-based (tank-like): the body turns toward the wished direction at a
+  limited rate and withholds speed while misaligned. Lock-on strafing comes in M5.
+- Defeat flow (restart encounter vs game over) still open — decide in M5.
