@@ -44,6 +44,8 @@ export interface CityConfig {
   // Streaming
   /** Small props (cars, trees, containers) only exist within this radius (m). */
   readonly propRadius: number;
+  /** Model cars are drawn only within this radius (m); beyond it they are a few pixels. */
+  readonly carDrawDistance: number;
   /** Building colliders only exist within this radius (m). */
   readonly physicsRadius: number;
   /** Chunk loads per frame (spreads generation cost). */
@@ -79,6 +81,7 @@ export const CITY: CityConfig = {
   carDensity: { downtown: 5, fringe: 4, suburbs: 2, industrial: 1.5, docks: 1 },
 
   propRadius: 800,
+  carDrawDistance: 320,
   physicsRadius: 650,
   chunkLoadsPerFrame: 3,
   unloadHysteresis: 1,

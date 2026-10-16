@@ -27,10 +27,13 @@ const need = (f) => {
 export const CARS = ['sedan', 'sedan-sports', 'hatchback-sports', 'suv', 'suv-luxury', 'taxi', 'police', 'van', 'delivery', 'truck', 'ambulance', 'firetruck', 'garbage-truck'];
 const merged = join(TMP, 'cars-merged.glb');
 gt('merge', ...CARS.map((c) => need(`${c}.glb`)), merged);
-gt('optimize', merged, join(MODELS, 'cars.glb'), '--compress', 'meshopt', '--texture-compress', 'webp', '--simplify', 'false', '--join', 'false', '--instance', 'false', '--flatten', 'false', '--palette', 'false');
+// Cars are a few meters long next to a 100 m kaiju and there are thousands of them:
+// simplify hard (~2000 → a few hundred triangles each).
+gt('optimize', merged, join(MODELS, 'cars.glb'), '--compress', 'meshopt', '--texture-compress', 'webp', '--simplify', 'true', '--simplify-ratio', '0.15', '--simplify-error', '0.08', '--join', 'false', '--instance', 'false', '--flatten', 'false', '--palette', 'false');
 console.log('models: cars.glb');
 
-const TANKS = { 'tank-a.glb': 'Tank by Quaternius - Dc4k4CooN3.glb', 'tank-b.glb': 'Tank by Quaternius - j59k7ctnZM.glb' };
+// The second Poly Pizza "Tank" (j59k7ctnZM) turned out to be a walker/fuel-tank shape: not used.
+const TANKS = { 'tank-a.glb': 'Tank by Quaternius - Dc4k4CooN3.glb' };
 for (const [out, src] of Object.entries(TANKS)) {
   gt('optimize', need(src), join(MODELS, out), '--compress', 'meshopt', '--simplify', 'false', '--palette', 'false');
   console.log(`models: ${out}`);

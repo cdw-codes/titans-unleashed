@@ -49,6 +49,7 @@ import { EvolutionOverlay } from '../ui/EvolutionOverlay';
 import { AudioSystem } from '../systems/audio/AudioSystem';
 import { AudioDirector } from '../systems/audio/AudioDirector';
 import { Minimap } from '../ui/Minimap';
+import { loadModels, type LoadedModels } from '../assets/ModelLibrary';
 
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
@@ -128,7 +129,7 @@ export class Game {
     ],
   };
 
-  private constructor(container: HTMLElement, private readonly physics: PhysicsSystem) {
+  private constructor(container: HTMLElement, private readonly physics: PhysicsSystem, models: LoadedModels) {
     this.qualityLevel = loadQualityLevel();
     const preset = QUALITY_PRESETS[this.qualityLevel];
 
@@ -142,7 +143,7 @@ export class Game {
     this.environment = new Environment(scene, preset);
     this.ground = new Ground(scene, physics, this.render.renderer.capabilities.getMaxAnisotropy(), preset.drawDistance);
     this.water = new Water(scene, preset.drawDistance);
-    this.cityPools = new CityPools(scene);
+    this.cityPools = new CityPools(scene, models);
     this.chunks = new ChunkManager(CITY, new CityGenerator(CITY), this.cityPools, physics, new DestructionState());
     this.crates = new TestCrates(scene, physics);
     this.debris = new DebrisSystem(scene, physics, preset.debrisCap);
@@ -233,7 +234,7 @@ export class Game {
         this.events.emit('fx:explosion', { x, y: 0, z, size });
       },
       fired: (kind, x, y, z) => this.events.emit('military:fire', { kind, x, y, z }),
-    });
+    }, models.tanks);
     this.audioDirector = new AudioDirector(this.audio, this.events, {
       player: this.player,
       camera: this.render.camera,
@@ -301,8 +302,8 @@ export class Game {
   }
 
   static async create(container: HTMLElement): Promise<Game> {
-    const physics = await PhysicsSystem.create(1 / SIM.tickRate);
-    return new Game(container, physics);
+    const [physics, models] = await Promise.all([PhysicsSystem.create(1 / SIM.tickRate), loadModels()]);
+    return new Game(container, physics, models);
   }
 
   start(): void {
@@ -505,6 +506,7 @@ export class Game {
     this.ground.follow(focus);
     this.water.follow(focus);
     this.chunks.update(focus.x, focus.z, QUALITY_PRESETS[this.qualityLevel].drawDistance);
+    this.cityPools.cull(focus.x, focus.z, CITY.carDrawDistance, Math.max(visualDt, 1 / 60));
     this.cityPools.flush();
     this.updateHud();
     this.updateMinimap(visualDt);

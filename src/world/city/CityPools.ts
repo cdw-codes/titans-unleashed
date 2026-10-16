@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { InstancePool } from '../../systems/InstancePool';
+import { BatchedPool } from '../../systems/BatchedPool';
+import type { LoadedModels } from '../../assets/ModelLibrary';
 import { createBuildingMaterial } from '../materials/buildingMaterial';
 import type { PartSpec, PoolId } from './types';
 
@@ -13,11 +15,30 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 export type CityPoolId = PoolId | 'rubble';
 
+/** Common surface of InstancePool and BatchedPool. */
+export interface InstanceSink {
+  readonly used: number;
+  add(matrix: THREE.Matrix4, color: THREE.Color, variant?: number): number;
+  remove(slot: number): void;
+  setMatrix(slot: number, m: THREE.Matrix4): void;
+  getMatrix(slot: number, out: THREE.Matrix4): THREE.Matrix4;
+  setColor(slot: number, c: THREE.Color): void;
+  getColor(slot: number, out: THREE.Color): THREE.Color;
+  flush(): void;
+}
+
+/** Height (m) of generated car parts; model cars scale height relative to it (wrecks are flatter). */
+const CAR_HEIGHT = 1.6;
+const _white = new THREE.Color(1, 1, 1);
+const _wreck = new THREE.Color(0.38, 0.36, 0.34);
+
 /** One shared instanced pool per city part type (~8 draw calls for the whole city). */
 export class CityPools {
-  readonly pools: Record<CityPoolId, InstancePool>;
+  readonly pools: Record<CityPoolId, InstanceSink>;
+  /** Downloaded car models (one draw call for all variants), or null → code-built boxes. */
+  private readonly carModels: BatchedPool | null;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, models?: LoadedModels) {
     const box = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
     const lambert = (opts: THREE.MeshLambertMaterialParameters = {}) => new THREE.MeshLambertMaterial({ color: 0xffffff, ...opts });
 
@@ -51,7 +72,9 @@ export class CityPools {
       roof: new InstancePool(scene, roof, lambert({ flatShading: true }), 6000),
       cylinder: new InstancePool(scene, new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0), lambert(), 1000),
       tree: new InstancePool(scene, tree, lambert({ vertexColors: true, flatShading: true }), 6000),
-      car: new InstancePool(scene, car, lambert(), 4000),
+      car: models?.cars
+        ? new BatchedPool(scene, models.cars.geometries, models.cars.material, 4000, false)
+        : new InstancePool(scene, car, lambert(), 4000),
       flat: new InstancePool(
         scene,
         flat,
@@ -61,14 +84,32 @@ export class CityPools {
       ),
       rubble: new InstancePool(scene, rubble, lambert({ flatShading: true }), 1000),
     };
+    this.carModels = this.pools.car instanceof BatchedPool ? this.pools.car : null;
   }
 
   addPart(p: PartSpec): number {
+    if (p.pool === 'car' && this.carModels) {
+      // Uniform scale by length (no stretching), flattened for wrecks; texture colors kept.
+      const wreck = p.sy < CAR_HEIGHT * 0.99;
+      _q.setFromAxisAngle(UP, p.rotY);
+      _m.compose(_p.set(p.x, p.y, p.z), _q, _s.set(p.sz, p.sz * (p.sy / CAR_HEIGHT), p.sz));
+      return this.carModels.add(_m, wreck ? _wreck : _white, variantFor(p.x, p.z));
+    }
     return this.pools[p.pool].add(partMatrix(p, _m), _c.setHex(p.color));
   }
 
   removePart(pool: CityPoolId, slot: number): void {
     this.pools[pool].remove(slot);
+  }
+
+  private cullTimer = 0;
+
+  /** Distance-cull model cars (cheap, a few times per second). */
+  cull(x: number, z: number, radius: number, dt: number): void {
+    this.cullTimer -= dt;
+    if (!this.carModels || this.cullTimer > 0) return;
+    this.cullTimer = 0.25;
+    this.carModels.cullBeyond(x, z, radius);
   }
 
   flush(): void {
@@ -85,6 +126,12 @@ export function partMatrix(p: PartSpec, out: THREE.Matrix4): THREE.Matrix4 {
   _p.set(p.x, p.y, p.z);
   _s.set(p.sx, p.sy, p.sz);
   return out.compose(_p, _q, _s);
+}
+
+/** Deterministic car model choice from position (same car after chunk reloads). */
+function variantFor(x: number, z: number): number {
+  const h = Math.sin(x * 12.9898 + z * 78.233) * 43758.5453;
+  return Math.floor((h - Math.floor(h)) * 1e6);
 }
 
 function paint(g: THREE.BufferGeometry, hex: number): void {
