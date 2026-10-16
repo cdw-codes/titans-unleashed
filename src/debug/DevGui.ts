@@ -18,6 +18,10 @@ export async function createDevGui(game: Game): Promise<GUI> {
   const state = {
     quality: game.qualityLevel,
     spawnCrates: () => game.spawnTestCrates(25),
+    hurt: () => game.hurtPlayer(60),
+    heavy: () => game.hurtPlayer(300),
+    kill: () => game.hurtPlayer(1e6),
+    energy: () => game.fillEnergy(),
   };
   gui.add(state, 'quality', QUALITY_LEVELS).name('Quality preset').onChange((v: typeof state.quality) => game.setQuality(v));
   gui.add(game.loop, 'timeScale', 0.05, 2, 0.05).name('Time scale');
@@ -25,6 +29,10 @@ export async function createDevGui(game: Game): Promise<GUI> {
   dbg.add(game.debug, 'showColliders').name('Colliders');
   dbg.add(game.debug, 'showChunks').name('Chunk grid');
   dbg.add(state, 'spawnCrates').name('Drop 25 crates');
+  dbg.add(state, 'energy').name('Fill energy');
+  dbg.add(state, 'hurt').name('Hit player (60)');
+  dbg.add(state, 'heavy').name('Heavy hit (knockdown)');
+  dbg.add(state, 'kill').name('Defeat player');
 
   createTuning(gui, game);
   return gui;

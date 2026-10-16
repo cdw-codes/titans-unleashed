@@ -7,11 +7,14 @@ import { wrapAngle } from '../../core/math';
 import type { GameEventBus } from '../../core/events';
 import type { PhysicsSystem } from '../../systems/PhysicsSystem';
 import { Gait } from './Gait';
-import { KaijuModel, MODEL_DESIGN_HEIGHT } from './KaijuModel';
+import { KaijuModel, MODEL_DESIGN_HEIGHT, MOUTH_DESIGN } from './KaijuModel';
+import { KaijuCombat, type CombatInput, type EnergyPool } from './KaijuCombat';
 import { KaijuMotor, type MoveIntent } from './KaijuMotor';
 import { locomotionState, type KaijuState } from './locomotion';
 
 const _desired = { x: 0, y: 0, z: 0 };
+const _scaledIntent: MoveIntent = { x: 0, z: 0, sprint: false };
+const NO_COMBAT: CombatInput = { claw: false, tail: false, stomp: false, roar: false, beamHeld: false, aim: null };
 
 /**
  * A kaiju body: motor + gait + state machine in the fixed tick, Rapier
@@ -23,6 +26,7 @@ export class Kaiju {
   readonly motor = new KaijuMotor(KAIJU_MOVEMENT);
   readonly gait = new Gait(KAIJU_GAIT);
   readonly fsm: StateMachine<KaijuState, Kaiju>;
+  readonly combat: KaijuCombat;
   /** Feet position (sim). */
   readonly position = new THREE.Vector3();
   readonly renderPosition = new THREE.Vector3();
@@ -48,6 +52,7 @@ export class Kaiju {
     private readonly events: GameEventBus,
     spawn: THREE.Vector3,
     readonly isPlayer: boolean,
+    energy: EnergyPool,
   ) {
     const { capsuleHalfHeight: hh, capsuleRadius: r } = KAIJU_BODY;
     this.centerOffset = hh + r;
@@ -70,6 +75,22 @@ export class Kaiju {
     
     this.model.object.scale.setScalar(this.scale);
     this.fsm = new StateMachine<KaijuState, Kaiju>('idle', {}, this);
+    const kaiju = this;
+    this.combat = new KaijuCombat(
+      {
+        position: this.position,
+        get yaw() {
+          return kaiju.motor.yaw;
+        },
+        mouthHeight: MOUTH_DESIGN.height * this.scale,
+        mouthForward: MOUTH_DESIGN.forward * this.scale,
+        get state() {
+          return kaiju.fsm.state;
+        },
+        setState: (s) => this.fsm.transition(s),
+      },
+      energy,
+    );
   }
 
   get state(): KaijuState {
@@ -80,12 +101,17 @@ export class Kaiju {
     return this.motor.yaw;
   }
 
-  fixedUpdate(dt: number, intent: MoveIntent): void {
+  fixedUpdate(dt: number, intent: MoveIntent, combatInput: CombatInput = NO_COMBAT): void {
     this.prevPosition.copy(this.position);
     this.prevYaw = this.motor.yaw;
     this.time += dt;
 
-    this.motor.update(intent, dt);
+    const allow = this.combat.update(dt, combatInput);
+    _scaledIntent.x = intent.x * allow.moveMultiplier;
+    _scaledIntent.z = intent.z * allow.moveMultiplier;
+    _scaledIntent.sprint = intent.sprint && allow.moveMultiplier >= 1;
+    this.motor.update(_scaledIntent, dt, allow.turnMultiplier);
+    if (allow.faceYaw !== null) this.motor.faceToward(allow.faceYaw, allow.faceRate, dt);
 
     // Gravity only while airborne. Pushing down while grounded makes Rapier's KCC
     // stall horizontally; snap-to-ground keeps us glued on the way down instead.
@@ -151,6 +177,8 @@ export class Kaiju {
       strideAngle: Math.asin(Math.min(0.8, stride / 4 / (this.model.legLength * this.scale))),
       time: this.time,
       dt: frameDt,
+      action: this.combat.action,
+      beamPitch: Math.asin(this.combat.beamDir.y),
     });
   }
 

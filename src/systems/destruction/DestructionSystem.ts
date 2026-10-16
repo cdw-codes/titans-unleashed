@@ -72,7 +72,8 @@ export class DestructionSystem {
     });
   }
 
-  private damage(s: Structure, amount: number, fromX: number, fromZ: number): void {
+  /** Damage a large structure; collapses it at 0 HP. Used by contact, footsteps and combat. */
+  damage(s: Structure, amount: number, fromX: number, fromZ: number): void {
     s.hp -= amount;
     this.recentlyDamaged.add(s);
     if (s.hp > 0) {
@@ -87,7 +88,8 @@ export class DestructionSystem {
     this.emitDestroyed(s);
   }
 
-  private crush(s: Structure): void {
+  /** Instantly destroy a small structure or prop. */
+  crush(s: Structure): void {
     const st = s.spec;
     this.chunks.destroyInstant(s);
     if (st.size === 'small') {
@@ -100,7 +102,7 @@ export class DestructionSystem {
   }
 
   /** Small debris knocked off a structure's face toward the kaiju. */
-  private chip(s: Structure, fromX: number, fromZ: number, count: number): void {
+  chip(s: Structure, fromX: number, fromZ: number, count: number): void {
     const st = s.spec;
     const dx = fromX - st.x;
     const dz = fromZ - st.z;

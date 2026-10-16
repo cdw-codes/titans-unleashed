@@ -105,6 +105,77 @@ export const DUST: DustConfig = {
   maxBurstScale: 2.5,
 };
 
+export interface FireConfig {
+  readonly capacity: number;
+  readonly color: number;
+  readonly drag: number;
+  readonly additive: boolean;
+  readonly brightness: number;
+  /** Burst at the beam impact point, repeated every `interval` seconds while firing. */
+  readonly beamImpact: DustBurstConfig;
+  readonly interval: number;
+}
+
+export interface ShockwaveConfig {
+  /** Seconds for a ring to expand to its full radius. */
+  readonly duration: number;
+  readonly stompColor: number;
+  readonly stompOpacity: number;
+  readonly roarColor: number;
+  readonly roarOpacity: number;
+  /** Roar ring radius (m); visual only (stun radius is in combat config). */
+  readonly roarRadius: number;
+}
+
+export interface BeamVisualConfig {
+  /** Radii (m, at kaiju scale 1) of the hot core and the soft outer sheath. */
+  readonly coreRadius: number;
+  readonly glowRadius: number;
+  /** Mouth flare size (m) when idle-charged and at full charge. */
+  readonly mouthFlareMin: number;
+  readonly mouthFlareMax: number;
+  readonly impactFlareSize: number;
+}
+
+export const BEAM_VISUAL: BeamVisualConfig = {
+  coreRadius: 3.5,
+  glowRadius: 11,
+  mouthFlareMin: 6,
+  mouthFlareMax: 32,
+  impactFlareSize: 70,
+};
+
+export const FIRE: FireConfig = {
+  capacity: 300,
+  color: 0xff8a3a,
+  drag: 0.5,
+  additive: true,
+  brightness: 3,
+  beamImpact: {
+    count: 6,
+    ringRadius: 3,
+    speedMin: 8,
+    speedMax: 22,
+    riseMin: 6,
+    riseMax: 16,
+    sizeStart: 8,
+    sizeEnd: 30,
+    lifeMin: 0.45,
+    lifeMax: 0.9,
+    opacity: 0.9,
+  },
+  interval: 0.06,
+};
+
+export const SHOCKWAVE: ShockwaveConfig = {
+  duration: 0.7,
+  stompColor: 0xc9bca3,
+  stompOpacity: 0.55,
+  roarColor: 0xcfe9ff,
+  roarOpacity: 0.35,
+  roarRadius: 400,
+};
+
 export const SMOKE: SmokeConfig = {
   capacity: 300,
   color: 0x4f4b47,

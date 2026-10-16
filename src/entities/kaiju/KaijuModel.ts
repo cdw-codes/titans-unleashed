@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { clamp, damp, noise1D, TAU } from '../../core/math';
+import { clamp, damp, lerp, noise1D, TAU } from '../../core/math';
+import { COMBAT } from '../../config/combat';
+import type { CombatAction } from './KaijuCombat';
 
 /**
  * Placeholder kaiju built from low-poly primitives, rigidly skinned to a bone
@@ -26,6 +28,8 @@ type BoneName =
 
 /** Height the primitives are authored at; the entity scales the model to KAIJU_BODY.height. */
 export const MODEL_DESIGN_HEIGHT = 80;
+/** Approximate mouth position in the bind pose (design units), for sim-side beam origins. */
+export const MOUTH_DESIGN = { height: 77, forward: 33 };
 
 const TAIL_SEGMENTS = 7;
 const TAIL_STEP = new THREE.Vector3(0, -3.8, -9.5);
@@ -44,6 +48,25 @@ export interface KaijuPoseInput {
   strideAngle: number;
   time: number;
   dt: number;
+  /** Current combat action (attack, beam, reaction); locomotion states are ignored. */
+  action: CombatAction;
+  /** Beam pitch (rad, + = up) for aiming the head while firing. */
+  beamPitch: number;
+}
+
+const easeOut = (t: number) => 1 - (1 - t) * (1 - t);
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
+const smooth01 = (t: number) => easeInOut(clamp(t, 0, 1));
+
+/**
+ * Envelope for a windup/active/recovery move: returns [phase, local progress 0..1].
+ * Overlays interpolate between key poses per phase and return to 0 by the end.
+ */
+function movePhases(t: number, m: { windup: number; active: number; recovery: number }): ['windup' | 'active' | 'recovery' | 'done', number] {
+  if (t < m.windup) return ['windup', t / m.windup];
+  if (t < m.windup + m.active) return ['active', (t - m.windup) / m.active];
+  if (t < m.windup + m.active + m.recovery) return ['recovery', (t - m.windup - m.active) / m.recovery];
+  return ['done', 1];
 }
 
 const _m = new THREE.Matrix4();
@@ -61,6 +84,8 @@ export class KaijuModel {
     uGlowIntensity: { value: 1 },
   };
 
+  /** Follows the snout tip; read its world position for beam visuals. */
+  readonly mouth = new THREE.Object3D();
   private readonly bones = new Map<BoneName, THREE.Bone>();
   private readonly bindPos = new Map<BoneName, THREE.Vector3>();
   private readonly parts: THREE.BufferGeometry[] = [];
@@ -80,6 +105,8 @@ export class KaijuModel {
     this.mesh.add(root);
     this.mesh.updateMatrixWorld(true);
     this.mesh.bind(new THREE.Skeleton([...this.bones.values()]));
+    this.mouth.position.set(0, 0.5, 15);
+    this.bone('head').add(this.mouth);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
     this.mesh.frustumCulled = false; // the player is always in view; avoids per-frame skinned bounds
@@ -137,8 +164,157 @@ export class KaijuModel {
       t.rotation.x = 0.035 * this.sprintBlend + 0.015 * m * Math.cos(2 * th - i * 0.5);
     }
 
-    // Plates pulse faintly (beam charge drives this hard in Milestone 4).
+    // Plates pulse faintly at rest; the beam drives them hard.
     this.glowUniforms.uGlowIntensity.value = 0.9 + 0.25 * Math.sin(p.time * 2.2);
+    this.bone('root').rotation.set(0, 0, 0);
+    this.poseAction(p);
+  }
+
+  /** Additive overlays for combat actions and hit reactions, applied after the locomotion pose. */
+  private poseAction(p: KaijuPoseInput): void {
+    const a = p.action;
+    const b = (n: BoneName) => this.bone(n);
+    const t = a.t;
+    switch (a.kind) {
+      case 'attack':
+        return this.isTail(a) ? this.poseTail(t) : this.poseClaw(t, a.side);
+      case 'stomp':
+        return this.poseStomp(t);
+      case 'roar': {
+        const r = COMBAT.roar;
+        const k = smooth01(t / 0.35) * (1 - smooth01((t - (r.duration - 0.45)) / 0.45));
+        const shake = 0.04 * Math.sin(t * 38) * k;
+        b('neck').rotation.x -= 0.55 * k;
+        b('head').rotation.x -= 0.45 * k + shake;
+        b('jaw').rotation.x += 0.75 * k;
+        b('spine').rotation.x -= 0.18 * k;
+        b('chest').rotation.x -= 0.1 * k;
+        for (const [side, sgn] of [['L', 1], ['R', -1]] as const) {
+          b(`upperArm${side}`).rotation.z += 0.7 * k * sgn;
+          b(`upperArm${side}`).rotation.x -= 0.6 * k;
+        }
+        for (let i = 0; i < 7; i++) b(`tail${i}`).rotation.x += 0.03 * k;
+        return;
+      }
+      case 'beamCharge': {
+        const c = a.charge;
+        b('pelvis').position.y -= 2.5 * c;
+        b('spine').rotation.x += 0.15 * c;
+        b('head').rotation.x += 0.12 * c;
+        b('jaw').rotation.x += 0.15 * c + 0.02 * Math.sin(p.time * 30) * c;
+        for (let i = 0; i < 7; i++) b(`tail${i}`).rotation.x += 0.025 * c;
+        this.glowUniforms.uGlowIntensity.value = lerp(1, COMBAT.beam.glowCharged, c * c) * (0.92 + 0.08 * Math.sin(p.time * 25));
+        return;
+      }
+      case 'beamFire': {
+        const k = a.charge;
+        b('spine').rotation.x += 0.2 * k;
+        b('pelvis').position.y -= 2 * k;
+        // Aim the head along the beam; positive x pitches the snout down.
+        const aim = clamp(-p.beamPitch, -0.6, 0.9) * k;
+        b('neck').rotation.x += aim * 0.45 + 0.02 * Math.sin(t * 43) * k;
+        b('head').rotation.x += aim * 0.45;
+        b('jaw').rotation.x += 0.6 * k;
+        this.glowUniforms.uGlowIntensity.value = COMBAT.beam.glowCharged * (0.85 + 0.15 * Math.sin(p.time * 40)) * Math.max(0.15, k);
+        return;
+      }
+      case 'stagger': {
+        const k = 1 - smooth01(t / COMBAT.health.staggerSeconds);
+        b('spine').rotation.x -= 0.35 * k;
+        b('head').rotation.x -= 0.3 * k;
+        b('pelvis').rotation.z += 0.08 * Math.sin(t * 30) * k;
+        b('upperArmL').rotation.z += 0.4 * k;
+        b('upperArmR').rotation.z -= 0.4 * k;
+        return;
+      }
+      case 'knockdown':
+      case 'defeated': {
+        const total = a.kind === 'defeated' ? Infinity : COMBAT.health.knockdownSeconds;
+        const fall = Math.min(1, t / 0.55);
+        const rise = 1 - smooth01((t - (total - 1.2)) / 1.2);
+        const k = fall * fall * rise; // accelerating fall, eased get-up
+        b('root').rotation.x = -1.35 * k;
+        b('spine').rotation.x -= 0.2 * k;
+        b('neck').rotation.x += 0.3 * k;
+        for (const [side, sgn] of [['L', 1], ['R', -1]] as const) b(`upperArm${side}`).rotation.z += 0.6 * k * sgn;
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  private isTail(a: CombatAction): boolean {
+    return a.move === 'tail';
+  }
+
+  private poseClaw(t: number, side: 1 | -1): void {
+    const [ph, u] = movePhases(t, COMBAT.claw);
+    const arm = side === 1 ? 'L' : 'R';
+    // Key poses: [raise, out, twist, forearm].
+    const wind = [-1.3, 0.9, 0.35, -0.3];
+    const strike = [-0.8, -0.8, -0.45, 0.2];
+    let k: number[];
+    if (ph === 'windup') k = wind.map((v) => v * easeOut(u));
+    else if (ph === 'active') k = wind.map((v, i) => lerp(v, strike[i]!, easeOut(u)));
+    else if (ph === 'recovery') k = strike.map((v) => v * (1 - smooth01(u)));
+    else return;
+    const b = (n: BoneName) => this.bone(n);
+    b(`upperArm${arm}`).rotation.x += k[0]!;
+    b(`upperArm${arm}`).rotation.z += k[1]! * side;
+    b(`forearm${arm}`).rotation.x += k[3]!;
+    b('spine').rotation.y += k[2]! * side;
+    b('chest').rotation.y += k[2]! * side * 0.6;
+    b('head').rotation.y -= k[2]! * side * 0.5;
+  }
+
+  private poseTail(t: number): void {
+    const [ph, u] = movePhases(t, COMBAT.tail);
+    // Coil one way, then whip the body and tail through a wide arc.
+    let twist: number;
+    let whip: number;
+    if (ph === 'windup') {
+      twist = 0.45 * easeOut(u);
+      whip = 0.3 * easeOut(u);
+    } else if (ph === 'active') {
+      const e = easeOut(u);
+      twist = lerp(0.45, -0.95, e);
+      whip = lerp(0.3, -0.75, e);
+    } else if (ph === 'recovery') {
+      const e = 1 - smooth01(u);
+      twist = -0.95 * e;
+      whip = -0.75 * e;
+    } else return;
+    const b = (n: BoneName) => this.bone(n);
+    b('pelvis').rotation.y += twist * 0.6;
+    b('spine').rotation.y += twist * 0.4;
+    b('chest').rotation.y += twist * 0.2;
+    b('head').rotation.y -= twist * 0.5;
+    for (let i = 0; i < 7; i++) {
+      // Later segments lag: the whip cracks at the tip.
+      b(`tail${i}`).rotation.y += whip * (0.4 + i * 0.12);
+      b(`tail${i}`).rotation.x += 0.04 * Math.abs(whip);
+    }
+  }
+
+  private poseStomp(t: number): void {
+    const [ph, u] = movePhases(t, COMBAT.stomp);
+    // [thigh, shin, pelvisY, spineX, arms]
+    const lift = [-1.15, 1.25, 2.5, -0.12, -0.5];
+    const slam = [0.12, 0.05, -4.5, 0.28, 0.2];
+    let k: number[];
+    if (ph === 'windup') k = lift.map((v) => v * easeOut(u));
+    else if (ph === 'active') k = lift.map((v, i) => lerp(v, slam[i]!, u * u));
+    else if (ph === 'recovery') k = slam.map((v) => v * (1 - smooth01(u)));
+    else return;
+    const b = (n: BoneName) => this.bone(n);
+    b('thighR').rotation.x += k[0]!;
+    b('shinR').rotation.x += k[1]!;
+    b('footR').rotation.x -= k[0]! + k[1]!;
+    b('pelvis').position.y += k[2]!;
+    b('spine').rotation.x += k[3]!;
+    b('upperArmL').rotation.x += k[4]!;
+    b('upperArmR').rotation.x += k[4]!;
   }
 
   private poseLeg(side: 'L' | 'R', th: number, A: number, m: number): void {

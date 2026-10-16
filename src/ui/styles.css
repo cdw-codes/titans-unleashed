@@ -142,3 +142,96 @@ html, body {
   background: linear-gradient(90deg, #2bb6e8, #8ff1ff);
   box-shadow: 0 0 8px #58d8ff;
 }
+
+.crosshair.charging {
+  border-color: transparent;
+  background:
+    radial-gradient(closest-side, transparent 72%, rgba(0, 0, 0, 0) 73%),
+    conic-gradient(#8ff1ff calc(var(--charge) * 360deg), rgba(255, 255, 255, 0.25) 0);
+  -webkit-mask: radial-gradient(closest-side, transparent 70%, #000 72%);
+  mask: radial-gradient(closest-side, transparent 70%, #000 72%);
+  box-shadow: 0 0 calc(var(--charge) * 14px) #58d8ff;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+}
+
+.hud-bar-fill.health {
+  background: linear-gradient(90deg, #c8402c, #ff7a52);
+}
+.hud-bar-fill.health.low {
+  animation: hud-pulse 0.6s ease-in-out infinite alternate;
+}
+@keyframes hud-pulse {
+  to { filter: brightness(1.6); }
+}
+
+.hud-abilities {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.hud-ability {
+  position: relative;
+  width: 52px;
+  height: 44px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.hud-ability.unusable {
+  opacity: 0.45;
+}
+.hud-ability-cd {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  transform-origin: bottom;
+  transform: scaleY(0);
+}
+.hud-ability-key {
+  position: relative;
+  font-size: 10px;
+  opacity: 0.7;
+}
+.hud-ability-name {
+  position: relative;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.defeat-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(60, 8, 4, 0.55);
+  color: var(--ui-fg);
+  pointer-events: auto;
+  transition: opacity 0.4s;
+}
+.defeat-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.defeat-respawn {
+  margin: 8px 0 16px;
+  padding: 12px 36px;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #1a0f0c;
+  background: var(--ui-accent);
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.defeat-respawn:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 2px;
+}

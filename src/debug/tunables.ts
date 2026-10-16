@@ -1,7 +1,9 @@
 import { KAIJU_BODY, KAIJU_CONTROLLER, KAIJU_FEEDBACK, KAIJU_GAIT, KAIJU_MOVEMENT } from '../config/kaiju';
 import { CAMERA, SHAKE } from '../config/camera';
 import { MOUSE } from '../config/input';
-import { DUST, SMOKE } from '../config/effects';
+import { BEAM_VISUAL, DUST, FIRE, SHOCKWAVE, SMOKE } from '../config/effects';
+import { COMBAT } from '../config/combat';
+import { POSTFX } from '../config/postfx';
 import { DESTRUCTION } from '../config/destruction';
 import { CITY } from '../config/city';
 import { ENVIRONMENT } from '../config/environment';
@@ -41,6 +43,11 @@ export const TUNABLES: Tunable[] = [
   },
   { folder: 'Camera shake', file: 'camera.ts', exportName: 'SHAKE', obj: SHAKE },
   { folder: 'Mouse', file: 'input.ts', exportName: 'MOUSE', obj: MOUSE, ranges: { sensitivity: [0.0002, 0.01, 0.0001] } },
+  { folder: 'Combat', file: 'combat.ts', exportName: 'COMBAT', obj: COMBAT },
+  { folder: 'Beam visual', file: 'effects.ts', exportName: 'BEAM_VISUAL', obj: BEAM_VISUAL },
+  { folder: 'Beam fire', file: 'effects.ts', exportName: 'FIRE', obj: FIRE, exclude: ['capacity', 'brightness'] },
+  { folder: 'Shockwaves', file: 'effects.ts', exportName: 'SHOCKWAVE', obj: SHOCKWAVE },
+  { folder: 'Bloom', file: 'postfx.ts', exportName: 'POSTFX', obj: POSTFX, reloadOnly: true, ranges: { bloomThreshold: [0, 3, 0.05] } },
   { folder: 'Destruction', file: 'destruction.ts', exportName: 'DESTRUCTION', obj: DESTRUCTION },
   { folder: 'Dust', file: 'effects.ts', exportName: 'DUST', obj: DUST, exclude: ['capacity'] },
   { folder: 'Smoke', file: 'effects.ts', exportName: 'SMOKE', obj: SMOKE, exclude: ['capacity'] },

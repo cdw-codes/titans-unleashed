@@ -162,7 +162,7 @@ export const COMBAT: CombatConfig = {
     recovery: 0.6,
     cooldown: 1.5,
     traumaPerSecond: 0.9,
-    glowCharged: 7,
+    glowCharged: 4,
   },
   roar: {
     duration: 2.2,

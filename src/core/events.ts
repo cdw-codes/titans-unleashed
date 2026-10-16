@@ -14,6 +14,12 @@ export interface GameEvents {
     /** Body size relative to the model's design height; scales dust and impact effects. */
     scale: number;
   };
+  /** An area attack landed (sim tick). `hits` = structures/kaiju affected. */
+  'combat:impact': { move: 'claw' | 'tail' | 'stomp'; x: number; z: number; yaw: number; radius: number; hits: number; isPlayer: boolean };
+  /** A roar went off: stuns enemies in radius (M5+), drives shake and the shockwave visual. */
+  'kaiju:roar': { x: number; z: number; radius: number; stunSeconds: number; isPlayer: boolean };
+  /** A kaiju reacted to a hit. */
+  'kaiju:hurt': { reaction: 'stagger' | 'knockdown' | 'defeated'; isPlayer: boolean; x: number; z: number };
   /** A structure was destroyed (crushed instantly or started collapsing). */
   'structure:destroyed': { kind: StructureKind; size: SizeClass; x: number; z: number; height: number; points: number };
 }

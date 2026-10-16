@@ -6,6 +6,10 @@ export interface ParticleConfig {
   readonly capacity: number;
   readonly color: number;
   readonly drag: number;
+  /** Additive blending (fire, sparks) instead of normal alpha (dust, smoke). */
+  readonly additive?: boolean;
+  /** Color multiplier; > 1 pushes additive particles into bloom. */
+  readonly brightness?: number;
 }
 
 /**
@@ -160,7 +164,7 @@ export class DustSystem {
     return new THREE.ShaderMaterial({
       uniforms: THREE.UniformsUtils.merge([
         THREE.UniformsLib.fog,
-        { uColor: { value: new THREE.Color(this.cfg.color) } },
+        { uColor: { value: new THREE.Color(this.cfg.color).multiplyScalar(this.cfg.brightness ?? 1) } },
       ]),
       vertexShader: /* glsl */ `
         attribute vec3 aOffset;
@@ -203,6 +207,7 @@ export class DustSystem {
       transparent: true,
       depthWrite: false,
       fog: true,
+      blending: this.cfg.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
     });
   }
 }
