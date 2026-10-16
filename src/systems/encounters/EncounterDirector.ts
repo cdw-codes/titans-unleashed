@@ -237,6 +237,15 @@ export class EncounterDirector {
 
   private handle(a: EncounterAction): void {
     const hud = this.d.hud;
+    const p = this.d.player.position;
+    const types: Record<EncounterAction['type'], 'warn' | 'spawn' | 'barrier' | 'victory' | 'playerDefeated' | 'end' | null> = {
+      warn: 'warn', tremor: null, spawn: 'spawn', barrierUp: 'barrier', victory: 'victory', playerDefeated: 'playerDefeated', end: 'end',
+    };
+    const t = types[a.type];
+    if (t) {
+      const far = a.type === 'warn' ? { x: p.x + a.dirX * 950, z: p.z + a.dirZ * 950 } : 'x' in a ? { x: a.x, z: a.z } : p;
+      this.d.events.emit('encounter:event', { type: t, x: far.x, z: far.z });
+    }
     switch (a.type) {
       case 'warn': {
         hud.showBanner('SEISMIC ACTIVITY DETECTED', 'warning', ENCOUNTERS.warningSeconds - 1);

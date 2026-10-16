@@ -44,8 +44,10 @@ export interface MilitaryCallbacks {
   hitPlayer(damage: number, poiseDamage: number): void;
   /** The player destroyed a unit (score, energy, heat). */
   unitDestroyed(kind: UnitKind, x: number, z: number): void;
-  /** Something blew up nearby (camera feedback). */
+  /** Something blew up nearby (camera feedback, audio). */
   explosion(x: number, z: number, size: number): void;
+  /** A unit fired (audio). */
+  fired(kind: UnitKind, x: number, y: number, z: number): void;
 }
 
 const _ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
@@ -241,6 +243,7 @@ export class MilitarySystem {
       const mx2 = t.x + Math.sin(t.turret) * len * 0.75;
       const mz2 = t.z + Math.cos(t.turret) * len * 0.75;
       this.fireAt('tank', mx2, len * 0.34, mz2, player, accuracy, c.spread, c.shellSpeed);
+      this.cb.fired('tank', mx2, len * 0.34, mz2);
       this.fire.burst(mx2, len * 0.34, mz2, MUZZLE, 1);
       this.dust.burst(t.x, 0, t.z, DUST.crush, 0.5);
     }
@@ -312,6 +315,7 @@ export class MilitarySystem {
         const ox = h.x + Math.cos(h.yaw) * side;
         const oz = h.z - Math.sin(h.yaw) * side;
         this.fireAt('heli', ox, h.y, oz, player, accuracy, c.spread, c.rocketSpeed);
+        this.cb.fired('heli', ox, h.y, oz);
         this.fire.burst(ox, h.y, oz, MUZZLE, 0.8);
       }
     }
@@ -502,6 +506,20 @@ export class MilitarySystem {
     this.tracers.count = this.shots.length;
 
     for (const m of [this.hull, this.turret, this.heliBody, this.heliRotor, this.tracers]) m.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Flying helicopters (for rotor audio). */
+  heliPositions(out: { x: number; y: number; z: number }[]): number {
+    let n = 0;
+    for (const h of this.helis) {
+      if (h.falling) continue;
+      const o = out[n] ?? (out[n] = { x: 0, y: 0, z: 0 });
+      o.x = h.x;
+      o.y = h.y;
+      o.z = h.z;
+      n++;
+    }
+    return n;
   }
 
   /** Debug: drop everything. */

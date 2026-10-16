@@ -21,6 +21,14 @@ export interface GameEvents {
   'kaiju:roar': { x: number; z: number; radius: number; stunSeconds: number; isPlayer: boolean };
   /** A kaiju reacted to a hit. */
   'kaiju:hurt': { reaction: 'stagger' | 'knockdown' | 'defeated'; isPlayer: boolean; x: number; z: number };
+  /** Encounter beats (for audio and UI). Position is where it happens (or the player). */
+  'encounter:event': { type: 'warn' | 'spawn' | 'barrier' | 'victory' | 'playerDefeated' | 'end'; x: number; z: number };
+  /** A military unit fired. */
+  'military:fire': { kind: 'tank' | 'heli'; x: number; y: number; z: number };
+  /** Something exploded (shell, rocket, plasma orb, crashing helicopter). size ~0..1. */
+  'fx:explosion': { x: number; y: number; z: number; size: number };
+  /** The player lost health. */
+  'player:damaged': { amount: number };
   /** A structure was destroyed (crushed instantly or started collapsing). */
   'structure:destroyed': { kind: StructureKind; size: SizeClass; x: number; z: number; height: number; points: number; byPlayer: boolean };
 }
