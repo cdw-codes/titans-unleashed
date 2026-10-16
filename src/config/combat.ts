@@ -110,6 +110,9 @@ export interface HealthConfig {
   readonly getUpInvulnerable: number;
   /** Invulnerability after respawning (falls back to getUpInvulnerable). */
   readonly respawnInvulnerable?: number;
+  /** Out-of-combat regen: starts after `regenDelay` s without being hit. */
+  readonly regenDelay?: number;
+  readonly regenPerSecond?: number;
 }
 
 export interface CombatConfig {
@@ -224,6 +227,8 @@ export const COMBAT: CombatConfig = {
     knockdownSeconds: 2.6,
     getUpInvulnerable: 1,
     respawnInvulnerable: 5,
+    regenDelay: 8,
+    regenPerSecond: 20,
   },
   inputBuffer: 0.3,
 };

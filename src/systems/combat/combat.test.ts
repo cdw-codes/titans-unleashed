@@ -104,6 +104,25 @@ describe('Health', () => {
     expect(h.hit(10)).toBe('none');
   });
 
+  it('regenerates health only after a quiet period', () => {
+    const h = new Health(COMBAT.health);
+    h.hit(200);
+    h.update(COMBAT.health.regenDelay! - 1);
+    expect(h.health).toBe(COMBAT.health.maxHealth - 200);
+    h.update(2);
+    expect(h.health).toBeGreaterThan(COMBAT.health.maxHealth - 200);
+    h.update(100);
+    expect(h.health).toBe(COMBAT.health.maxHealth);
+  });
+
+  it('max-health upgrades raise the cap and heal by the gain', () => {
+    const h = new Health(COMBAT.health);
+    h.hit(100);
+    h.setMaxMultiplier(1.25);
+    expect(h.max).toBe(COMBAT.health.maxHealth * 1.25);
+    expect(h.health).toBe(COMBAT.health.maxHealth * 1.25 - 100);
+  });
+
   it('ignores hits while invulnerable and regenerates poise', () => {
     const h = new Health(COMBAT.health);
     h.makeInvulnerable(1);
