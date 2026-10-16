@@ -14,6 +14,9 @@ const CONTROLS = [
   ['Space', 'Stomp'], ['Hold E', 'Charge & fire beam'], ['R', 'Roar'], ['F', 'Atomic Pulse (evolve)'], ['Q / MMB', 'Lock on'],
 ];
 
+/** Required attributions (CC-BY). Everything else is CC0; see docs/ASSETS.md. */
+const CREDITS = 'Helicopter: "Attack Chopper" by Geibu3D (CC-BY 4.0) · All other assets CC0';
+
 function controlsHtml(): string {
   return `<dl class="menu-controls">${CONTROLS.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
 }
@@ -61,6 +64,7 @@ export class TitleScreen extends Screen {
         <button class="menu-primary" type="button">Begin the rampage</button>
         ${controlsHtml()}
         <p class="pause-hint">Esc pauses · F1 debug</p>
+        <p class="menu-credits">${CREDITS}</p>
       </div>`;
     this.el.querySelector('button')!.addEventListener('click', onStart);
     this.visible = true;
@@ -81,6 +85,7 @@ export class PauseMenu extends Screen {
           <button class="menu-secondary" data-act="new" type="button">New game</button>
         </div>
         <div class="menu-cols"><div class="menu-stats-slot"></div>${controlsHtml()}</div>
+        <p class="menu-credits">${CREDITS}</p>
       </div>`;
     this.statsEl = this.el.querySelector('.menu-stats-slot')!;
     this.el.querySelector('[data-act=resume]')!.addEventListener('click', onResume);

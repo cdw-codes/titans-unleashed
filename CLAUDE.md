@@ -121,15 +121,16 @@ hold E charge beam / release fire · R roar · F Atomic Pulse (unlock) · Q or M
 8. Perf + ship — profiling per preset, loading screen, key remapping, prod build, static-host deploy
 
 ## Current status
-**Milestone 6 done — awaiting playtest/go-ahead for Milestone 7.**
+**Milestone 7 in progress — waiting for the user to download assets (docs/ASSETS.md).**
 
 Done: M1 foundation · M2 kaiju + heavy camera · M3 streamed destructible city · M4 combat ·
 M5 rival encounters · M6 military (threat stars, tanks, helicopters) + evolution upgrades,
 Atomic Pulse, health regen.
 
-Next (M7): glTF pipeline + licensed CC0 models (list sources, ask user to download), skeletal
-animation blending on the existing bone layout, audio (spatial), title/pause/game-over
-screens, minimap. Keep placeholders working as fallbacks.
+M7 so far: AudioSystem + AudioDirector (silent until files exist), title/pause/game-over
+screens with run stats, minimap, credits line. Next: process `assets-src/` downloads →
+compressed `public/audio` + `public/models` (gltf-transform: meshopt + WebP), fill
+`config/audio.ts` file lists, glTF loader with code-built fallbacks for cars/tanks/helicopter.
 
 Known issues:
 - Rapier compat bundle ~1.7 MB gzip (base64 wasm); M8 may switch builds (needs a plugin: ask).
@@ -137,12 +138,10 @@ Known issues:
 - Global pools draw every loaded instance (~550k tris at medium); levers: draw distance,
   propRadius, shadow casting of small pools.
 - Initial city build is blocking (loading screen in M8); big dust puffs cost overdraw.
-- Hidden tabs throttle rAF (~2 FPS); the sim runs slow then — expected, not a bug.
-- Beam range is capped by `CITY.physicsRadius` (no colliders beyond; test enforces it).
+- Beam range is capped by `CITY.physicsRadius` (no colliders beyond; tested).
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
 
 Decisions:
-- 1 unit = 1 m; kaiju ≈ 100 m; real gravity for heavy-feeling debris.
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
 - F1 debug ships in production builds (needed for M8 perf checks); lil-gui is dev-only.
 - No settings UI or persistence; medium preset, 30 FPS cap (saves GPU/heat, not RAM).
@@ -151,3 +150,6 @@ Decisions:
   street intersection, 5 s invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
 - Audio deferred to M7 (user declined placeholder audio).
 - Tuning: ship genre-typical defaults; the user tunes from player feedback later.
+- Art: kaiju, rivals and buildings stay code-built; downloaded models only for cars, tanks,
+  helicopter (CC-BY Attack Chopper: credit in menus). Compression: meshopt + WebP (no
+  Draco/KTX2 decoder files). Beam = hold to charge/fire, release cancels.

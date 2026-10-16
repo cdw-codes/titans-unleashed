@@ -3,3 +3,7 @@ dist
 coverage
 .DS_Store
 *.local
+
+# Raw asset downloads (processed copies go to public/)
+assets-src/*
+!assets-src/README.md
