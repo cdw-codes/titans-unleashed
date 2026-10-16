@@ -20,6 +20,7 @@ import type { BarrierFx } from '../effects/BarrierFx';
 import type { DustSystem } from '../effects/DustSystem';
 import type { ShockwaveFx } from '../effects/ShockwaveFx';
 import { EncounterSystem, type EncounterAction } from './EncounterSystem';
+import { respawnPoint } from './respawn';
 
 interface ActiveRival {
   id: RivalId;
@@ -42,6 +43,8 @@ export interface DirectorDeps {
   shockwaves: ShockwaveFx;
   progress: ProgressSystem;
   hitPause(seconds: number): void;
+  /** Fog end (m): nothing beyond is rendered, so rivals spawn past it. */
+  hiddenDistance(): number;
 }
 
 const BEAM_COLORS: Record<RivalId, { core: number; glow: number }> = {
@@ -103,7 +106,10 @@ export class EncounterDirector {
     t.x = p.position.x;
     t.y = p.position.y + p.spec.body.height * 0.55;
     t.z = p.position.z;
-    const playerDown = p.state === 'defeated';
+    // During the outro the rival stops fighting (it roars and leaves).
+    const playerDown = p.state === 'defeated' || this.encounter.phase === 'outro';
+    const dist = Math.hypot(k.position.x - p.position.x, k.position.z - p.position.z);
+    k.travelMultiplier = dist > ENCOUNTERS.travelBoostUntil ? ENCOUNTERS.travelBoost : 1;
     r.ai.update(dt, {
       x: k.position.x,
       z: k.position.z,
@@ -141,6 +147,8 @@ export class EncounterDirector {
       rivalZ: r?.position.z ?? p.position.z + this.encounter.dir.z * 1000,
       playerDefeated: p.state === 'defeated',
       rivalDefeated: !!r && r.state === 'defeated',
+      hiddenDistance: this.d.hiddenDistance(),
+      maxX: CITY.coastX - 150,
     });
     for (const a of actions) this.handle(a);
   }
@@ -189,6 +197,24 @@ export class EncounterDirector {
 
   // ------------------------------------------------------------ debug
 
+  /**
+   * Fair respawn spot for the player: far from the rival (or the death spot),
+   * inland, on a street intersection, facing back toward the fight.
+   */
+  respawnSpot(): { x: number; z: number; yaw: number } {
+    const p = this.d.player.position;
+    const r = this.rival?.kaiju.position;
+    return respawnPoint({
+      fromX: p.x,
+      fromZ: p.z,
+      threat: r ? { x: r.x, z: r.z } : null,
+      minDistance: ENCOUNTERS.respawnDistance,
+      maxX: CITY.coastX - 300,
+      pitch: CITY.blockSize + CITY.streetWidth,
+      rand: () => this.rng.next(),
+    });
+  }
+
   /** Spawn a rival right away, close by, and raise the barrier immediately. */
   debugSpawn(id: RivalId): void {
     if (this.rival) this.despawn();
@@ -224,7 +250,7 @@ export class EncounterDirector {
         this.d.camera.shake.addKick(a.trauma * 20);
         return;
       case 'spawn': {
-        this.spawn(a.rival, Math.min(a.x, CITY.coastX - 150), a.z);
+        this.spawn(a.rival, a.x, a.z);
         const cfg = RIVALS[a.rival];
         hud.showBanner(`${cfg.name} HAS ARRIVED`, 'arrival', 3.5);
         return;
@@ -248,6 +274,7 @@ export class EncounterDirector {
         this.roarOnce = true;
         this.lockOn = false;
         this.sinkAfter = 2.8;
+        this.d.barrier.drop();
         return;
       case 'end':
         this.d.barrier.drop();

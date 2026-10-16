@@ -3,7 +3,7 @@ import { ENCOUNTERS } from '../../config/encounters';
 import { constrainToCircle, EncounterSystem, type EncounterAction, type EncounterWorld } from './EncounterSystem';
 
 const world = (over: Partial<EncounterWorld> = {}): EncounterWorld => ({
-  score: 0, playerX: 0, playerZ: 0, rivalX: 1000, rivalZ: 0, playerDefeated: false, rivalDefeated: false, ...over,
+  score: 0, playerX: 0, playerZ: 0, rivalX: 1000, rivalZ: 0, playerDefeated: false, rivalDefeated: false, hiddenDistance: 2000, maxX: 1e9, ...over,
 });
 
 function run(e: EncounterSystem, seconds: number, w: EncounterWorld): EncounterAction[] {
@@ -22,10 +22,21 @@ describe('EncounterSystem', () => {
     const spawn = actions.find((a) => a.type === 'spawn');
     expect(spawn).toBeDefined();
     if (spawn?.type === 'spawn') {
-      const d = Math.hypot(spawn.x, spawn.z);
-      expect(d).toBeGreaterThanOrEqual(ENCOUNTERS.spawnDistance - ENCOUNTERS.spawnJitter);
+      // Spawned out of render range (beyond the fog end).
+      expect(Math.hypot(spawn.x, spawn.z)).toBeGreaterThan(2000);
     }
     expect(e.phase).toBe('approaching');
+  });
+
+  it('never spawns at sea: comes from inland near the coast', () => {
+    for (const r of [0.1, 0.25, 0.4]) {
+      const e = new EncounterSystem(ENCOUNTERS, () => r);
+      e.forceStart();
+      const w = world({ playerX: 1500, maxX: 1650 });
+      const spawn = run(e, ENCOUNTERS.warningSeconds + 0.5, w).find((a) => a.type === 'spawn');
+      expect(spawn?.type === 'spawn' && spawn.x).toBeLessThanOrEqual(1650);
+      expect(spawn?.type === 'spawn' && Math.hypot(spawn.x - 1500, spawn.z)).toBeGreaterThan(2000);
+    }
   });
 
   it('triggers early on enough destruction', () => {
@@ -65,11 +76,14 @@ describe('EncounterSystem', () => {
     expect(e.update(0.1, world())[0]).toMatchObject({ type: 'warn', rival: ENCOUNTERS.rotation[1] });
   });
 
-  it('player defeat ends the encounter without victory', () => {
+  it('player defeat drops the barrier at once and ends without victory', () => {
     const e = new EncounterSystem(ENCOUNTERS);
     e.forceStart();
     run(e, ENCOUNTERS.warningSeconds + 0.5, world());
+    e.update(0.1, world({ rivalX: 100 }));
+    expect(e.arena.active).toBe(true);
     expect(e.update(0.1, world({ playerDefeated: true }))[0]).toMatchObject({ type: 'playerDefeated' });
+    expect(e.arena.active).toBe(false);
     const end = run(e, ENCOUNTERS.outroSeconds + 0.2, world({ playerDefeated: true }));
     expect(end.find((a) => a.type === 'end')).toMatchObject({ victory: false });
   });

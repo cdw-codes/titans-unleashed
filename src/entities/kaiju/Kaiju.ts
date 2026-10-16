@@ -55,6 +55,8 @@ export class Kaiju {
   readonly plowsThrough: boolean;
   /** Visual sink below the ground (m), for despawn animations. */
   sink = 0;
+  /** Multiplies ground covered per tick (rivals crossing the fogged distance faster). */
+  travelMultiplier = 1;
   private readonly kccGroups: number | undefined;
 
   constructor(
@@ -138,9 +140,9 @@ export class Kaiju {
     // Gravity only while airborne. Pushing down while grounded makes Rapier's KCC
     // stall horizontally; snap-to-ground keeps us glued on the way down instead.
     this.verticalVelocity = this.grounded ? 0 : this.verticalVelocity + SIM.gravity * KAIJU_CONTROLLER.gravityScale * dt;
-    _desired.x = this.motor.velocityX * dt;
+    _desired.x = this.motor.velocityX * dt * this.travelMultiplier;
     _desired.y = this.verticalVelocity * dt;
-    _desired.z = this.motor.velocityZ * dt;
+    _desired.z = this.motor.velocityZ * dt * this.travelMultiplier;
 
     // Debris (dynamic bodies) never blocks the kaiju; it walks through and kicks it via footsteps.
     this.controller.computeColliderMovement(this.collider, _desired, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.kccGroups);
@@ -175,6 +177,19 @@ export class Kaiju {
       this.fsm.transition(locomotionState(this.motor.speed, this.motor.sprinting, this.spec.movement));
     }
     this.fsm.update(dt);
+  }
+
+  /** Move instantly (respawn). Clears momentum and interpolation. */
+  teleport(x: number, z: number, yaw: number): void {
+    this.position.set(x, 0, z);
+    this.prevPosition.copy(this.position);
+    this.renderPosition.copy(this.position);
+    this.motor.yaw = this.motor.moveYaw = yaw;
+    this.prevYaw = yaw;
+    this.motor.speed = 0;
+    this.verticalVelocity = 0;
+    this.body.setTranslation({ x, y: this.centerOffset, z }, true);
+    this.body.setNextKinematicTranslation({ x, y: this.centerOffset, z });
   }
 
   /** Keep the body inside a circle (arena barrier). Call after fixedUpdate. Returns true if it pushed. */

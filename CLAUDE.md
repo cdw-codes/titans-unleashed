@@ -147,6 +147,7 @@ Decisions:
   not RAM).
 - Movement is facing-based (tank-like): the body turns toward the wished direction at a
   limited rate and withholds speed while misaligned. Lock-on strafing comes in M5.
-- Defeat: defeat screen with Respawn (in place, full health); no game-over/run reset.
+- Defeat: Respawn relocates the player ~900 m from the rival onto a street intersection (fair,
+  never inside buildings); barrier drops at once. Rivals spawn beyond the fog end and walk in.
 - Audio deferred to M7 (user declined placeholder audio).
 - Tuning: ship genre-typical defaults; the user tunes from player feedback later.

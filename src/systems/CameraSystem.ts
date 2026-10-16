@@ -48,6 +48,13 @@ export class CameraSystem {
     this.yaw = facingYaw + Math.PI;
   }
 
+  /** Jump straight to the target on the next update (after a teleport), facing `yaw`. */
+  snap(facingYaw: number): void {
+    this.initialized = false;
+    this.yaw = facingYaw + Math.PI;
+    this.distance = CAMERA.distance;
+  }
+
   applyMouse(dx: number, dy: number): void {
     // Locked on: horizontal look is driven by the target; mouse still controls pitch.
     if (this.lockYaw === null) this.yaw -= dx * MOUSE.sensitivity;

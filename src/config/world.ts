@@ -11,5 +11,5 @@ export interface WorldConfig {
 
 export const WORLD: WorldConfig = {
   chunkSize: 256, // = 2 city blocks + 2 streets (see config/city.ts)
-  groundHalfSize: 2000,
+  groundHalfSize: 4000, // rivals spawn ~2.3 km out; KCC tested stable up to 8 km
 };

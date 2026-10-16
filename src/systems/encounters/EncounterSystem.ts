@@ -20,6 +20,10 @@ export interface EncounterWorld {
   rivalZ: number;
   playerDefeated: boolean;
   rivalDefeated: boolean;
+  /** Distance (m) beyond which nothing is rendered (fog end); rivals spawn past it. */
+  hiddenDistance: number;
+  /** Rivals never spawn east of this x (the sea). */
+  maxX: number;
 }
 
 /**
@@ -66,6 +70,9 @@ export class EncounterSystem {
           const a = this.rand() * Math.PI * 2;
           this.dir.x = Math.sin(a);
           this.dir.z = Math.cos(a);
+          // Come from inland: if the farthest spawn would be at sea, flip toward the west.
+          const far = w.hiddenDistance + c.spawnBeyondFog + c.spawnJitter;
+          if (w.playerX + this.dir.x * far > w.maxX) this.dir.x = -Math.abs(this.dir.x);
           this.enter('warning');
           this.nextTremor = 0;
           out.push({ type: 'warn', rival: this.rival, dirX: this.dir.x, dirZ: this.dir.z });
@@ -79,7 +86,7 @@ export class EncounterSystem {
           this.nextTremor += c.tremorInterval;
         }
         if (this.t >= c.warningSeconds) {
-          const d = c.spawnDistance + (this.rand() * 2 - 1) * c.spawnJitter;
+          const d = w.hiddenDistance + c.spawnBeyondFog + this.rand() * c.spawnJitter;
           out.push({ type: 'spawn', rival: this.rival!, x: w.playerX + this.dir.x * d, z: w.playerZ + this.dir.z * d });
           this.enter('approaching');
         }
@@ -96,6 +103,8 @@ export class EncounterSystem {
           this.dir.z = dz / dist;
         }
         if (w.playerDefeated) {
+          // Drop the barrier at once so the respawned player isn't pulled back into the arena.
+          this.arena.active = false;
           out.push({ type: 'playerDefeated' });
           this.victory = false;
           this.enter('outro');

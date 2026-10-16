@@ -176,6 +176,7 @@ export class Game {
       shockwaves: this.shockwaves,
       progress: this.progress,
       hitPause: (s) => this.loop.hitStop(s),
+      hiddenDistance: () => QUALITY_PRESETS[this.qualityLevel].drawDistance * 0.95,
     });
     this.events.on('structure:destroyed', (e) => {
       if (e.byPlayer) this.progress.onDestroyed(e.points, e.size);
@@ -273,6 +274,12 @@ export class Game {
   }
 
   private respawn(): void {
+    // Away from the rival, never on top of it: relocate, then rebuild the city there.
+    const spot = this.director.respawnSpot();
+    this.player.teleport(spot.x, spot.z, spot.yaw);
+    this.camera.snap(spot.yaw);
+    this.chunks.update(spot.x, spot.z, QUALITY_PRESETS[this.qualityLevel].drawDistance, Infinity);
+    this.cityPools.flush();
     this.player.combat.respawn();
     this.defeatOverlay.visible = false;
     void this.input.requestLock();

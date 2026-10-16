@@ -11,9 +11,14 @@ export interface EncounterConfig {
   readonly tremorInterval: number;
   readonly tremorTraumaMin: number;
   readonly tremorTraumaMax: number;
-  /** Rival spawns this far (m) from the player, ± jitter. Keep beyond CITY.physicsRadius. */
-  readonly spawnDistance: number;
+  /** Rival spawns this far (m) beyond the fog end (never rendered when it appears), + random jitter. */
+  readonly spawnBeyondFog: number;
   readonly spawnJitter: number;
+  /** While farther than `travelBoostUntil` (m, i.e. hidden in fog), rivals cover ground this many times faster. */
+  readonly travelBoost: number;
+  readonly travelBoostUntil: number;
+  /** On respawn the player is moved at least this far (m) from the rival / death spot. */
+  readonly respawnDistance: number;
   /** The barrier rises when the two kaiju get this close (m)... */
   readonly arenaTriggerDistance: number;
   /** ...or after this long approaching, wherever they are. */
@@ -36,8 +41,11 @@ export const ENCOUNTERS: EncounterConfig = {
   tremorInterval: 1.4,
   tremorTraumaMin: 0.12,
   tremorTraumaMax: 0.4,
-  spawnDistance: 750,
-  spawnJitter: 100,
+  spawnBeyondFog: 150,
+  spawnJitter: 150,
+  travelBoost: 3.5,
+  travelBoostUntil: 650,
+  respawnDistance: 900,
   arenaTriggerDistance: 320,
   maxApproachSeconds: 45,
   arenaRadius: 380,
