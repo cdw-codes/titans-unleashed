@@ -35,9 +35,11 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 ## Folder structure
 - `src/core` — Game (composition root + update order), GameLoop, FixedStepper, EventBus, events,
   StateMachine, math (damp/Spring/noise), Random (seeded), settings
-- `src/world` — environment (sky/sun/fog), ground, chunks, city generation
+- `src/world` — environment, ground, water; `city/` (CityGenerator → ChunkSpec data, ChunkManager
+  streaming, CityPools, DestructionState); `materials/` (world-space window shader)
 - `src/entities` — `kaiju/` (Kaiju body, KaijuMotor, Gait, KaijuModel, PlayerController), rivals, military
-- `src/systems` — render, physics, camera, combat, destruction, encounters, spawning, audio
+- `src/systems` — render, physics, camera, InstancePool, PhysicsInstances, Progress (score/energy),
+  `destruction/` (Destruction gameplay, Collapse visuals, Debris pool, damage rules), `effects/`
 - `src/input` — InputState (pure, tested) + Input (DOM, pointer lock)
 - `src/ui` — HUD, menus, overlays, styles.css
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
@@ -54,6 +56,14 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   snap-to-ground); keep static colliders a few km max (huge slabs break precision).
 - Placeholder kaiju = primitives rigidly skinned to bones, merged into ONE SkinnedMesh.
   Keep that pattern (1 draw call) until M7 swaps in authored models.
+- City = pure deterministic data (`CityGenerator.generate(cx, cz)`, seeded per chunk) rendered
+  through GLOBAL instance pools shared by all chunks (never per-chunk meshes: draw calls would
+  scale with chunk count). Destroyed state is persisted as (chunk, index), so generation must
+  stay deterministic — changing generator code reshuffles indices (fine pre-save-games).
+- Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops, crushed on
+  contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
+- Gameplay settles destruction at collapse START (persist, remove collider); CollapseSystem is
+  visual-only at render rate and tolerates chunks unloading mid-collapse.
 - Fixed 60 Hz sim (`GameLoop` → `Game.fixedUpdate`) for physics + gameplay; render at display
   rate with interpolation (`alpha`). Anything moved in the sim stores prev/curr state and
   lerps in `render(alpha)`. Camera/visual-only effects run at render rate.
@@ -97,25 +107,25 @@ hold E charge beam / release fire · R roar · Q or MMB lock-on · F1 debug.
 8. Perf + ship — profiling per preset, loading screen, key remapping, prod build, static-host deploy
 
 ## Current status
-**Milestone 2 done — awaiting playtest/go-ahead for Milestone 3.**
+**Milestone 3 done — awaiting playtest/go-ahead for Milestone 4.**
 
-Done (M1): tooling, fixed-step loop, renderer/sky/sun/fog, recentering ground + slab,
-PhysicsInstances (interpolated instanced bodies = debris base), input + pause, F1 debug.
-Done (M2): Kaiju (motor, gait, KCC, footstep events, locomotion states), skinned primitive
-model with procedural animation, heavy camera (lag, collision, shake, kick, sprint FOV),
-crosshair, pooled DustSystem, `world/TestArea` (seeded grid, windowed building material),
-dev GUI live-tuning folders (kaiju, footsteps, camera).
+Done: M1 foundation (loop, renderer, presets, F1 debug); M2 kaiju (motor, gait, KCC, skinned
+model, heavy camera, dust); M3 streamed destructible city (generator, shared pools, LOD radii,
+damage/crushing, collapse + debris + rubble + smoke, hit-pause, score/energy HUD).
 
-Next (M3): replace `world/TestArea` with chunk-streamed districts reusing its layout code
-and `materials/buildingMaterial`; destructible buildings + debris on PhysicsInstances;
-crushing via `kaiju:footstep`.
+Next (M4): combat moves (claw, tail, stomp, beam, roar) as damage sources into the same
+`DestructionSystem.damage` path; player health; HUD health bar; spend energy on the beam.
 
 Known issues:
 - Rapier compat bundle is ~1.7 MB gzip (base64 wasm). Revisit in M8 (non-compat build
   with a separate .wasm needs a Vite wasm plugin → ask before adding).
-- Houses, trees, cars have no colliders yet (kaiju walks through); M3 crushes them.
-- Camera collision clamps at minDistance; inside very dense towers it can still clip.
-  Fallback planned: fade occluding buildings (M3, needs per-instance opacity).
+- Camera collision clamps at minDistance; in dense downtown it can still clip into towers.
+  Fallback: fade occluding buildings (needs per-instance opacity) — not built yet.
+- Global pools draw every loaded instance (no per-instance culling): ~550k tris at medium.
+  Watch on integrated GPUs; levers are draw distance, propRadius, shadow casting of small pools.
+- Initial city build is blocking (~270 chunks) — loading screen in M8.
+- Big dust/smoke puffs are overdraw-heavy; capped by `DUST.maxBurstScale`.
+- Hidden browser tabs throttle rAF to ~2 FPS; sim correctly runs slow then (not a bug).
 - Changing quality to/from "low" toggles MSAA, which only applies after reload.
 
 Decisions:

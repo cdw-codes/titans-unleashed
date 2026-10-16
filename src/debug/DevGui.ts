@@ -5,6 +5,7 @@ import { ENVIRONMENT } from '../config/environment';
 import { KAIJU_FEEDBACK, KAIJU_GAIT, KAIJU_MOVEMENT } from '../config/kaiju';
 import { CAMERA, SHAKE } from '../config/camera';
 import { DUST } from '../config/effects';
+import { DESTRUCTION } from '../config/destruction';
 
 /** Dev-only: let lil-gui write into the (readonly-typed) config objects. Changes reset on reload. */
 const live = <T extends object>(o: T) => o as { -readonly [K in keyof T]: T[K] };
@@ -65,6 +66,17 @@ export async function createDevGui(game: Game): Promise<GUI> {
   fb.add(S, 'decay', 0.2, 5, 0.1);
   fb.add(live(DUST.walkStep), 'opacity', 0, 1, 0.05).name('walk dust opacity');
   fb.add(live(DUST.walkStep), 'count', 0, 40, 1).name('walk dust count');
+
+  const de = gui.addFolder('Destruction').close();
+  const D = live(DESTRUCTION);
+  de.add(D, 'pushDps', 0, 600, 5);
+  de.add(D, 'sprintPushMultiplier', 1, 5, 0.1);
+  de.add(D, 'impactDamagePerMps', 0, 40, 0.5);
+  de.add(D, 'footstepDamage', 0, 300, 5);
+  de.add(D, 'footCrushRadius', 0, 40, 0.5);
+  de.add(D, 'hitPauseSeconds', 0, 0.3, 0.01);
+  de.add(D, 'collapseTraumaPer100m', 0, 2, 0.05);
+  de.add(D, 'debrisPer10m', 0, 8, 0.5);
 
   const cam = gui.addFolder('Camera').close();
   const C = live(CAMERA);
