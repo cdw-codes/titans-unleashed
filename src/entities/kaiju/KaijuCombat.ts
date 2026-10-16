@@ -203,7 +203,7 @@ export class KaijuCombat {
 
   respawn(): void {
     this.health.reset();
-    this.health.makeInvulnerable(this.cfg.health.getUpInvulnerable);
+    this.health.makeInvulnerable(this.cfg.health.respawnInvulnerable ?? this.cfg.health.getUpInvulnerable);
     this.toIdle();
   }
 

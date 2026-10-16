@@ -198,8 +198,8 @@ export class EncounterDirector {
   // ------------------------------------------------------------ debug
 
   /**
-   * Fair respawn spot for the player: far from the rival (or the death spot),
-   * inland, on a street intersection, facing back toward the fight.
+   * Fair respawn spot for the player: beyond the fog from the rival (out of each
+   * other's sight), inland, on a street intersection, facing back toward the fight.
    */
   respawnSpot(): { x: number; z: number; yaw: number } {
     const p = this.d.player.position;
@@ -208,7 +208,7 @@ export class EncounterDirector {
       fromX: p.x,
       fromZ: p.z,
       threat: r ? { x: r.x, z: r.z } : null,
-      minDistance: ENCOUNTERS.respawnDistance,
+      minDistance: this.d.hiddenDistance() + ENCOUNTERS.respawnBeyondFog,
       maxX: CITY.coastX - 300,
       pitch: CITY.blockSize + CITY.streetWidth,
       rand: () => this.rng.next(),

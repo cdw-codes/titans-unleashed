@@ -108,6 +108,8 @@ export interface HealthConfig {
   readonly knockdownSeconds: number;
   /** Invulnerability after getting back up. */
   readonly getUpInvulnerable: number;
+  /** Invulnerability after respawning (falls back to getUpInvulnerable). */
+  readonly respawnInvulnerable?: number;
 }
 
 export interface CombatConfig {
@@ -221,6 +223,7 @@ export const COMBAT: CombatConfig = {
     knockdownThreshold: 250,
     knockdownSeconds: 2.6,
     getUpInvulnerable: 1,
+    respawnInvulnerable: 5,
   },
   inputBuffer: 0.3,
 };
