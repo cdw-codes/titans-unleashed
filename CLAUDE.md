@@ -46,7 +46,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   PlayerController); `rivals/` (RivalAI, rival specs)
 - `src/systems` — render, physics, camera, InstancePool, PhysicsInstances, Progress (score/energy),
   `destruction/` (gameplay, Collapse visuals, Debris pool, rules), `combat/` (CombatSystem, rules,
-  Health, Projectiles), `encounters/` (EncounterSystem pure flow + EncounterDirector), `effects/`
+  Health, Projectiles), `encounters/`, `military/` (Threat, MilitarySystem), `progression/`
+  (Upgrades → KaijuModifiers), `effects/`
 - `src/input` — InputState (pure, tested) + Input (DOM, pointer lock)
 - `src/ui` — HUD, menus, overlays, styles.css
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
@@ -78,6 +79,10 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - Rivals plow through buildings: their KCC ignores `GROUP.STRUCTURE` colliders and
   DestructionSystem wrecks what they overlap. No pathfinding — keep it that way.
 - Bloom runs only on frames that request it (beam glow); HDR (>1) colors are for FX only.
+- Upgrades never mutate configs (the Tuning panel saves those): they produce `KaijuModifiers`
+  that systems read at the point of use (`combat.mods`, `motor.speedMultiplier`, ...).
+- Military units are kinematic pooled data (no physics bodies), rendered via InstancedMesh;
+  collateral from their shots is not credited to the player.
 - Gameplay settles destruction at collapse START (persist, remove collider); CollapseSystem is
   visual-only at render rate and tolerates chunks unloading mid-collapse.
 - Fixed 60 Hz sim (`GameLoop` → `Game.fixedUpdate`) for physics + gameplay; render at display
@@ -108,33 +113,30 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 ## Controls
 Click canvas = pointer lock; Esc = release + pause. Mouse orbits camera; crosshair = beam aim.
 WASD move (camera-relative) · Shift sprint · LMB claw · RMB tail sweep · Space stomp ·
-hold E charge beam / release fire · R roar · Q or MMB lock-on · F1 debug.
+hold E charge beam / release fire · R roar · F Atomic Pulse (unlock) · Q or MMB lock-on · F1 debug.
 
 ## Milestones
-1–5 done (see status).
-6. Military + progression — escalating tanks/helicopters; upgrades from defeated rivals
+1–6 done (see status).
 7. Art + audio — glTF pipeline, licensed CC0 models, skeletal anim blending, spatial audio, menus, minimap
 8. Perf + ship — profiling per preset, loading screen, key remapping, prod build, static-host deploy
 
 ## Current status
-**Milestone 5 done — awaiting playtest/go-ahead for Milestone 6.**
+**Milestone 6 done — awaiting playtest/go-ahead for Milestone 7.**
 
 Done: M1 foundation · M2 kaiju + heavy camera · M3 streamed destructible city · M4 combat ·
-M5 rival encounters (Thornmaw brawler, Vesperion ranged, AI, barrier, lock-on, boss HUD).
+M5 rival encounters · M6 military (threat stars, tanks, helicopters) + evolution upgrades,
+Atomic Pulse, health regen.
 
-Next (M6): military (pooled tanks/helicopters escalating with destruction, attacking via the
-same CombatSystem/ProjectileSystem paths) and upgrades granted on `victory` (health, beam
-power, charge speed, new move) — apply as modifiers on the player's spec/configs.
+Next (M7): glTF pipeline + licensed CC0 models (list sources, ask user to download), skeletal
+animation blending on the existing bone layout, audio (spatial), title/pause/game-over
+screens, minimap. Keep placeholders working as fallbacks.
 
 Known issues:
-- Rapier compat bundle is ~1.7 MB gzip (base64 wasm). Revisit in M8 (non-compat build
-  with a separate .wasm needs a Vite wasm plugin → ask before adding).
-- Camera collision clamps at minDistance; in dense downtown it can still clip into towers.
-  Fallback: fade occluding buildings (needs per-instance opacity) — not built yet.
-- Global pools draw every loaded instance (no per-instance culling): ~550k tris at medium.
-  Watch on integrated GPUs; levers are draw distance, propRadius, shadow casting of small pools.
-- Initial city build is blocking (~270 chunks) — loading screen in M8.
-- Big dust/smoke puffs are overdraw-heavy; capped by `DUST.maxBurstScale`.
+- Rapier compat bundle ~1.7 MB gzip (base64 wasm); M8 may switch builds (needs a plugin: ask).
+- Camera can still clip into towers in dense downtown (occluder fading not built).
+- Global pools draw every loaded instance (~550k tris at medium); levers: draw distance,
+  propRadius, shadow casting of small pools.
+- Initial city build is blocking (loading screen in M8); big dust puffs cost overdraw.
 - Hidden tabs throttle rAF (~2 FPS); the sim runs slow then — expected, not a bug.
 - Beam range is capped by `CITY.physicsRadius` (no colliders beyond; test enforces it).
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
@@ -143,10 +145,8 @@ Decisions:
 - 1 unit = 1 m; kaiju ≈ 100 m; real gravity for heavy-feeling debris.
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
 - F1 debug ships in production builds (needed for M8 perf checks); lil-gui is dev-only.
-- No settings/preferences UI or persistence; medium preset, 30 FPS cap (cap saves GPU/heat,
-  not RAM).
-- Movement is facing-based (tank-like): the body turns toward the wished direction at a
-  limited rate and withholds speed while misaligned. Lock-on strafing comes in M5.
+- No settings UI or persistence; medium preset, 30 FPS cap (saves GPU/heat, not RAM).
+- Movement is facing-based (turn-limited, heavy); lock-on switches to strafing.
 - Defeat: Respawn relocates the player beyond the fog end from the rival (out of sight), onto a
   street intersection, 5 s invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
 - Audio deferred to M7 (user declined placeholder audio).
