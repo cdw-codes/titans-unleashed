@@ -1,10 +1,10 @@
-import { COMBAT, type MoveConfig } from '../../config/combat';
+import type { CombatConfig, MoveConfig } from '../../config/combat';
 import { clamp, wrapAngle } from '../../core/math';
 import { beamShot, clampBeamAim, Cooldowns, moveLength, movePhase, type MovePhase } from '../../systems/combat/rules';
 import { Health, type HitReaction } from '../../systems/combat/Health';
 import type { KaijuState } from './locomotion';
 
-export type MoveId = 'claw' | 'tail' | 'stomp';
+export type MoveId = 'claw' | 'tail' | 'stomp' | 'lunge' | 'volley';
 export type CooldownId = MoveId | 'beam' | 'roar';
 
 /** Buttons for this tick (presses are edge-triggered; beamHeld is level). */
@@ -14,7 +14,10 @@ export interface CombatInput {
   stomp: boolean;
   roar: boolean;
   beamHeld: boolean;
-  /** World point the beam should aim at (crosshair), or null. */
+  /** Rival-only moves. */
+  lunge?: boolean;
+  volley?: boolean;
+  /** World point to aim the beam / projectiles at (crosshair or AI target), or null. */
   aim: { x: number; y: number; z: number } | null;
 }
 
@@ -27,7 +30,8 @@ export interface EnergyPool {
 export type AttackEvent =
   | { type: 'area'; move: MoveId; cfg: MoveConfig; x: number; z: number; yaw: number }
   | { type: 'roar'; x: number; z: number }
-  | { type: 'beam'; ox: number; oy: number; oz: number; dx: number; dy: number; dz: number; damage: number };
+  | { type: 'beam'; ox: number; oy: number; oz: number; dx: number; dy: number; dz: number; damage: number }
+  | { type: 'projectile'; cfg: MoveConfig; ox: number; oy: number; oz: number; tx: number; ty: number; tz: number };
 
 /** What the body may do this tick. */
 export interface MovementAllowance {
@@ -36,6 +40,8 @@ export interface MovementAllowance {
   /** Turn toward this yaw (beam aiming) at `faceRate`. */
   faceYaw: number | null;
   faceRate: number;
+  /** Forced forward dash speed (lunge), or 0. */
+  lungeSpeed: number;
 }
 
 /** Animation info for the model. */
@@ -45,10 +51,12 @@ export interface CombatAction {
   t: number;
   /** Which arm swipes (claw alternates). */
   side: 1 | -1;
-  /** Timed move behind an 'attack' state. */
-  move: MoveId | null;
   /** Beam charge 0..1 (charging) or 1 (firing). */
   charge: number;
+  /** Timed move behind an 'attack' state. */
+  move: MoveId | null;
+  /** Length of the current stagger (stuns last longer than hit staggers). */
+  staggerSeconds: number;
 }
 
 interface Body {
@@ -61,34 +69,40 @@ interface Body {
 }
 
 const LOCOMOTION: KaijuState[] = ['idle', 'walk', 'sprint'];
-const FREE: MovementAllowance = { moveMultiplier: 1, turnMultiplier: 1, faceYaw: null, faceRate: 0 };
+const FREE: MovementAllowance = { moveMultiplier: 1, turnMultiplier: 1, faceYaw: null, faceRate: 0, lungeSpeed: 0 };
+const ROOTED: MovementAllowance = { moveMultiplier: 0, turnMultiplier: 0, faceYaw: null, faceRate: 0, lungeSpeed: 0 };
+const PRIORITY: (MoveId | 'roar')[] = ['stomp', 'tail', 'lunge', 'volley', 'claw', 'roar'];
 
 /**
  * Combat state for one kaiju (player or rival): move timelines, beam charge and
  * fire, roar, hit reactions. Fixed tick. Produces AttackEvents and tells the
- * body how much it may move.
+ * body how much it may move. Each kaiju has its own CombatConfig.
  */
 export class KaijuCombat {
-  readonly health = new Health(COMBAT.health);
+  readonly health: Health;
   readonly cooldowns = new Cooldowns<CooldownId>();
   readonly attacks: AttackEvent[] = [];
-  readonly action: CombatAction = { kind: 'idle', t: 0, side: 1, charge: 0, move: null };
+  readonly action: CombatAction = { kind: 'idle', t: 0, side: 1, charge: 0, move: null, staggerSeconds: 0 };
   /** Last resolved beam endpoint (set by CombatSystem), for visuals. */
   readonly beamEnd = { x: 0, y: 0, z: 0, hit: false };
   readonly beamDir = { x: 0, y: 0, z: 1 };
 
   private move: MoveId | null = null;
-  private emitted = false;
+  private emitted = 0;
   private queued: { move: MoveId | 'roar'; age: number } | null = null;
   private beamCharge = 0;
   private beamDps = 0;
   private beamDuration = 0;
   private clawSide: 1 | -1 = 1;
+  private aim: CombatInput['aim'] = null;
 
   constructor(
     private readonly body: Body,
     private readonly energy: EnergyPool,
-  ) {}
+    readonly cfg: CombatConfig,
+  ) {
+    this.health = new Health(cfg.health);
+  }
 
   get busy(): boolean {
     return !LOCOMOTION.includes(this.body.state);
@@ -98,16 +112,32 @@ export class KaijuCombat {
     return this.beamCharge;
   }
 
+  get currentMove(): MoveId | null {
+    return this.move;
+  }
+
+  /** Seconds the current timed move lasts (for animation normalisation). */
+  get moveDuration(): number {
+    return this.move ? moveLength(this.moveCfg(this.move)) : 0;
+  }
+
+  hasMove(id: MoveId): boolean {
+    return this.cfg[id] !== undefined;
+  }
+
   /** Total time a cooldown blocks, for HUD fill. */
   cooldownTotal(id: CooldownId): number {
-    const c = COMBAT;
-    switch (id) {
-      case 'claw': return c.claw.cooldown;
-      case 'tail': return c.tail.cooldown;
-      case 'stomp': return c.stomp.cooldown;
-      case 'beam': return c.beam.cooldown;
-      case 'roar': return c.roar.cooldown;
-    }
+    if (id === 'beam') return this.cfg.beam.cooldown;
+    if (id === 'roar') return this.cfg.roar.cooldown;
+    return this.cfg[id]?.cooldown ?? 0;
+  }
+
+  /** Can this move start right now (idle-ish, off cooldown)? Used by AI. */
+  canStart(id: CooldownId): boolean {
+    if (this.busy) return false;
+    if (id !== 'beam' && id !== 'roar' && !this.hasMove(id)) return false;
+    if (id === 'beam' && this.energy.energy < this.cfg.beam.minEnergyToCharge) return false;
+    return this.cooldowns.isReady(id);
   }
 
   update(dt: number, input: CombatInput): MovementAllowance {
@@ -115,19 +145,21 @@ export class KaijuCombat {
     this.cooldowns.tick(dt);
     this.health.update(dt);
     this.action.t += dt;
+    this.aim = input.aim;
+    const h = this.cfg.health;
     const state = this.body.state;
 
-    if (state === 'defeated') return this.rooted();
+    if (state === 'defeated') return ROOTED;
     if (state === 'stagger') {
-      if (this.action.t >= COMBAT.health.staggerSeconds) this.toIdle();
-      return this.rooted();
+      if (this.action.t >= this.action.staggerSeconds) this.toIdle();
+      return ROOTED;
     }
     if (state === 'knockdown') {
-      if (this.action.t >= COMBAT.health.knockdownSeconds) {
-        this.health.makeInvulnerable(COMBAT.health.getUpInvulnerable);
+      if (this.action.t >= h.knockdownSeconds) {
+        this.health.makeInvulnerable(h.getUpInvulnerable);
         this.toIdle();
       }
-      return this.rooted();
+      return ROOTED;
     }
 
     this.bufferInput(input, dt);
@@ -144,35 +176,63 @@ export class KaijuCombat {
         return this.updateFire(dt, input);
       default:
         this.tryStart(input);
-        return this.busy ? this.rooted() : FREE;
+        return this.busy ? ROOTED : FREE;
     }
   }
 
   /** Apply a hit to this kaiju. Returns the reaction (already applied to state). */
-  takeHit(damage: number): HitReaction {
-    const r = this.health.hit(damage);
+  takeHit(damage: number, poiseDamage = damage): HitReaction {
+    const r = this.health.hit(damage, poiseDamage);
     if (r === 'none') return r;
-    this.move = null;
-    this.queued = null;
-    this.beamCharge = 0;
-    this.enter(r === 'defeated' ? 'defeated' : r);
+    this.interrupt();
+    if (r === 'stagger') this.action.staggerSeconds = this.cfg.health.staggerSeconds;
+    this.enter(r);
+    if (r === 'stagger') this.action.staggerSeconds = this.cfg.health.staggerSeconds;
     return r;
+  }
+
+  /** Roar stun: a long stagger that ignores poise. No effect while down or invulnerable. */
+  stun(seconds: number): boolean {
+    const s = this.body.state;
+    if (s === 'defeated' || s === 'knockdown' || this.health.isInvulnerable) return false;
+    this.interrupt();
+    this.enter('stagger');
+    this.action.staggerSeconds = seconds;
+    return true;
   }
 
   respawn(): void {
     this.health.reset();
-    this.health.makeInvulnerable(COMBAT.health.getUpInvulnerable);
+    this.health.makeInvulnerable(this.cfg.health.getUpInvulnerable);
     this.toIdle();
+  }
+
+  /** Beam firing right now (after startup, before recovery)? */
+  get isBeamFiring(): boolean {
+    const b = this.cfg.beam;
+    return this.body.state === 'beamFire' && this.action.t >= b.startup && this.action.t < b.startup + this.beamDuration;
   }
 
   // ------------------------------------------------------------- states
 
+  private moveCfg(id: MoveId): MoveConfig {
+    const m = this.cfg[id];
+    if (!m) throw new Error(`Move ${id} not configured`);
+    return m;
+  }
+
+  private interrupt(): void {
+    this.move = null;
+    this.queued = null;
+    this.beamCharge = 0;
+  }
+
   private bufferInput(input: CombatInput, dt: number): void {
-    const pressed: MoveId | 'roar' | null = input.stomp ? 'stomp' : input.tail ? 'tail' : input.claw ? 'claw' : input.roar ? 'roar' : null;
+    const pressed = PRIORITY.find((m) => input[m] === true) ?? null;
     if (pressed) this.queued = { move: pressed, age: 0 };
     else if (this.queued) {
       this.queued.age += dt;
-      if (this.queued.age > COMBAT.inputBuffer) this.queued = null;
+      if (this.queued.age > this.cfg.inputBuffer) this.queued = null;
     }
   }
 
@@ -183,49 +243,75 @@ export class KaijuCombat {
       this.enter('roar');
       return;
     }
-    if (q && q !== 'roar' && this.cooldowns.isReady(q)) {
+    if (q && q !== 'roar' && this.hasMove(q) && this.cooldowns.isReady(q)) {
       this.queued = null;
       this.move = q;
-      this.emitted = false;
       if (q === 'claw') this.clawSide = this.clawSide === 1 ? -1 : 1;
-      this.action.side = this.clawSide;
       this.enter(q === 'stomp' ? 'stomp' : 'attack');
       this.action.move = q;
+      this.action.side = this.clawSide;
       return;
     }
-    if (input.beamHeld && this.cooldowns.isReady('beam') && this.energy.energy >= COMBAT.beam.minEnergyToCharge) {
+    if (input.beamHeld && this.cooldowns.isReady('beam') && this.energy.energy >= this.cfg.beam.minEnergyToCharge) {
       this.beamCharge = 0;
       this.enter('beamCharge');
     }
   }
 
   private updateMove(): MovementAllowance {
-    const cfg = COMBAT[this.move!];
+    const id = this.move!;
+    const cfg = this.moveCfg(id);
     const phase: MovePhase = movePhase(this.action.t, cfg);
-    if (phase === 'active' && !this.emitted) {
-      this.emitted = true;
-      const p = this.body.position;
-      this.attacks.push({ type: 'area', move: this.move!, cfg, x: p.x, z: p.z, yaw: this.body.yaw });
+    const p = this.body.position;
+
+    if (cfg.projectile) {
+      // Volley: one shot per interval through the active window.
+      const pr = cfg.projectile;
+      const sinceActive = this.action.t - cfg.windup;
+      while (phase !== 'windup' && this.emitted < pr.count && sinceActive >= this.emitted * pr.interval) {
+        this.emitted++;
+        this.emitProjectile(cfg);
+      }
+    } else if (!this.emitted && (cfg.hitAt === 'end' ? phase === 'recovery' || phase === 'done' : phase === 'active' || phase === 'recovery' || phase === 'done')) {
+      this.emitted = 1;
+      this.attacks.push({ type: 'area', move: id, cfg, x: p.x, z: p.z, yaw: this.body.yaw });
     }
+
     if (phase === 'done') {
-      this.cooldowns.start(this.move!, cfg.cooldown);
+      this.cooldowns.start(id, cfg.cooldown);
       this.move = null;
       this.toIdle();
       return FREE;
     }
     // Recovery can be cancelled into a buffered claw (combo), nothing else.
-    if (phase === 'recovery' && this.move === 'claw' && this.queued?.move === 'claw' && this.cooldowns.isReady('claw')) {
+    if (phase === 'recovery' && id === 'claw' && this.queued?.move === 'claw' && this.cooldowns.isReady('claw')) {
       this.cooldowns.start('claw', cfg.cooldown);
       this.toIdle();
       return FREE;
     }
-    return { moveMultiplier: cfg.moveMultiplier, turnMultiplier: cfg.turnMultiplier, faceYaw: null, faceRate: 0 };
+    return {
+      moveMultiplier: cfg.moveMultiplier,
+      turnMultiplier: cfg.turnMultiplier,
+      faceYaw: null,
+      faceRate: 0,
+      lungeSpeed: phase === 'active' ? (cfg.lungeSpeed ?? 0) : 0,
+    };
+  }
+
+  private emitProjectile(cfg: MoveConfig): void {
+    const p = this.body.position;
+    const yaw = this.body.yaw;
+    const ox = p.x + Math.sin(yaw) * this.body.mouthForward;
+    const oy = p.y + this.body.mouthHeight;
+    const oz = p.z + Math.cos(yaw) * this.body.mouthForward;
+    const t = this.aim ?? { x: ox + Math.sin(yaw) * 300, y: 0, z: oz + Math.cos(yaw) * 300 };
+    this.attacks.push({ type: 'projectile', cfg, ox, oy, oz, tx: t.x, ty: t.y, tz: t.z });
   }
 
   private updateRoar(): MovementAllowance {
-    const r = COMBAT.roar;
+    const r = this.cfg.roar;
     if (!this.emitted && this.action.t >= 0.35) {
-      this.emitted = true;
+      this.emitted = 1;
       const p = this.body.position;
       this.attacks.push({ type: 'roar', x: p.x, z: p.z });
     }
@@ -233,11 +319,11 @@ export class KaijuCombat {
       this.cooldowns.start('roar', r.cooldown);
       this.toIdle();
     }
-    return this.rooted();
+    return ROOTED;
   }
 
   private updateCharge(dt: number, input: CombatInput): MovementAllowance {
-    const b = COMBAT.beam;
+    const b = this.cfg.beam;
     this.beamCharge = clamp(this.beamCharge + dt / b.chargeTime, 0, 1);
     this.action.charge = this.beamCharge;
     if (!input.beamHeld) {
@@ -256,7 +342,7 @@ export class KaijuCombat {
   }
 
   private updateFire(dt: number, input: CombatInput): MovementAllowance {
-    const b = COMBAT.beam;
+    const b = this.cfg.beam;
     const t = this.action.t;
     const firing = t >= b.startup && t < b.startup + this.beamDuration;
     if (firing) {
@@ -277,12 +363,6 @@ export class KaijuCombat {
     return this.aimAllowance(input);
   }
 
-  /** Beam firing right now (after startup, before recovery)? */
-  get isBeamFiring(): boolean {
-    const b = COMBAT.beam;
-    return this.body.state === 'beamFire' && this.action.t >= b.startup && this.action.t < b.startup + this.beamDuration;
-  }
-
   private emitBeam(input: CombatInput, damage: number): void {
     const p = this.body.position;
     const yaw = this.body.yaw;
@@ -298,7 +378,7 @@ export class KaijuCombat {
       aimYaw = Math.atan2(dx, dz);
       aimPitch = Math.atan2(dy, Math.hypot(dx, dz));
     }
-    const a = clampBeamAim(aimYaw, aimPitch, yaw, COMBAT.beam);
+    const a = clampBeamAim(aimYaw, aimPitch, yaw, this.cfg.beam);
     const cp = Math.cos(a.pitch);
     this.beamDir.x = Math.sin(a.yaw) * cp;
     this.beamDir.y = Math.sin(a.pitch);
@@ -310,16 +390,12 @@ export class KaijuCombat {
     let faceYaw: number | null = null;
     if (input.aim) {
       const p = this.body.position;
-      faceYaw = Math.atan2(input.aim.x - p.x, input.aim.z - p.z);
       // Don't spin when the aim point is basically under the kaiju.
-      if (Math.hypot(input.aim.x - p.x, input.aim.z - p.z) < 10) faceYaw = null;
-      else faceYaw = wrapAngle(faceYaw);
+      if (Math.hypot(input.aim.x - p.x, input.aim.z - p.z) >= 10) {
+        faceYaw = wrapAngle(Math.atan2(input.aim.x - p.x, input.aim.z - p.z));
+      }
     }
-    return { moveMultiplier: 0, turnMultiplier: 0, faceYaw, faceRate: COMBAT.beam.turnRate };
-  }
-
-  private rooted(): MovementAllowance {
-    return { moveMultiplier: 0, turnMultiplier: 0, faceYaw: null, faceRate: 0 };
+    return { moveMultiplier: 0, turnMultiplier: 0, faceYaw, faceRate: this.cfg.beam.turnRate, lungeSpeed: 0 };
   }
 
   private enter(state: KaijuState): void {
@@ -327,20 +403,11 @@ export class KaijuCombat {
     this.action.t = 0;
     this.action.move = null;
     if (state !== 'beamCharge' && state !== 'beamFire') this.action.charge = 0;
-    this.emitted = false;
+    this.emitted = 0;
     this.body.setState(state);
   }
 
   private toIdle(): void {
     this.enter('idle');
-  }
-
-  /** Seconds the current timed move lasts (for animation normalisation). */
-  get moveDuration(): number {
-    return this.move ? moveLength(COMBAT[this.move]) : 0;
-  }
-
-  get currentMove(): MoveId | null {
-    return this.move;
   }
 }

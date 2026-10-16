@@ -1,18 +1,19 @@
-import type { CooldownId } from '../entities/kaiju/KaijuCombat';
+/** Abilities shown in the player's HUD. */
+export type PlayerAbility = 'claw' | 'tail' | 'stomp' | 'beam' | 'roar';
 
 export interface HudState {
   score: number;
   energy: number;
   health: number;
   /** 0 = ready, 1 = just used; per ability. */
-  cooldowns: Record<CooldownId, number>;
+  cooldowns: Record<PlayerAbility, number>;
   /** Ability is usable right now (enough energy, not busy...). */
-  usable: Record<CooldownId, boolean>;
+  usable: Record<PlayerAbility, boolean>;
   /** Beam charge 0..1 (shown on the crosshair). */
   charge: number;
 }
 
-const ABILITIES: { id: CooldownId; key: string; label: string }[] = [
+const ABILITIES: { id: PlayerAbility; key: string; label: string }[] = [
   { id: 'claw', key: 'LMB', label: 'CLAW' },
   { id: 'tail', key: 'RMB', label: 'TAIL' },
   { id: 'stomp', key: 'SPACE', label: 'STOMP' },
@@ -26,7 +27,7 @@ export class Hud {
   private readonly score: HTMLSpanElement;
   private readonly energyFill: HTMLDivElement;
   private readonly healthFill: HTMLDivElement;
-  private readonly slots = new Map<CooldownId, { el: HTMLDivElement; fill: HTMLDivElement }>();
+  private readonly slots = new Map<PlayerAbility, { el: HTMLDivElement; fill: HTMLDivElement }>();
   private readonly last = new Map<string, string | number | boolean>();
 
   constructor(parent: HTMLElement) {

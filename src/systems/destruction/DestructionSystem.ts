@@ -1,6 +1,5 @@
 import { DESTRUCTION as D } from '../../config/destruction';
 import { DUST } from '../../config/effects';
-import { KAIJU_BODY } from '../../config/kaiju';
 import type { GameEventBus } from '../../core/events';
 import type { Kaiju } from '../../entities/kaiju/Kaiju';
 import type { ChunkManager, Structure } from '../../world/city/ChunkManager';
@@ -58,7 +57,7 @@ export class DestructionSystem {
     }
 
     // Walking through small structures and props crushes them.
-    const bodyR = KAIJU_BODY.capsuleRadius * D.bodyCrushRadiusScale;
+    const bodyR = kaiju.spec.body.capsuleRadius * D.bodyCrushRadiusScale;
     this.chunks.forEachNear(pos.x, pos.z, bodyR, (s) => {
       if (s.spec.size !== 'large') this.crush(s);
     });

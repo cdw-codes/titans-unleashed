@@ -32,11 +32,12 @@ import { DefeatOverlay } from '../ui/DefeatOverlay';
 import { CombatSystem } from '../systems/combat/CombatSystem';
 import { BeamFx } from '../systems/effects/BeamFx';
 import { ShockwaveFx } from '../systems/effects/ShockwaveFx';
-import type { CooldownId } from '../entities/kaiju/KaijuCombat';
+import type { PlayerAbility } from '../ui/Hud';
+import { PLAYER_SPEC } from '../entities/kaiju/KaijuSpec';
 
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
-const COOLDOWN_IDS: CooldownId[] = ['claw', 'tail', 'stomp', 'beam', 'roar'];
+const COOLDOWN_IDS: PlayerAbility[] = ['claw', 'tail', 'stomp', 'beam', 'roar'];
 import { Kaiju } from '../entities/kaiju/Kaiju';
 import { PlayerController } from '../entities/kaiju/PlayerController';
 import { DebugSystem } from '../debug/DebugSystem';
@@ -117,7 +118,7 @@ export class Game {
     this.collapse = new CollapseSystem(this.chunks, this.cityPools, this.dust, this.smoke, this.debris);
 
     const spawn = new THREE.Vector3(CITY.spawnX, 0, CITY.spawnZ);
-    this.player = new Kaiju(physics, this.events, spawn, true, this.progress);
+    this.player = new Kaiju(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
     // Build the city around the spawn before the first frame (blocking; loading screen in M8).
     this.chunks.update(spawn.x, spawn.z, preset.drawDistance, Infinity);
     this.cityPools.flush();

@@ -14,6 +14,9 @@ export interface KaijuMovementConfig {
   readonly turnSlowdown: number;
   /** Below this speed (m/s) the kaiju counts as standing. */
   readonly idleSpeed: number;
+  /** Strafing (facing a locked target): speed factor when moving sideways / backwards. */
+  readonly strafeSpeedFactor: number;
+  readonly backpedalSpeedFactor: number;
 }
 
 export interface KaijuGaitConfig {
@@ -66,6 +69,8 @@ export const KAIJU_MOVEMENT: KaijuMovementConfig = {
   sprintTurnRate: 0.75,
   turnSlowdown: 0.85,
   idleSpeed: 0.4,
+  strafeSpeedFactor: 0.65,
+  backpedalSpeedFactor: 0.5,
 };
 
 export const KAIJU_GAIT: KaijuGaitConfig = {

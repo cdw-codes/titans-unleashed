@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { KAIJU_BODY, KAIJU_CONTROLLER, KAIJU_GAIT, KAIJU_MOVEMENT } from '../../config/kaiju';
+import { KAIJU_CONTROLLER } from '../../config/kaiju';
 import { SIM } from '../../config/sim';
 import { StateMachine } from '../../core/StateMachine';
 import { wrapAngle } from '../../core/math';
@@ -11,6 +11,7 @@ import { KaijuModel, MODEL_DESIGN_HEIGHT, MOUTH_DESIGN } from './KaijuModel';
 import { KaijuCombat, type CombatInput, type EnergyPool } from './KaijuCombat';
 import { KaijuMotor, type MoveIntent } from './KaijuMotor';
 import { locomotionState, type KaijuState } from './locomotion';
+import type { KaijuSpec } from './KaijuSpec';
 
 const _desired = { x: 0, y: 0, z: 0 };
 const _scaledIntent: MoveIntent = { x: 0, z: 0, sprint: false };
@@ -22,9 +23,9 @@ const NO_COMBAT: CombatInput = { claw: false, tail: false, stomp: false, roar: f
  * Controlled through MoveIntent, so rivals can reuse it with an AI controller.
  */
 export class Kaiju {
-  readonly model = new KaijuModel();
-  readonly motor = new KaijuMotor(KAIJU_MOVEMENT);
-  readonly gait = new Gait(KAIJU_GAIT);
+  readonly model: KaijuModel;
+  readonly motor: KaijuMotor;
+  readonly gait: Gait;
   readonly fsm: StateMachine<KaijuState, Kaiju>;
   readonly combat: KaijuCombat;
   /** Feet position (sim). */
@@ -45,7 +46,7 @@ export class Kaiju {
   private readonly centerOffset: number;
   private time = 0;
   /** Model scale relative to its design height; also scales foot offsets and dust. */
-  readonly scale = KAIJU_BODY.height / MODEL_DESIGN_HEIGHT;
+  readonly scale: number;
 
   constructor(
     private readonly physics: PhysicsSystem,
@@ -53,8 +54,13 @@ export class Kaiju {
     spawn: THREE.Vector3,
     readonly isPlayer: boolean,
     energy: EnergyPool,
+    readonly spec: KaijuSpec,
   ) {
-    const { capsuleHalfHeight: hh, capsuleRadius: r } = KAIJU_BODY;
+    this.model = new KaijuModel(spec.design, spec.combat);
+    this.motor = new KaijuMotor(spec.movement);
+    this.gait = new Gait(spec.gait);
+    this.scale = spec.body.height / MODEL_DESIGN_HEIGHT;
+    const { capsuleHalfHeight: hh, capsuleRadius: r } = spec.body;
     this.centerOffset = hh + r;
     this.position.copy(spawn);
     this.prevPosition.copy(spawn);
@@ -90,6 +96,7 @@ export class Kaiju {
         setState: (s) => this.fsm.transition(s),
       },
       energy,
+      spec.combat,
     );
   }
 
@@ -110,6 +117,9 @@ export class Kaiju {
     _scaledIntent.x = intent.x * allow.moveMultiplier;
     _scaledIntent.z = intent.z * allow.moveMultiplier;
     _scaledIntent.sprint = intent.sprint && allow.moveMultiplier >= 1;
+    // Strafe-facing only while free to move (attacks use their own facing rules).
+    _scaledIntent.faceYaw = allow.moveMultiplier > 0 ? intent.faceYaw : null;
+    if (allow.lungeSpeed > 0) this.motor.lungeForward(allow.lungeSpeed);
     this.motor.update(_scaledIntent, dt, allow.turnMultiplier);
     if (allow.faceYaw !== null) this.motor.faceToward(allow.faceYaw, allow.faceRate, dt);
 
@@ -150,7 +160,7 @@ export class Kaiju {
     if (foot) this.emitFootstep(foot);
 
     if (this.fsm.is('idle', 'walk', 'sprint')) {
-      this.fsm.transition(locomotionState(this.motor.speed, this.motor.sprinting, KAIJU_MOVEMENT));
+      this.fsm.transition(locomotionState(this.motor.speed, this.motor.sprinting, this.spec.movement));
     }
     this.fsm.update(dt);
   }
@@ -166,13 +176,13 @@ export class Kaiju {
     if (p1 < p0) p0 -= 1;
     const phase = (p0 + (p1 - p0) * alpha + 1) % 1;
     const sprinting = this.motor.sprinting;
-    const stride = sprinting ? KAIJU_GAIT.sprintStride : KAIJU_GAIT.walkStride;
+    const stride = sprinting ? this.spec.gait.sprintStride : this.spec.gait.walkStride;
 
     this.model.pose({
       phase,
-      speedRatio: this.motor.speed / KAIJU_MOVEMENT.walkSpeed,
-      stepping: !this.gait.isPlanted() || this.motor.speed > KAIJU_MOVEMENT.idleSpeed,
-      sprinting: sprinting && this.motor.speed > KAIJU_MOVEMENT.walkSpeed,
+      speedRatio: this.motor.speed / this.spec.movement.walkSpeed,
+      stepping: !this.gait.isPlanted() || this.motor.speed > this.spec.movement.idleSpeed,
+      sprinting: sprinting && this.motor.speed > this.spec.movement.walkSpeed,
       turnVelocity: this.motor.turnVelocity,
       strideAngle: Math.asin(Math.min(0.8, stride / 4 / (this.model.legLength * this.scale))),
       time: this.time,
@@ -184,10 +194,10 @@ export class Kaiju {
 
   private emitFootstep(foot: 'left' | 'right'): void {
     const side = foot === 'left' ? 1 : -1;
-    const stride = this.motor.sprinting ? KAIJU_GAIT.sprintStride : KAIJU_GAIT.walkStride;
-    const lx = KAIJU_BODY.footSpread * side;
+    const stride = this.motor.sprinting ? this.spec.gait.sprintStride : this.spec.gait.walkStride;
+    const lx = this.spec.body.footSpread * side;
     const footCenter = 4.5 * this.scale;
-    const lz = this.motor.speed > KAIJU_MOVEMENT.idleSpeed ? stride / 4 + footCenter : footCenter;
+    const lz = this.motor.speed > this.spec.movement.idleSpeed ? stride / 4 + footCenter : footCenter;
     const s = Math.sin(this.motor.yaw);
     const c = Math.cos(this.motor.yaw);
     this.events.emit('kaiju:footstep', {

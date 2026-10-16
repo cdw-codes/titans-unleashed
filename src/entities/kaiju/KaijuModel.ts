@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, damp, lerp, noise1D, TAU } from '../../core/math';
-import { COMBAT } from '../../config/combat';
+import type { CombatConfig } from '../../config/combat';
 import type { CombatAction } from './KaijuCombat';
+import type { KaijuDesign } from './designs';
 
 /**
  * Placeholder kaiju built from low-poly primitives, rigidly skinned to a bone
@@ -10,15 +11,6 @@ import type { CombatAction } from './KaijuCombat';
  * Animation is procedural for now; Milestone 7 can swap in authored clips on
  * the same kind of skeleton. Proportions here are art, not gameplay tuning.
  */
-
-const COLORS = {
-  skin: 0x4a5e4f,
-  skinDark: 0x37463b,
-  belly: 0x7d7660,
-  plate: 0xa8bcc4,
-  claw: 0xd9d2bd,
-  eye: 0xffffff,
-};
 
 type BoneName =
   | 'root' | 'pelvis' | 'spine' | 'chest' | 'neck' | 'head' | 'jaw'
@@ -32,8 +24,8 @@ export const MODEL_DESIGN_HEIGHT = 80;
 export const MOUTH_DESIGN = { height: 77, forward: 33 };
 
 const TAIL_SEGMENTS = 7;
-const TAIL_STEP = new THREE.Vector3(0, -3.8, -9.5);
-const TAIL_RADII = [9, 8, 6.8, 5.6, 4.4, 3.2, 2.0, 0.8];
+const BASE_TAIL_STEP = new THREE.Vector3(0, -3.8, -9.5);
+const BASE_TAIL_RADII = [9, 8, 6.8, 5.6, 4.4, 3.2, 2.0, 0.8];
 
 export interface KaijuPoseInput {
   /** Gait phase [0,1): left plant at 0, right at 0.5. */
@@ -83,6 +75,8 @@ export class KaijuModel {
     uGlowColor: { value: new THREE.Color(0x58d8ff) },
     uGlowIntensity: { value: 1 },
   };
+  private readonly tailStep: THREE.Vector3;
+  private readonly tailRadii: number[];
 
   /** Follows the snout tip; read its world position for beam visuals. */
   readonly mouth = new THREE.Object3D();
@@ -93,7 +87,13 @@ export class KaijuModel {
   private sprintBlend = 0;
   private turnLean = 0;
 
-  constructor() {
+  constructor(
+    readonly design: KaijuDesign,
+    private readonly cfg: CombatConfig,
+  ) {
+    this.glowUniforms.uGlowColor.value.setHex(design.glowColor);
+    this.tailStep = BASE_TAIL_STEP.clone().multiplyScalar(design.tailScale);
+    this.tailRadii = BASE_TAIL_RADII.map((r) => r * Math.sqrt(design.tailScale));
     this.buildSkeleton();
     this.buildBody();
 
@@ -137,7 +137,7 @@ export class KaijuModel {
     pelvis.rotation.set(0, 0.08 * m * Math.cos(th), 0.05 * m * Math.sin(th) - this.turnLean * 0.08);
 
     // Spine leans forward with speed; chest breathes.
-    const lean = 0.12 + 0.1 * clamp(p.speedRatio, 0, 2) + this.sprintBlend * 0.1;
+    const lean = 0.12 + this.design.hunch + 0.1 * clamp(p.speedRatio, 0, 2) + this.sprintBlend * 0.1;
     b('spine').rotation.set(lean, -0.06 * m * Math.cos(th), 0.02 * m * Math.sin(th));
     b('chest').rotation.set(0.04 + breathe * 0.015, -0.04 * m * Math.cos(th), 0);
 
@@ -177,11 +177,14 @@ export class KaijuModel {
     const t = a.t;
     switch (a.kind) {
       case 'attack':
-        return this.isTail(a) ? this.poseTail(t) : this.poseClaw(t, a.side);
+        if (a.move === 'tail') return this.poseTail(t);
+        if (a.move === 'lunge') return this.poseLunge(t);
+        if (a.move === 'volley') return this.poseVolley(t);
+        return this.poseClaw(t, a.side);
       case 'stomp':
         return this.poseStomp(t);
       case 'roar': {
-        const r = COMBAT.roar;
+        const r = this.cfg.roar;
         const k = smooth01(t / 0.35) * (1 - smooth01((t - (r.duration - 0.45)) / 0.45));
         const shake = 0.04 * Math.sin(t * 38) * k;
         b('neck').rotation.x -= 0.55 * k;
@@ -203,7 +206,7 @@ export class KaijuModel {
         b('head').rotation.x += 0.12 * c;
         b('jaw').rotation.x += 0.15 * c + 0.02 * Math.sin(p.time * 30) * c;
         for (let i = 0; i < 7; i++) b(`tail${i}`).rotation.x += 0.025 * c;
-        this.glowUniforms.uGlowIntensity.value = lerp(1, COMBAT.beam.glowCharged, c * c) * (0.92 + 0.08 * Math.sin(p.time * 25));
+        this.glowUniforms.uGlowIntensity.value = lerp(1, this.cfg.beam.glowCharged, c * c) * (0.92 + 0.08 * Math.sin(p.time * 25));
         return;
       }
       case 'beamFire': {
@@ -215,11 +218,11 @@ export class KaijuModel {
         b('neck').rotation.x += aim * 0.45 + 0.02 * Math.sin(t * 43) * k;
         b('head').rotation.x += aim * 0.45;
         b('jaw').rotation.x += 0.6 * k;
-        this.glowUniforms.uGlowIntensity.value = COMBAT.beam.glowCharged * (0.85 + 0.15 * Math.sin(p.time * 40)) * Math.max(0.15, k);
+        this.glowUniforms.uGlowIntensity.value = this.cfg.beam.glowCharged * (0.85 + 0.15 * Math.sin(p.time * 40)) * Math.max(0.15, k);
         return;
       }
       case 'stagger': {
-        const k = 1 - smooth01(t / COMBAT.health.staggerSeconds);
+        const k = 1 - smooth01(t / Math.max(0.1, a.staggerSeconds));
         b('spine').rotation.x -= 0.35 * k;
         b('head').rotation.x -= 0.3 * k;
         b('pelvis').rotation.z += 0.08 * Math.sin(t * 30) * k;
@@ -229,7 +232,7 @@ export class KaijuModel {
       }
       case 'knockdown':
       case 'defeated': {
-        const total = a.kind === 'defeated' ? Infinity : COMBAT.health.knockdownSeconds;
+        const total = a.kind === 'defeated' ? Infinity : this.cfg.health.knockdownSeconds;
         const fall = Math.min(1, t / 0.55);
         const rise = 1 - smooth01((t - (total - 1.2)) / 1.2);
         const k = fall * fall * rise; // accelerating fall, eased get-up
@@ -244,12 +247,52 @@ export class KaijuModel {
     }
   }
 
-  private isTail(a: CombatAction): boolean {
-    return a.move === 'tail';
+  private poseLunge(t: number): void {
+    const m = this.cfg.lunge;
+    if (!m) return;
+    const [ph, u] = movePhases(t, m);
+    // Crouch, then throw the body forward with both arms reaching.
+    let k: number;
+    let reach: number;
+    if (ph === 'windup') {
+      k = -0.5 * easeOut(u);
+      reach = 0.3 * easeOut(u);
+    } else if (ph === 'active') {
+      k = lerp(-0.5, 1, easeOut(u));
+      reach = lerp(0.3, 1, easeOut(u));
+    } else if (ph === 'recovery') {
+      k = 1 - smooth01(u);
+      reach = k;
+    } else return;
+    const b = (n: BoneName) => this.bone(n);
+    b('spine').rotation.x += 0.3 * k;
+    b('chest').rotation.x += 0.15 * k;
+    b('pelvis').position.y += 2 * Math.min(0, k) * 2;
+    for (const [side, sgn] of [['L', 1], ['R', -1]] as const) {
+      b(`upperArm${side}`).rotation.x -= 1.3 * reach;
+      b(`upperArm${side}`).rotation.z += 0.2 * reach * sgn;
+      b(`forearm${side}`).rotation.x += 0.4 * reach;
+    }
+    b('jaw').rotation.x += 0.4 * Math.max(0, k);
+  }
+
+  private poseVolley(t: number): void {
+    const m = this.cfg.volley;
+    if (!m?.projectile) return;
+    const [ph, u] = movePhases(t, m);
+    const k = ph === 'windup' ? easeOut(u) : ph === 'active' ? 1 : ph === 'recovery' ? 1 - smooth01(u) : 0;
+    // Recoil pulse on each shot.
+    const shotT = (t - m.windup) / m.projectile.interval;
+    const recoil = ph === 'active' ? Math.max(0, 1 - (shotT - Math.floor(shotT)) * 4) : 0;
+    const b = (n: BoneName) => this.bone(n);
+    b('spine').rotation.x += 0.12 * k - 0.06 * recoil;
+    b('neck').rotation.x += 0.1 * k - 0.1 * recoil;
+    b('jaw').rotation.x += 0.5 * k;
+    this.glowUniforms.uGlowIntensity.value = 1 + 3 * k + 2 * recoil;
   }
 
   private poseClaw(t: number, side: 1 | -1): void {
-    const [ph, u] = movePhases(t, COMBAT.claw);
+    const [ph, u] = movePhases(t, this.cfg.claw);
     const arm = side === 1 ? 'L' : 'R';
     // Key poses: [raise, out, twist, forearm].
     const wind = [-1.3, 0.9, 0.35, -0.3];
@@ -269,7 +312,7 @@ export class KaijuModel {
   }
 
   private poseTail(t: number): void {
-    const [ph, u] = movePhases(t, COMBAT.tail);
+    const [ph, u] = movePhases(t, this.cfg.tail);
     // Coil one way, then whip the body and tail through a wide arc.
     let twist: number;
     let whip: number;
@@ -298,7 +341,7 @@ export class KaijuModel {
   }
 
   private poseStomp(t: number): void {
-    const [ph, u] = movePhases(t, COMBAT.stomp);
+    const [ph, u] = movePhases(t, this.cfg.stomp);
     // [thigh, shin, pelvisY, spineX, arms]
     const lift = [-1.15, 1.25, 2.5, -0.12, -0.5];
     const slam = [0.12, 0.05, -4.5, 0.28, 0.2];
@@ -352,53 +395,73 @@ export class KaijuModel {
     this.addBone('pelvis', 'root', 0, 32, 0);
     this.addBone('spine', 'pelvis', 0, 3, 2);
     this.addBone('chest', 'spine', 0, 20, 4);
+    const d = this.design;
     this.addBone('neck', 'chest', 0, 15, 5);
-    this.addBone('head', 'neck', 0, 8, 6);
+    this.addBone('head', 'neck', 0, 8 * d.neckScale, 6 * d.neckScale);
     this.addBone('jaw', 'head', 0, -2, 4);
     for (const [s, x] of [['L', 1], ['R', -1]] as const) {
       this.addBone(`upperArm${s}`, 'chest', 11 * x, 7, 6);
-      this.addBone(`forearm${s}`, `upperArm${s}`, 2 * x, -11, 5);
-      this.addBone(`hand${s}`, `forearm${s}`, 0, -9, 4);
+      this.addBone(`forearm${s}`, `upperArm${s}`, 2 * x * d.armScale, -11 * d.armScale, 5 * d.armScale);
+      this.addBone(`hand${s}`, `forearm${s}`, 0, -9 * d.armScale, 4 * d.armScale);
       this.addBone(`thigh${s}`, 'pelvis', 9 * x, -2, 0);
       this.addBone(`shin${s}`, `thigh${s}`, 0, -15, 4);
       this.addBone(`foot${s}`, `shin${s}`, 0, -12, -4);
     }
     this.addBone('tail0', 'pelvis', 0, -1, -11);
-    for (let i = 1; i < TAIL_SEGMENTS; i++) this.addBone(`tail${i}`, `tail${i - 1}`, TAIL_STEP.x, TAIL_STEP.y, TAIL_STEP.z);
+    const ts = this.tailStep;
+    for (let i = 1; i < TAIL_SEGMENTS; i++) this.addBone(`tail${i}`, `tail${i - 1}`, ts.x, ts.y, ts.z);
     this.bone('root').updateMatrixWorld(true);
   }
 
   private buildBody(): void {
-    const C = COLORS;
+    const d = this.design;
+    const C = d.palette;
+    const A = d.armScale;
     // Torso
     this.part('pelvis', ellipsoid(11, 10, 13), C.skin, at(0, 0, -2));
-    this.part('spine', ellipsoid(13, 15, 12), C.skin, at(0, 10, 1));
-    this.part('spine', ellipsoid(9.5, 13, 5), C.belly, at(0, 9, 8.5));
-    this.part('chest', ellipsoid(14, 12, 11.5), C.skin, at(0, 4, 3));
-    this.part('chest', ellipsoid(10, 9, 4.5), C.belly, at(0, 1, 10.5));
+    this.part('spine', ellipsoid(13 * d.bulk, 15, 12 * d.bulk), C.skin, at(0, 10, 1));
+    this.part('spine', ellipsoid(9.5 * d.bulk, 13, 5), C.belly, at(0, 9, 8.5));
+    this.part('chest', ellipsoid(14 * d.bulk, 12, 11.5 * d.bulk), C.skin, at(0, 4, 3));
+    this.part('chest', ellipsoid(10 * d.bulk, 9, 4.5), C.belly, at(0, 1, 10.5));
     // Neck + head
-    this.part('neck', limb(v(0, -3, -1), v(0, 9, 6), 8.5, 6.5), C.skin);
+    this.part('neck', limb(v(0, -3, -1), v(0, 9 * d.neckScale, 6 * d.neckScale), 8.5, 6.5 / Math.sqrt(d.neckScale)), C.skin);
     this.part('head', ellipsoid(6.5, 6, 7.5), C.skin, at(0, 2, 2));
     this.part('head', box(8, 5.5, 10), C.skin, at(0, 1.2, 9.5));
     this.part('head', box(9.5, 1.6, 6), C.skinDark, at(0, 4.6, 5.5)); // brow ridge
     for (const x of [-1, 1]) {
       this.part('head', box(1.4, 0.9, 1.6), C.eye, at(3.9 * x, 3.4, 7.8), 1.6);
-      this.part('head', spike(1.4, 6, 2.2), C.plate, rotX(at(2.6 * x, 6.5, -1.5), -1.0), 0.5);
+      if (d.horns) {
+        // Big swept horns curling back over the skull.
+        this.part('head', spike(2.4, 11, 2.4), C.claw, rotZ(rotX(at(4 * x, 5, 1), -1.1), -0.5 * x));
+        this.part('head', spike(1.4, 6, 1.4), C.claw, rotZ(rotX(at(5.5 * x, 3, -4), -1.9), -0.9 * x));
+      } else if (!d.crest) {
+        this.part('head', spike(1.4, 6, 2.2), C.plate, rotX(at(2.6 * x, 6.5, -1.5), -1.0), 0.5);
+      }
+      if (d.tusks) this.part('jaw', spike(1.1, 6, 1.1), C.claw, rotX(at(3 * x, -1, 9), 0.5));
+    }
+    if (d.crest) {
+      // Fan crest sweeping back from the skull, glowing at the edges.
+      for (const [y, z, a, h] of [[6, 0, -1.25, 11], [5.5, -3, -1.45, 13], [4.5, -6, -1.65, 10]] as const) {
+        this.part('head', spike(h * 0.5, h, h * 0.08), C.plate, rotX(at(0, y, z), a), 1);
+      }
     }
     this.part('jaw', box(7, 2.6, 9), C.skinDark, at(0, -1.4, 5.5));
     this.part('jaw', box(6, 1, 8), C.belly, at(0, -2.8, 5));
     // Arms
     for (const [s, x] of [['L', 1], ['R', -1]] as const) {
-      this.part(`upperArm${s}`, limb(v(0, 2, 0), v(2 * x, -11, 5), 4.5, 3.3), C.skin);
-      this.part(`forearm${s}`, limb(v(0, 0, 0), v(0, -9, 4), 3.2, 2.6), C.skin);
-      this.part(`hand${s}`, ellipsoid(3.2, 2.4, 3.4), C.skinDark, at(0, -1, 1));
+      this.part(`upperArm${s}`, limb(v(0, 2, 0), v(2 * x * A, -11 * A, 5 * A), 4.5 * A, 3.3 * A), C.skin);
+      this.part(`forearm${s}`, limb(v(0, 0, 0), v(0, -9 * A, 4 * A), 3.2 * A, 2.6 * A), C.skin);
+      this.part(`hand${s}`, ellipsoid(3.2 * A, 2.4 * A, 3.4 * A), C.skinDark, at(0, -1, 1));
       for (const cx of [-1.6, 0, 1.6]) {
-        this.part(`hand${s}`, spike(0.8, 4.5, 0.8), C.claw, rotX(at(cx, -2.2, 3.2), 1.9));
+        this.part(`hand${s}`, spike(0.8 * A, 4.5 * d.clawLength, 0.8 * A), C.claw, rotX(at(cx * A, -2.2 * A, 3.2 * A), 1.9));
+      }
+      if (d.shoulderOrbs) {
+        this.part(`upperArm${s}`, ellipsoid(3.4, 3.4, 3.4), C.plate, at(1.5 * x, 3.5, -1), 1.6);
       }
     }
     // Legs
     for (const s of ['L', 'R'] as const) {
-      this.part(`thigh${s}`, ellipsoid(7.5, 10, 8.5), C.skin, at(0, -6, 2));
+      this.part(`thigh${s}`, ellipsoid(7.5 * d.bulk, 10, 8.5 * d.bulk), C.skin, at(0, -6, 2));
       this.part(`shin${s}`, limb(v(0, 1, 0), v(0, -12, -4), 5, 3.8), C.skin);
       this.part(`foot${s}`, box(9, 4, 13), C.skinDark, at(0, -1, 4.5));
       for (const cx of [-3, 0, 3]) {
@@ -407,27 +470,45 @@ export class KaijuModel {
     }
     // Tail
     for (let i = 0; i < TAIL_SEGMENTS; i++) {
-      const end = TAIL_STEP.clone().multiplyScalar(1.15);
-      this.part(`tail${i}`, limb(v(0, 0, 1.5), end, TAIL_RADII[i]!, TAIL_RADII[i + 1]!), C.skin);
+      const end = this.tailStep.clone().multiplyScalar(1.15);
+      this.part(`tail${i}`, limb(v(0, 0, 1.5), end, this.tailRadii[i]!, this.tailRadii[i + 1]!), C.skin);
     }
-    // Dorsal plates: the signature silhouette. Glow rises toward the tips.
-    const plates: [BoneName, number, number, number, number][] = [
-      ['neck', 0, 7, -4, 4],
-      ['chest', 0, 14, -5, 7],
-      ['chest', 0, 6, -9, 9],
-      ['spine', 0, 17, -9, 10],
-      ['spine', 0, 8, -11, 11],
-      ['spine', 0, -1, -11, 9.5],
-      ['pelvis', 0, 6, -10, 8],
+    this.buildBack();
+  }
+
+  /** The back silhouette is the quickest way to tell kaiju apart at distance. */
+  private buildBack(): void {
+    const d = this.design;
+    const C = d.palette;
+    const ridge: [BoneName, number, number, number][] = [
+      ['neck', 7, -4, 4],
+      ['chest', 14, -5, 7],
+      ['chest', 6, -9, 9],
+      ['spine', 17, -9, 10],
+      ['spine', 8, -11, 11],
+      ['spine', -1, -11, 9.5],
+      ['pelvis', 6, -10, 8],
     ];
-    for (const [bn, x, y, z, h] of plates) {
-      this.part(bn, spike(h * 0.45, h, h * 0.12), C.plate, rotX(at(x, y, z), -0.75), 1);
-      this.part(bn, spike(h * 0.3, h * 0.65, h * 0.1), C.plate, rotZ(rotX(at(x + 3.2, y - 1, z + 1), -0.6), -0.45), 1);
-      this.part(bn, spike(h * 0.3, h * 0.65, h * 0.1), C.plate, rotZ(rotX(at(x - 3.2, y - 1, z + 1), -0.6), 0.45), 1);
+    for (const [bn, y, z, h0] of ridge) {
+      if (d.back === 'plates') {
+        const h = h0;
+        this.part(bn, spike(h * 0.45, h, h * 0.12), C.plate, rotX(at(0, y, z), -0.75), 1);
+        this.part(bn, spike(h * 0.3, h * 0.65, h * 0.1), C.plate, rotZ(rotX(at(3.2, y - 1, z + 1), -0.6), -0.45), 1);
+        this.part(bn, spike(h * 0.3, h * 0.65, h * 0.1), C.plate, rotZ(rotX(at(-3.2, y - 1, z + 1), -0.6), 0.45), 1);
+      } else if (d.back === 'spikes') {
+        // Rows of thick, short horns: armored and menacing, faint ember glow.
+        const h = h0 * 0.7;
+        for (const x of [-4, 4]) this.part(bn, spike(h * 0.35, h, h * 0.35), C.plate, rotZ(rotX(at(x, y, z), -0.9), -x * 0.06), 0.35);
+      } else {
+        // Smooth crest: one tall continuous fin.
+        const h = h0 * 1.15;
+        this.part(bn, spike(h * 0.8, h, h * 0.06), C.plate, rotX(at(0, y, z), -1.05), 0.8);
+      }
     }
     for (let i = 0; i < TAIL_SEGMENTS - 1; i++) {
-      const h = 7.5 - i * 1.0;
-      this.part(`tail${i}`, spike(h * 0.45, h, h * 0.12), C.plate, rotX(at(0, TAIL_RADII[i]! * 0.75, -3), -1.0), 1);
+      const h = (7.5 - i * 1.0) * Math.sqrt(d.tailScale);
+      const glow = d.back === 'spikes' ? 0.35 : 1;
+      this.part(`tail${i}`, spike(h * 0.45, h, d.back === 'spikes' ? h * 0.35 : h * 0.12), C.plate, rotX(at(0, this.tailRadii[i]! * 0.75, -3), -1.0), glow);
     }
   }
 

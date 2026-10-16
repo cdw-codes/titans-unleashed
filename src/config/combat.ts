@@ -23,6 +23,34 @@ export interface MoveConfig {
   readonly hitPause: number;
   /** Debris pieces thrown per structure hit. */
   readonly debrisPerHit: number;
+  /** Damage and poise damage dealt to another kaiju caught in the arc. */
+  readonly kaijuDamage: number;
+  readonly poiseDamage: number;
+  /** Lunge moves: forward dash speed (m/s) during the active window. */
+  readonly lungeSpeed?: number;
+  /** When the hit resolves: start of the active window (default) or its end (lunges). */
+  readonly hitAt?: 'start' | 'end';
+  /** Volley moves: projectiles fired during the active window. */
+  readonly projectile?: ProjectileConfig;
+}
+
+export interface ProjectileConfig {
+  readonly count: number;
+  /** Seconds between shots within the volley. */
+  readonly interval: number;
+  readonly speed: number;
+  /** Downward acceleration (m/s²): a little arc reads better at kaiju scale. */
+  readonly gravity: number;
+  readonly lifetime: number;
+  readonly spreadDeg: number;
+  /** Visual radius (m). */
+  readonly size: number;
+  /** Damage to a kaiju hit directly, and to structures in the blast. */
+  readonly damage: number;
+  readonly poiseDamage: number;
+  readonly structureDamage: number;
+  readonly blastRadius: number;
+  readonly color: number;
 }
 
 export interface BeamConfig {
@@ -55,6 +83,9 @@ export interface BeamConfig {
   readonly traumaPerSecond: number;
   /** Plate glow intensity at full charge / while firing. */
   readonly glowCharged: number;
+  /** Fraction of the beam's structure DPS dealt to kaiju, and its poise damage fraction. */
+  readonly kaijuDamageFraction: number;
+  readonly poiseFraction: number;
 }
 
 export interface RoarConfig {
@@ -83,6 +114,9 @@ export interface CombatConfig {
   readonly claw: MoveConfig;
   readonly tail: MoveConfig;
   readonly stomp: MoveConfig;
+  /** Rival-only moves. */
+  readonly lunge?: MoveConfig;
+  readonly volley?: MoveConfig;
   readonly beam: BeamConfig;
   readonly roar: RoarConfig;
   readonly health: HealthConfig;
@@ -107,6 +141,8 @@ export const COMBAT: CombatConfig = {
     kick: 4,
     hitPause: 0.04,
     debrisPerHit: 3,
+    kaijuDamage: 60,
+    poiseDamage: 25,
   },
   tail: {
     windup: 0.45,
@@ -124,6 +160,8 @@ export const COMBAT: CombatConfig = {
     kick: 8,
     hitPause: 0.08,
     debrisPerHit: 5,
+    kaijuDamage: 140,
+    poiseDamage: 70,
   },
   stomp: {
     windup: 0.5,
@@ -141,6 +179,8 @@ export const COMBAT: CombatConfig = {
     kick: 26,
     hitPause: 0.1,
     debrisPerHit: 4,
+    kaijuDamage: 110,
+    poiseDamage: 60,
   },
   beam: {
     chargeTime: 1.4,
@@ -163,6 +203,8 @@ export const COMBAT: CombatConfig = {
     cooldown: 1.5,
     traumaPerSecond: 0.9,
     glowCharged: 4,
+    kaijuDamageFraction: 0.12,
+    poiseFraction: 0.15,
   },
   roar: {
     duration: 2.2,

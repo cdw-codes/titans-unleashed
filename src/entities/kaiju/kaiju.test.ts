@@ -53,6 +53,32 @@ describe('KaijuMotor', () => {
   });
 });
 
+describe('KaijuMotor strafe mode', () => {
+  it('keeps facing the target while side-stepping slower than walking', () => {
+    const m = new KaijuMotor(KAIJU_MOVEMENT);
+    for (let i = 0; i < 600; i++) m.update({ x: 1, z: 0, sprint: true, faceYaw: 0 }, DT);
+    expect(m.yaw).toBeCloseTo(0, 5);
+    expect(m.sprinting).toBe(false);
+    expect(m.velocityX).toBeGreaterThan(0);
+    expect(m.speed).toBeCloseTo(KAIJU_MOVEMENT.walkSpeed * KAIJU_MOVEMENT.strafeSpeedFactor, 3);
+  });
+
+  it('backpedals slowest', () => {
+    const m = new KaijuMotor(KAIJU_MOVEMENT);
+    for (let i = 0; i < 900; i++) m.update({ x: 0, z: -1, sprint: false, faceYaw: 0 }, DT);
+    expect(m.velocityZ).toBeLessThan(0);
+    expect(m.speed).toBeCloseTo(KAIJU_MOVEMENT.walkSpeed * KAIJU_MOVEMENT.backpedalSpeedFactor, 3);
+  });
+
+  it('lunges forward at a forced speed', () => {
+    const m = new KaijuMotor(KAIJU_MOVEMENT);
+    m.lungeForward(50);
+    m.update({ x: 0, z: 0, sprint: false }, DT);
+    expect(m.speed).toBe(50);
+    expect(m.velocityZ).toBeCloseTo(50);
+  });
+});
+
 describe('Gait', () => {
   it('plants alternating feet every half stride', () => {
     const g = new Gait(KAIJU_GAIT);

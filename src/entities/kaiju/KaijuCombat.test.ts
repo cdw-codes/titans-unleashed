@@ -25,7 +25,7 @@ function setup(energy = 100) {
       return true;
     },
   };
-  return { body, pool, combat: new KaijuCombat(body, pool) };
+  return { body, pool, combat: new KaijuCombat(body, pool, COMBAT) };
 }
 
 function run(c: KaijuCombat, seconds: number, input: CombatInput = none) {
