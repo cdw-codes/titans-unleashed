@@ -46,7 +46,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
 
 ## Architecture rules
-- Units: meters, seconds. Kaiju ≈ 80 m tall; real gravity (looks slow at this scale — good).
+- Units: meters, seconds. Kaiju ≈ 100 m tall (`KAIJU_BODY.height`; model authored at 80 m and
+  scaled, so foot offsets/dust use `kaiju.scale`). Real gravity (looks slow at this scale — good).
 - Kaiju bodies take a `MoveIntent` (world dir + sprint); player input and rival AI both just
   produce intents. Footsteps are `kaiju:footstep` events; shake/dust/crushing subscribe.
 - Rapier KCC gotchas: never push down while grounded (stalls horizontal motion; rely on
@@ -68,8 +69,9 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   via `debug.draw` and AI labels via `debug.label()` — both are no-ops when debug is off.
 
 ## Performance rules (non-negotiable)
-- Stable 60 FPS on integrated-GPU laptop at "medium". Presets low/medium/high in
-  `config/quality.ts` (pixel ratio, shadows, draw distance, debris cap, post-fx).
+- Render capped at 30 FPS (`SIM.renderFpsCap`; 0 = uncapped); sim always 60 Hz. Must hold a
+  stable 30 on an integrated-GPU laptop at "medium". Presets low/medium/high in
+  `config/quality.ts` stay internal (no player setting); `?quality=` overrides for testing.
 - City streams in chunks around the player; fog hides the edge (fog end = draw distance).
 - InstancedMesh for anything repeated. Watch draw calls in F1 overlay.
 - Buildings are static colliders until destroyed → pooled debris bodies under a hard global
@@ -117,10 +119,11 @@ Known issues:
 - Changing quality to/from "low" toggles MSAA, which only applies after reload.
 
 Decisions:
-- 1 unit = 1 m; kaiju ≈ 80 m; real gravity for heavy-feeling debris.
+- 1 unit = 1 m; kaiju ≈ 100 m; real gravity for heavy-feeling debris.
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
 - F1 debug ships in production builds (needed for M8 perf checks); lil-gui is dev-only.
-- Quality precedence: `?quality=` URL param > saved choice > medium (no GPU auto-detect).
+- No settings/preferences UI or persistence; medium preset, 30 FPS cap (cap saves GPU/heat,
+  not RAM).
 - Movement is facing-based (tank-like): the body turns toward the wished direction at a
   limited rate and withholds speed while misaligned. Lock-on strafing comes in M5.
-- Defeat flow (restart encounter vs game over) still open — decide in M5.
+- Defeat (M5): show a defeat screen with a Respawn option; no game-over/run reset for now.

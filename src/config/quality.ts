@@ -59,9 +59,7 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
 export const isQualityLevel = (v: unknown): v is QualityLevel =>
   typeof v === 'string' && (QUALITY_LEVELS as readonly string[]).includes(v);
 
-/** Precedence: URL `?quality=` > stored user choice > default. */
-export function resolveQualityLevel(urlParam: string | null, stored: string | null): QualityLevel {
-  if (isQualityLevel(urlParam)) return urlParam;
-  if (isQualityLevel(stored)) return stored;
-  return DEFAULT_QUALITY;
+/** No player-facing setting: default preset, overridable with `?quality=` for testing. */
+export function resolveQualityLevel(urlParam: string | null): QualityLevel {
+  return isQualityLevel(urlParam) ? urlParam : DEFAULT_QUALITY;
 }

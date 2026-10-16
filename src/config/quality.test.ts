@@ -2,12 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { QUALITY_LEVELS, QUALITY_PRESETS, resolveQualityLevel } from './quality';
 
 describe('resolveQualityLevel', () => {
-  it('prefers the URL param', () => {
-    expect(resolveQualityLevel('high', 'low')).toBe('high');
+  it('uses a valid URL param', () => {
+    expect(resolveQualityLevel('high')).toBe('high');
   });
-  it('falls back to stored, then default', () => {
-    expect(resolveQualityLevel(null, 'low')).toBe('low');
-    expect(resolveQualityLevel('ultra', 'nope')).toBe('medium');
+  it('falls back to the default', () => {
+    expect(resolveQualityLevel(null)).toBe('medium');
+    expect(resolveQualityLevel('ultra')).toBe('medium');
   });
 });
 

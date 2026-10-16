@@ -15,6 +15,8 @@ export class GameLoop {
   timeScale = 1;
   private last = 0;
   private handle = 0;
+  /** Min ms between rendered frames; 0 = every display refresh. */
+  private readonly minFrameMs = SIM.renderFpsCap > 0 ? 1000 / SIM.renderFpsCap : 0;
 
   constructor(private readonly cb: LoopCallbacks) {}
 
@@ -29,7 +31,11 @@ export class GameLoop {
 
   private readonly frame = (now: number): void => {
     this.handle = requestAnimationFrame(this.frame);
-    const frameDelta = (now - this.last) / 1000;
+    const elapsed = now - this.last;
+    // FPS cap: skip display refreshes until the frame budget is used. 1 ms of slack
+    // keeps a 60 Hz display at a steady 30 instead of dropping to 20.
+    if (this.minFrameMs > 0 && elapsed < this.minFrameMs - 1) return;
+    const frameDelta = elapsed / 1000;
     this.last = now;
 
     const step = this.stepper.advance(this.paused ? 0 : frameDelta * this.timeScale);

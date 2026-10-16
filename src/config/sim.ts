@@ -7,6 +7,11 @@ export interface SimConfig {
   /** Real frame delta is clamped to this before accumulating (tab switches, breakpoints). */
   readonly maxFrameDelta: number;
   readonly gravity: number;
+  /**
+   * Max rendered frames per second (0 = uncapped, follow the display).
+   * Lowers GPU/CPU load and heat; does not change memory use. The sim stays at tickRate.
+   */
+  readonly renderFpsCap: number;
 }
 
 export const SIM: SimConfig = {
@@ -14,4 +19,5 @@ export const SIM: SimConfig = {
   maxStepsPerFrame: 5,
   maxFrameDelta: 0.25,
   gravity: -9.81,
+  renderFpsCap: 30,
 };
