@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   build: {
     target: 'es2022',
-    chunkSizeWarningLimit: 2500, // Rapier's compat build inlines its wasm (~1.5 MB).
+    chunkSizeWarningLimit: 4500, // Rapier's compat build inlines its wasm as base64 (~4.3 MB, ~1.7 MB gzip).
     rolldownOptions: {
       output: {
         codeSplitting: {
