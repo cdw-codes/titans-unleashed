@@ -25,6 +25,24 @@ export interface DustConfig {
   readonly drag: number;
   readonly walkStep: DustBurstConfig;
   readonly sprintStep: DustBurstConfig;
+  /** Ring of dust pouring out at the base of a collapsing building (repeats while it falls). */
+  readonly collapse: DustBurstConfig;
+  /** Puff when something small is crushed. */
+  readonly crush: DustBurstConfig;
+  /** Seconds between collapse dust rings. */
+  readonly collapseInterval: number;
+  /** Cap on burst scale from building footprint: huge puffs cost fill-rate (overdraw). */
+  readonly maxBurstScale: number;
+}
+
+export interface SmokeConfig {
+  readonly capacity: number;
+  readonly color: number;
+  readonly drag: number;
+  readonly plume: DustBurstConfig;
+  /** Seconds a wreck keeps smoking, and seconds between plume puffs. */
+  readonly duration: number;
+  readonly interval: number;
 }
 
 export const DUST: DustConfig = {
@@ -57,4 +75,53 @@ export const DUST: DustConfig = {
     lifeMax: 4.4,
     opacity: 0.9,
   },
+  collapse: {
+    count: 10,
+    ringRadius: 10,
+    speedMin: 6,
+    speedMax: 14,
+    riseMin: 2,
+    riseMax: 7,
+    sizeStart: 14,
+    sizeEnd: 45,
+    lifeMin: 3,
+    lifeMax: 5,
+    opacity: 0.85,
+  },
+  crush: {
+    count: 5,
+    ringRadius: 3,
+    speedMin: 3,
+    speedMax: 8,
+    riseMin: 1,
+    riseMax: 4,
+    sizeStart: 6,
+    sizeEnd: 18,
+    lifeMin: 1.5,
+    lifeMax: 2.5,
+    opacity: 0.7,
+  },
+  collapseInterval: 0.3,
+  maxBurstScale: 2.5,
+};
+
+export const SMOKE: SmokeConfig = {
+  capacity: 300,
+  color: 0x4f4b47,
+  drag: 0.6,
+  plume: {
+    count: 2,
+    ringRadius: 6,
+    speedMin: 0.5,
+    speedMax: 2,
+    riseMin: 8,
+    riseMax: 14,
+    sizeStart: 14,
+    sizeEnd: 55,
+    lifeMin: 5,
+    lifeMax: 8,
+    opacity: 0.55,
+  },
+  duration: 10,
+  interval: 0.6,
 };

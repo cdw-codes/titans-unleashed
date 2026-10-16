@@ -29,6 +29,10 @@ export class Kaiju {
   readonly body: RAPIER.RigidBody;
   readonly collider: RAPIER.Collider;
 
+  /** Collider handles the body pushed against this tick (static structures). */
+  readonly contacts: number[] = [];
+  /** Forward speed before wall contact bled it off this tick (for impact damage). */
+  impactSpeed = 0;
   private readonly prevPosition = new THREE.Vector3();
   private prevYaw = 0;
   private verticalVelocity = 0;
@@ -63,9 +67,7 @@ export class Kaiju {
     this.controller.setMinSlopeSlideAngle(THREE.MathUtils.degToRad(c.minSlopeSlideDeg));
     this.controller.enableAutostep(c.autostepHeight, c.autostepMinWidth, false);
     this.controller.enableSnapToGround(c.snapToGround);
-    this.controller.setApplyImpulsesToDynamicBodies(true);
-    this.controller.setCharacterMass(50000);
-
+    
     this.model.object.scale.setScalar(this.scale);
     this.fsm = new StateMachine<KaijuState, Kaiju>('idle', {}, this);
   }
@@ -92,9 +94,17 @@ export class Kaiju {
     _desired.y = this.verticalVelocity * dt;
     _desired.z = this.motor.velocityZ * dt;
 
-    this.controller.computeColliderMovement(this.collider, _desired);
+    // Debris (dynamic bodies) never blocks the kaiju; it walks through and kicks it via footsteps.
+    this.controller.computeColliderMovement(this.collider, _desired, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC);
     const moved = this.controller.computedMovement();
     this.grounded = this.controller.computedGrounded();
+    this.contacts.length = 0;
+    for (let i = 0; i < this.controller.numComputedCollisions(); i++) {
+      const hit = this.controller.computedCollision(i);
+      // Ignore the ground: only count roughly horizontal pushes.
+      if (hit?.collider && Math.abs(hit.normal1.y) < 0.7) this.contacts.push(hit.collider.handle);
+    }
+    this.impactSpeed = this.motor.speed;
 
     this.position.x += moved.x;
     this.position.y += moved.y;

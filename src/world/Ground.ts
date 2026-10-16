@@ -5,9 +5,8 @@ import { WORLD } from '../config/world';
 import type { PhysicsSystem } from '../systems/PhysicsSystem';
 
 /**
- * Placeholder ground: a tiled plane with a 10 m grid (for reading scale) that
- * recenters on the player in whole-tile steps, plus a recentering static slab collider.
- * The city replaces most of this visually in Milestone 3.
+ * Base ground: a mottled tiled plane that recenters on the player in whole-tile
+ * steps, plus a recentering static slab collider. City roads/lots draw on top.
  */
 export class Ground {
   readonly mesh: THREE.Mesh;
@@ -64,17 +63,6 @@ export class Ground {
       ctx.fillStyle = `rgba(${v > 0 ? 255 : 0},${v > 0 ? 255 : 0},${v > 0 ? 255 : 0},${Math.abs(v) / 400})`;
       const s = 2 + Math.random() * 10;
       ctx.fillRect(Math.random() * px, Math.random() * px, s, s);
-    }
-    ctx.strokeStyle = `#${ENV.groundLineColor.toString(16).padStart(6, '0')}`;
-    const step = px / 10;
-    for (let i = 0; i <= 10; i++) {
-      ctx.lineWidth = i % 10 === 0 ? 6 : 2;
-      ctx.beginPath();
-      ctx.moveTo(i * step, 0);
-      ctx.lineTo(i * step, px);
-      ctx.moveTo(0, i * step);
-      ctx.lineTo(px, i * step);
-      ctx.stroke();
     }
 
     const tex = new THREE.CanvasTexture(canvas);

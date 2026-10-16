@@ -9,6 +9,8 @@ export interface DebugFrameInfo {
   steps: number;
   quality: string;
   focus: THREE.Vector3;
+  /** Extra overlay lines from gameplay systems (chunks, debris...). Only read when debug is on. */
+  extra: () => string[];
 }
 
 const CHUNK_RADIUS = 4;
@@ -114,6 +116,7 @@ export class DebugSystem {
       `quality    ${info.quality}`,
       `pos        ${info.focus.x.toFixed(0)}, ${info.focus.z.toFixed(0)}`,
       `chunk      ${Math.floor(info.focus.x / c)}, ${Math.floor(info.focus.z / c)}`,
+      ...info.extra(),
       '',
       'F1 toggles debug',
     ].join('\n');

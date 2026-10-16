@@ -1,5 +1,12 @@
 import * as THREE from 'three';
-import type { DustBurstConfig, DustConfig } from '../../config/effects';
+import type { DustBurstConfig } from '../../config/effects';
+
+/** What a particle system needs from its config (dust and smoke share the system). */
+export interface ParticleConfig {
+  readonly capacity: number;
+  readonly color: number;
+  readonly drag: number;
+}
 
 /**
  * Pooled soft dust puffs: one InstancedMesh of camera-facing quads, one draw call.
@@ -23,7 +30,7 @@ export class DustSystem {
   private readonly aParams: THREE.InstancedBufferAttribute; // size, alpha, rotation, seed
   private readonly geometry: THREE.InstancedBufferGeometry;
 
-  constructor(private readonly cfg: DustConfig) {
+  constructor(private readonly cfg: ParticleConfig) {
     const n = (this.cap = cfg.capacity);
     this.pos = new Float32Array(n * 3);
     this.vel = new Float32Array(n * 3);

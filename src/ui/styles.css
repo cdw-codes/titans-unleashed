@@ -102,3 +102,43 @@ html, body {
   background: rgba(255, 255, 255, 0.9);
   border-radius: 50%;
 }
+
+.hud {
+  position: fixed;
+  left: 20px;
+  bottom: 20px;
+  display: grid;
+  gap: 8px;
+  color: var(--ui-fg);
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.hud-label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  opacity: 0.8;
+}
+.hud-score-value {
+  font-size: 30px;
+  font-variant-numeric: tabular-nums;
+}
+.hud-bar-track {
+  width: 260px;
+  height: 10px;
+  margin-top: 3px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.hud-bar-fill {
+  height: 100%;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.25s ease-out;
+}
+.hud-bar-fill.energy {
+  background: linear-gradient(90deg, #2bb6e8, #8ff1ff);
+  box-shadow: 0 0 8px #58d8ff;
+}

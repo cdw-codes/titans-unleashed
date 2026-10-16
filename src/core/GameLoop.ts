@@ -13,6 +13,8 @@ export class GameLoop {
   readonly stepper = new FixedStepper(SIM.tickRate, SIM.maxStepsPerFrame, SIM.maxFrameDelta);
   paused = false;
   timeScale = 1;
+  /** Remaining real seconds of hit-pause (sim frozen, rendering continues). */
+  private hitStopRemaining = 0;
   private last = 0;
   private handle = 0;
   /** Min ms between rendered frames; 0 = every display refresh. */
@@ -23,6 +25,15 @@ export class GameLoop {
   start(): void {
     this.last = performance.now();
     this.handle = requestAnimationFrame(this.frame);
+  }
+
+  /** Freeze the simulation briefly for impact weight. Overlapping requests don't stack. */
+  hitStop(seconds: number): void {
+    this.hitStopRemaining = Math.max(this.hitStopRemaining, seconds);
+  }
+
+  get inHitStop(): boolean {
+    return this.hitStopRemaining > 0;
   }
 
   stop(): void {
@@ -38,7 +49,12 @@ export class GameLoop {
     const frameDelta = elapsed / 1000;
     this.last = now;
 
-    const step = this.stepper.advance(this.paused ? 0 : frameDelta * this.timeScale);
+    let simDelta = this.paused ? 0 : frameDelta * this.timeScale;
+    if (this.hitStopRemaining > 0 && !this.paused) {
+      this.hitStopRemaining -= frameDelta;
+      simDelta = 0;
+    }
+    const step = this.stepper.advance(simDelta);
     for (let i = 0; i < step.steps; i++) this.cb.fixedUpdate(this.stepper.dt);
     this.cb.render(step.alpha, frameDelta, step);
   };
