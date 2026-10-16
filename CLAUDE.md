@@ -111,11 +111,7 @@ WASD move (camera-relative) · Shift sprint · LMB claw · RMB tail sweep · Spa
 hold E charge beam / release fire · R roar · Q or MMB lock-on · F1 debug.
 
 ## Milestones
-1. Foundation — tooling, fixed-step loop, renderer/lighting/fog/ground, presets, F1 debug, this file
-2. Kaiju controller — primitive lizard, Rapier KCC, weighty movement, 3rd-person camera w/ collision, step shake + dust, scale test area
-3. City + destruction — chunk-streamed seeded procedural city (4 districts), instancing, destructible buildings, pooled debris/rubble, dust/smoke, hit-pause, crush small structures, score + energy
-4. Combat — claw, tail, stomp, beam (+bloom), roar; cooldowns/energy; health + hit reactions; HUD; damage unit tests
-5. Rival encounters — timer/destruction trigger, warnings, barrier arena, lock-on, 2 rivals (brawler, ranged), win/lose flow
+1–5 done (see status).
 6. Military + progression — escalating tanks/helicopters; upgrades from defeated rivals
 7. Art + audio — glTF pipeline, licensed CC0 models, skeletal anim blending, spatial audio, menus, minimap
 8. Perf + ship — profiling per preset, loading screen, key remapping, prod build, static-host deploy
