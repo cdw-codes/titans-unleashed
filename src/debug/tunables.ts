@@ -1,0 +1,81 @@
+import { KAIJU_BODY, KAIJU_CONTROLLER, KAIJU_FEEDBACK, KAIJU_GAIT, KAIJU_MOVEMENT } from '../config/kaiju';
+import { CAMERA, SHAKE } from '../config/camera';
+import { MOUSE } from '../config/input';
+import { DUST, SMOKE } from '../config/effects';
+import { DESTRUCTION } from '../config/destruction';
+import { CITY } from '../config/city';
+import { ENVIRONMENT } from '../config/environment';
+import { SIM } from '../config/sim';
+
+export type Range = [min: number, max: number, step?: number];
+
+/** A config object exposed in the dev tuning panel and writable back to its source file. */
+export interface Tunable {
+  folder: string;
+  /** File in src/config. */
+  file: string;
+  exportName: string;
+  obj: object;
+  /** Read only at startup: changes apply after Save (which reloads the page). */
+  reloadOnly?: boolean;
+  /** Keys (dot paths) to leave out. */
+  exclude?: string[];
+  /** Slider ranges for keys where the auto range would be wrong. */
+  ranges?: Record<string, Range>;
+}
+
+const fraction: Range = [0, 1, 0.01];
+
+export const TUNABLES: Tunable[] = [
+  {
+    folder: 'Kaiju movement', file: 'kaiju.ts', exportName: 'KAIJU_MOVEMENT', obj: KAIJU_MOVEMENT,
+    ranges: { turnSlowdown: fraction, walkSpeed: [1, 40, 0.5], sprintSpeed: [1, 60, 0.5] },
+  },
+  { folder: 'Kaiju gait', file: 'kaiju.ts', exportName: 'KAIJU_GAIT', obj: KAIJU_GAIT },
+  { folder: 'Footstep feedback', file: 'kaiju.ts', exportName: 'KAIJU_FEEDBACK', obj: KAIJU_FEEDBACK, ranges: { walkStepTrauma: fraction, sprintStepTrauma: fraction } },
+  { folder: 'Kaiju body', file: 'kaiju.ts', exportName: 'KAIJU_BODY', obj: KAIJU_BODY, reloadOnly: true },
+  { folder: 'Kaiju controller', file: 'kaiju.ts', exportName: 'KAIJU_CONTROLLER', obj: KAIJU_CONTROLLER, reloadOnly: true },
+  {
+    folder: 'Camera', file: 'camera.ts', exportName: 'CAMERA', obj: CAMERA,
+    ranges: { minPitch: [-1.5, 0.5, 0.01], maxPitch: [0, 1.5, 0.01], initialPitch: [-0.5, 1.2, 0.01], shoulderOffset: [-80, 80, 1] },
+  },
+  { folder: 'Camera shake', file: 'camera.ts', exportName: 'SHAKE', obj: SHAKE },
+  { folder: 'Mouse', file: 'input.ts', exportName: 'MOUSE', obj: MOUSE, ranges: { sensitivity: [0.0002, 0.01, 0.0001] } },
+  { folder: 'Destruction', file: 'destruction.ts', exportName: 'DESTRUCTION', obj: DESTRUCTION },
+  { folder: 'Dust', file: 'effects.ts', exportName: 'DUST', obj: DUST, exclude: ['capacity'] },
+  { folder: 'Smoke', file: 'effects.ts', exportName: 'SMOKE', obj: SMOKE, exclude: ['capacity'] },
+  { folder: 'Environment', file: 'environment.ts', exportName: 'ENVIRONMENT', obj: ENVIRONMENT, reloadOnly: true, ranges: { sunElevation: [5, 85, 1], sunAzimuth: [0, 360, 1] } },
+  { folder: 'City generation', file: 'city.ts', exportName: 'CITY', obj: CITY, reloadOnly: true, exclude: ['seed'] },
+  { folder: 'Frame rate', file: 'sim.ts', exportName: 'SIM', obj: SIM, reloadOnly: true, exclude: ['tickRate', 'maxStepsPerFrame', 'maxFrameDelta'], ranges: { renderFpsCap: [0, 144, 1] } },
+];
+
+/** Auto slider range: 0..3x the value (symmetric for negatives), ~300 steps. */
+export function autoRange(v: number): Range {
+  const a = Math.abs(v);
+  if (a === 0) return [0, 1, 0.01];
+  const max = a * 3;
+  const step = Number((max / 300).toPrecision(1));
+  return [v < 0 ? -max : 0, max, step];
+}
+
+/** Numeric leaves of a config object as dot paths (colors and excluded keys removed). */
+export function numericPaths(obj: object, exclude: string[] = [], prefix = ''): string[] {
+  const out: string[] = [];
+  for (const [k, v] of Object.entries(obj)) {
+    const path = prefix ? `${prefix}.${k}` : k;
+    if (exclude.includes(path) || /color/i.test(k)) continue;
+    if (typeof v === 'number') out.push(path);
+    else if (v && typeof v === 'object' && !Array.isArray(v)) out.push(...numericPaths(v, exclude, path));
+  }
+  return out;
+}
+
+export function getPath(obj: object, path: string): number {
+  return path.split('.').reduce<unknown>((o, k) => (o as Record<string, unknown>)[k], obj) as number;
+}
+
+export function setPath(obj: object, path: string, value: number): void {
+  const keys = path.split('.');
+  const parent = keys.slice(0, -1).reduce<Record<string, unknown>>((o, k) => o[k] as Record<string, unknown>, obj as Record<string, unknown>);
+  parent[keys[keys.length - 1]!] = value;
+}

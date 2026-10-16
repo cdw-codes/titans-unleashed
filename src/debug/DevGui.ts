@@ -2,15 +2,14 @@ import type GUI from 'lil-gui';
 import type { Game } from '../core/Game';
 import { QUALITY_LEVELS } from '../config/quality';
 import { ENVIRONMENT } from '../config/environment';
-import { KAIJU_FEEDBACK, KAIJU_GAIT, KAIJU_MOVEMENT } from '../config/kaiju';
-import { CAMERA, SHAKE } from '../config/camera';
-import { DUST } from '../config/effects';
-import { DESTRUCTION } from '../config/destruction';
+import { autoRange, getPath, numericPaths, setPath, TUNABLES, type Tunable } from './tunables';
 
-/** Dev-only: let lil-gui write into the (readonly-typed) config objects. Changes reset on reload. */
-const live = <T extends object>(o: T) => o as { -readonly [K in keyof T]: T[K] };
-
-/** Dev-only tuning panel. Loaded via dynamic import so it never ships in production. */
+/**
+ * Dev-only panel (dynamic import, never in production builds).
+ * Tuning: sliders for every numeric config value. "Save as base" writes the
+ * changed values into src/config/*.ts through the dev server (the page then
+ * reloads with them as defaults); "Copy changes" puts them on the clipboard.
+ */
 export async function createDevGui(game: Game): Promise<GUI> {
   const { default: LilGui } = await import('lil-gui');
   const gui = new LilGui({ title: 'Dev' });
@@ -18,74 +17,122 @@ export async function createDevGui(game: Game): Promise<GUI> {
 
   const state = {
     quality: game.qualityLevel,
-    sunElevation: ENVIRONMENT.sunElevation,
-    sunAzimuth: ENVIRONMENT.sunAzimuth,
     spawnCrates: () => game.spawnTestCrates(25),
   };
-
   gui.add(state, 'quality', QUALITY_LEVELS).name('Quality preset').onChange((v: typeof state.quality) => game.setQuality(v));
   gui.add(game.loop, 'timeScale', 0.05, 2, 0.05).name('Time scale');
-
-  const dbg = gui.addFolder('Debug view');
+  const dbg = gui.addFolder('Debug view').close();
   dbg.add(game.debug, 'showColliders').name('Colliders');
   dbg.add(game.debug, 'showChunks').name('Chunk grid');
+  dbg.add(state, 'spawnCrates').name('Drop 25 crates');
 
-  const sun = gui.addFolder('Sun');
-  const updateSun = () => game.environment.setSunAngles(state.sunElevation, state.sunAzimuth);
-  sun.add(state, 'sunElevation', 5, 85, 1).name('Elevation').onChange(updateSun);
-  sun.add(state, 'sunAzimuth', 0, 360, 1).name('Azimuth').onChange(updateSun);
-  sun.add(game.environment.sun, 'intensity', 0, 6, 0.1).name('Intensity');
-
-  gui.addFolder('Physics test').add(state, 'spawnCrates').name('Drop 25 crates');
-
-  // Live tuning. Copy values you like back into src/config/*.ts.
-  const mv = gui.addFolder('Kaiju movement').close();
-  const M = live(KAIJU_MOVEMENT);
-  mv.add(M, 'walkSpeed', 2, 30, 0.5);
-  mv.add(M, 'sprintSpeed', 5, 50, 0.5);
-  mv.add(M, 'acceleration', 0.5, 20, 0.1);
-  mv.add(M, 'sprintAcceleration', 0.5, 20, 0.1);
-  mv.add(M, 'deceleration', 0.5, 30, 0.1);
-  mv.add(M, 'turnRate', 0.1, 4, 0.05);
-  mv.add(M, 'sprintTurnRate', 0.1, 4, 0.05);
-  mv.add(M, 'turnSlowdown', 0, 1, 0.05);
-  const G = live(KAIJU_GAIT);
-  mv.add(G, 'walkStride', 10, 80, 1);
-  mv.add(G, 'sprintStride', 10, 100, 1);
-
-  const fb = gui.addFolder('Footstep feedback').close();
-  const F = live(KAIJU_FEEDBACK);
-  fb.add(F, 'walkStepTrauma', 0, 1, 0.01);
-  fb.add(F, 'sprintStepTrauma', 0, 1, 0.01);
-  fb.add(F, 'walkStepKick', 0, 40, 0.5);
-  fb.add(F, 'sprintStepKick', 0, 40, 0.5);
-  const S = live(SHAKE);
-  fb.add(S, 'maxOffset', 0, 10, 0.1);
-  fb.add(S, 'maxRoll', 0, 0.2, 0.005);
-  fb.add(S, 'frequency', 1, 30, 0.5);
-  fb.add(S, 'decay', 0.2, 5, 0.1);
-  fb.add(live(DUST.walkStep), 'opacity', 0, 1, 0.05).name('walk dust opacity');
-  fb.add(live(DUST.walkStep), 'count', 0, 40, 1).name('walk dust count');
-
-  const de = gui.addFolder('Destruction').close();
-  const D = live(DESTRUCTION);
-  de.add(D, 'pushDps', 0, 600, 5);
-  de.add(D, 'sprintPushMultiplier', 1, 5, 0.1);
-  de.add(D, 'impactDamagePerMps', 0, 40, 0.5);
-  de.add(D, 'footstepDamage', 0, 300, 5);
-  de.add(D, 'footCrushRadius', 0, 40, 0.5);
-  de.add(D, 'hitPauseSeconds', 0, 0.3, 0.01);
-  de.add(D, 'collapseTraumaPer100m', 0, 2, 0.05);
-  de.add(D, 'debrisPer10m', 0, 8, 0.5);
-
-  const cam = gui.addFolder('Camera').close();
-  const C = live(CAMERA);
-  cam.add(C, 'distance', 40, 400, 1);
-  cam.add(C, 'pivotHeight', 10, 150, 1);
-  cam.add(C, 'shoulderOffset', -60, 60, 1);
-  cam.add(C, 'followHalfLife', 0, 1, 0.01);
-  cam.add(C, 'followHalfLifeY', 0, 1, 0.01);
-  cam.add(C, 'fov', 30, 90, 1);
-  cam.add(C, 'sprintFovBoost', 0, 20, 0.5);
+  createTuning(gui, game);
   return gui;
+}
+
+function createTuning(gui: GUI, game: Game): void {
+  const tuning = gui.addFolder('Tuning');
+  // Values as loaded from the config files: the baseline for "changed".
+  const baseline = new Map<Tunable, Map<string, number>>();
+  for (const t of TUNABLES) {
+    baseline.set(t, new Map(numericPaths(t.obj, t.exclude).map((p) => [p, getPath(t.obj, p)])));
+  }
+
+  const changes = () => {
+    const out: { file: string; exportName: string; values: Record<string, number> }[] = [];
+    for (const t of TUNABLES) {
+      const values: Record<string, number> = {};
+      for (const [p, v0] of baseline.get(t)!) {
+        const v = getPath(t.obj, p);
+        if (v !== v0) values[p] = v;
+      }
+      if (Object.keys(values).length) out.push({ file: t.file, exportName: t.exportName, values });
+    }
+    return out;
+  };
+
+  const status = { text: 'no changes' };
+  const refreshStatus = () => {
+    const n = changes().reduce((sum, c) => sum + Object.keys(c.values).length, 0);
+    status.text = n ? `${n} unsaved change${n > 1 ? 's' : ''}` : 'no changes';
+    statusCtrl.updateDisplay();
+  };
+
+  const actions = {
+    save: async () => {
+      const body = changes();
+      if (!body.length) return;
+      status.text = 'saving…';
+      statusCtrl.updateDisplay();
+      try {
+        const res = await fetch('/__tuning/save', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Kaiju-Tuning': '1' },
+          body: JSON.stringify(body),
+        });
+        const json = (await res.json()) as { applied?: string[]; skipped?: string[]; error?: string };
+        if (!res.ok) throw new Error(json.error ?? res.statusText);
+        status.text = `saved ${json.applied?.length ?? 0}${json.skipped?.length ? `, skipped ${json.skipped.join(', ')}` : ''}`;
+        console.info('[tuning] saved', json);
+        // Vite reloads the page when the config files change.
+      } catch (err) {
+        status.text = `save failed: ${String(err)}`;
+      }
+      statusCtrl.updateDisplay();
+    },
+    copy: async () => {
+      const text = JSON.stringify(changes(), null, 2);
+      console.info('[tuning] changes\n' + text);
+      try {
+        await navigator.clipboard.writeText(text);
+        status.text = 'copied to clipboard';
+      } catch {
+        status.text = 'clipboard blocked: see console';
+      }
+      statusCtrl.updateDisplay();
+    },
+    reset: () => {
+      for (const t of TUNABLES) for (const [p, v] of baseline.get(t)!) setPath(t.obj, p, v);
+      for (const c of tuning.controllersRecursive()) c.updateDisplay();
+      game.environment.setSunAngles(ENVIRONMENT.sunElevation, ENVIRONMENT.sunAzimuth);
+      refreshStatus();
+    },
+  };
+
+  tuning.add(actions, 'save').name('💾 Save as base (writes src/config)');
+  tuning.add(actions, 'copy').name('📋 Copy changes (JSON)');
+  tuning.add(actions, 'reset').name('↺ Reset to file values');
+  const statusCtrl = tuning.add(status, 'text').name('Status').disable();
+
+  for (const t of TUNABLES) {
+    const folder = tuning.addFolder(t.reloadOnly ? `${t.folder} ⟳` : t.folder).close();
+    const sub = new Map<string, GUI>();
+    for (const path of baseline.get(t)!.keys()) {
+      const keys = path.split('.');
+      let parent = folder;
+      for (let i = 0; i < keys.length - 1; i++) {
+        const prefix = keys.slice(0, i + 1).join('.');
+        if (!sub.has(prefix)) sub.set(prefix, parent.addFolder(keys[i]!).close());
+        parent = sub.get(prefix)!;
+      }
+      const holder = keys.slice(0, -1).reduce<Record<string, number>>((o, k) => o[k] as unknown as Record<string, number>, t.obj as Record<string, number>);
+      const key = keys[keys.length - 1]!;
+      const [min, max, step] = t.ranges?.[path] ?? autoRange(holder[key]!);
+      parent
+        .add(holder, key, min, max, step)
+        .onChange(() => {
+          if (t.exportName === 'ENVIRONMENT') applyEnvironment(game);
+          refreshStatus();
+        });
+    }
+  }
+  if (TUNABLES.some((t) => t.reloadOnly)) {
+    tuning.add({ note: '⟳ = applies after Save (page reloads)' }, 'note').name('Note').disable();
+  }
+}
+
+/** Environment values that can be applied live; the rest need a reload. */
+function applyEnvironment(game: Game): void {
+  game.environment.setSunAngles(ENVIRONMENT.sunElevation, ENVIRONMENT.sunAzimuth);
+  game.environment.sun.intensity = ENVIRONMENT.sunIntensity;
 }

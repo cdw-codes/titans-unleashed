@@ -23,6 +23,11 @@ When a choice trades responsiveness against weight, ask; default to weight.
 - No new runtime dependencies without asking + justifying. Pin exact versions.
   Check installed package source/types when unsure about an API (three r186 removed
   PCFSoftShadowMap; Vite 8 uses rolldown: `rolldownOptions`, `codeSplitting`).
+- Tuning loop: the user tunes in the dev panel (Dev → Tuning) and clicks "Save as base", which
+  writes the values into `src/config/*.ts` via a dev-server endpoint. Treat uncommitted diffs in
+  `src/config` as the user's tuning: review, keep, and commit them — never revert them.
+  New config values get sliders automatically; register new config objects in
+  `src/debug/tunables.ts` (keep tunable values plain numeric literals so they can be saved).
 - Maintain this file at each milestone end and on decisions affecting future code; show
   the user the diff. Keep < ~150 lines; current state, not a changelog. No tuning numbers
   here — those live in `src/config`.
@@ -43,7 +48,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - `src/input` — InputState (pure, tested) + Input (DOM, pointer lock)
 - `src/ui` — HUD, menus, overlays, styles.css
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
-- `src/debug` — F1 debug system, DebugDraw, DebugLabels, dev GUI, test tools
+- `src/debug` — F1 debug system, DebugDraw, DebugLabels, dev GUI + tunables registry, test tools
+- `tools` — dev-only Node code: Vite tuning-save plugin + config source patcher (tested)
 - `src/assets` — asset loading (M7)
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
 
