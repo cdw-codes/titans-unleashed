@@ -58,8 +58,8 @@ export interface KaijuFeedbackConfig {
 
 export const KAIJU_MOVEMENT: KaijuMovementConfig = {
   walkSpeed: 13,
-  sprintSpeed: 24,
-  acceleration: 5,
+  sprintSpeed: 40,
+  acceleration: 15,
   sprintAcceleration: 3.2,
   deceleration: 7,
   turnRate: 1.35,
