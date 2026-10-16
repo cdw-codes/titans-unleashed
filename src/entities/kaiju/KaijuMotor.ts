@@ -25,7 +25,8 @@ export class KaijuMotor {
 
   constructor(private readonly cfg: KaijuMovementConfig) {}
 
-  update(intent: MoveIntent, dt: number): void {
+  /** `turnScale` scales the turn rate (attacks that limit turning). */
+  update(intent: MoveIntent, dt: number, turnScale = 1): void {
     const c = this.cfg;
     const mag = Math.min(1, Math.hypot(intent.x, intent.z));
     this.sprinting = intent.sprint && mag > 0.1;
@@ -34,7 +35,7 @@ export class KaijuMotor {
     const prevYaw = this.yaw;
     if (mag > 0.01) {
       const wishYaw = Math.atan2(intent.x, intent.z);
-      const rate = this.sprinting ? c.sprintTurnRate : c.turnRate;
+      const rate = (this.sprinting ? c.sprintTurnRate : c.turnRate) * turnScale;
       this.yaw = approachAngle(this.yaw, wishYaw, rate * dt);
       const alignment = Math.max(0, Math.cos(wrapAngle(wishYaw - this.yaw)));
       const factor = 1 - c.turnSlowdown * (1 - alignment);
@@ -44,6 +45,13 @@ export class KaijuMotor {
 
     const rate = targetSpeed > this.speed ? (this.sprinting ? c.sprintAcceleration : c.acceleration) : c.deceleration;
     this.speed = approach(this.speed, targetSpeed, rate * dt);
+  }
+
+  /** Rotate toward `yaw` without moving (aiming the beam). Call after update(). */
+  faceToward(yaw: number, rate: number, dt: number): void {
+    const prev = this.yaw;
+    this.yaw = approachAngle(this.yaw, yaw, rate * dt);
+    if (dt > 0) this.turnVelocity += wrapAngle(this.yaw - prev) / dt;
   }
 
   get velocityX(): number {
