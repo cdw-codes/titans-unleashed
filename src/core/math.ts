@@ -45,6 +45,34 @@ export function noise1D(t: number, seed = 0): number {
   return lerp(hash(i + seed * 57.3), hash(i + 1 + seed * 57.3), u) * 2 - 1;
 }
 
+function hash2(x: number, y: number, seed: number): number {
+  const s = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/** Smooth 2D value noise in [0, 1]. Deterministic for a given seed. */
+export function noise2D(x: number, y: number, seed = 0): number {
+  const ix = Math.floor(x);
+  const iy = Math.floor(y);
+  const fx = x - ix;
+  const fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx);
+  const uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy, seed);
+  const b = hash2(ix + 1, iy, seed);
+  const c = hash2(ix, iy + 1, seed);
+  const d = hash2(ix + 1, iy + 1, seed);
+  return lerp(lerp(a, b, ux), lerp(c, d, ux), uy);
+}
+
+/** Stable integer hash of a chunk coordinate + seed, for per-chunk RNG seeds. */
+export function hashCoords(x: number, z: number, seed: number): number {
+  let h = (seed ^ Math.imul(x, 0x27d4eb2d) ^ Math.imul(z, 0x165667b1)) >>> 0;
+  h = Math.imul(h ^ (h >>> 15), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
 /**
  * 1D damped spring (semi-implicit Euler). Good for camera kicks and settling:
  * `zeta` < 1 overshoots (bouncy), 1 is critically damped.

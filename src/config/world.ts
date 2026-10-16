@@ -10,6 +10,6 @@ export interface WorldConfig {
 }
 
 export const WORLD: WorldConfig = {
-  chunkSize: 200,
+  chunkSize: 256, // = 2 city blocks + 2 streets (see config/city.ts)
   groundHalfSize: 2000,
 };
