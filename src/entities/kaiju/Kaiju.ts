@@ -13,6 +13,7 @@ import { KaijuCombat, type CombatInput, type EnergyPool } from './KaijuCombat';
 import { KaijuMotor, type MoveIntent } from './KaijuMotor';
 import { locomotionState, type KaijuState } from './locomotion';
 import type { KaijuSpec } from './KaijuSpec';
+import type { KaijuModifiers } from '../../systems/progression/Upgrades';
 
 const _desired = { x: 0, y: 0, z: 0 };
 const _scaledIntent: MoveIntent = { x: 0, z: 0, sprint: false };
@@ -190,6 +191,13 @@ export class Kaiju {
     this.verticalVelocity = 0;
     this.body.setTranslation({ x, y: this.centerOffset, z }, true);
     this.body.setNextKinematicTranslation({ x, y: this.centerOffset, z });
+  }
+
+  /** Apply upgrade multipliers (player progression). */
+  setModifiers(mods: KaijuModifiers): void {
+    this.combat.mods = mods;
+    this.motor.speedMultiplier = mods.moveSpeed;
+    this.combat.health.setMaxMultiplier(mods.maxHealth);
   }
 
   /** Keep the body inside a circle (arena barrier). Call after fixedUpdate. Returns true if it pushed. */

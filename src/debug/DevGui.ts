@@ -26,6 +26,12 @@ export async function createDevGui(game: Game): Promise<GUI> {
     thornmaw: () => game.spawnRival('thornmaw'),
     vesperion: () => game.spawnRival('vesperion'),
     defeatRival: () => game.defeatRival(),
+    raiseThreat: () => game.raiseThreat(),
+    calm: () => {
+      game.threat.heat = 0;
+    },
+    evolve: () => game.offerEvolution(),
+    pulse: () => game.grantUpgrade('pulse'),
   };
   gui.add(state, 'quality', QUALITY_LEVELS).name('Quality preset').onChange((v: typeof state.quality) => game.setQuality(v));
   gui.add(game.loop, 'timeScale', 0.05, 2, 0.05).name('Time scale');
@@ -42,6 +48,11 @@ export async function createDevGui(game: Game): Promise<GUI> {
   enc.add(state, 'thornmaw').name('Spawn Thornmaw (300 m)');
   enc.add(state, 'vesperion').name('Spawn Vesperion (300 m)');
   enc.add(state, 'defeatRival').name('Defeat rival');
+  const mil = gui.addFolder('Military & upgrades').close();
+  mil.add(state, 'raiseThreat').name('Threat +1 star');
+  mil.add(state, 'calm').name('Threat to 0');
+  mil.add(state, 'evolve').name('Offer evolution');
+  mil.add(state, 'pulse').name('Unlock Atomic Pulse');
 
   createTuning(gui, game);
   return gui;

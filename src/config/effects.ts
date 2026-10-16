@@ -125,6 +125,8 @@ export interface ShockwaveConfig {
   readonly roarOpacity: number;
   /** Roar ring radius (m); visual only (stun radius is in combat config). */
   readonly roarRadius: number;
+  readonly pulseColor: number;
+  readonly pulseOpacity: number;
 }
 
 export interface BeamVisualConfig {
@@ -196,6 +198,8 @@ export const SHOCKWAVE: ShockwaveConfig = {
   roarColor: 0xcfe9ff,
   roarOpacity: 0.35,
   roarRadius: 400,
+  pulseColor: 0x8ff1ff,
+  pulseOpacity: 0.85,
 };
 
 export const SMOKE: SmokeConfig = {

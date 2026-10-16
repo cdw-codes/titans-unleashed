@@ -45,6 +45,8 @@ export interface DirectorDeps {
   hitPause(seconds: number): void;
   /** Fog end (m): nothing beyond is rendered, so rivals spawn past it. */
   hiddenDistance(): number;
+  /** The encounter is over (barrier down, rival gone). */
+  onEncounterEnd(victory: boolean): void;
 }
 
 const BEAM_COLORS: Record<RivalId, { core: number; glow: number }> = {
@@ -279,6 +281,7 @@ export class EncounterDirector {
       case 'end':
         this.d.barrier.drop();
         this.despawn();
+        this.d.onEncounterEnd(a.victory);
         return;
     }
   }

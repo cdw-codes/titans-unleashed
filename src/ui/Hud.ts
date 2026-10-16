@@ -1,5 +1,5 @@
 /** Abilities shown in the player's HUD. */
-export type PlayerAbility = 'claw' | 'tail' | 'stomp' | 'beam' | 'roar';
+export type PlayerAbility = 'claw' | 'tail' | 'stomp' | 'beam' | 'roar' | 'pulse';
 
 export interface HudState {
   score: number;
@@ -11,6 +11,10 @@ export interface HudState {
   usable: Record<PlayerAbility, boolean>;
   /** Beam charge 0..1 (shown on the crosshair). */
   charge: number;
+  /** Abilities not unlocked yet are hidden. */
+  unlocked: Record<PlayerAbility, boolean>;
+  /** Owned upgrades, e.g. "Thick Hide ×2 · Atomic Pulse". */
+  upgrades: string;
 }
 
 const ABILITIES: { id: PlayerAbility; key: string; label: string }[] = [
@@ -19,6 +23,7 @@ const ABILITIES: { id: PlayerAbility; key: string; label: string }[] = [
   { id: 'stomp', key: 'SPACE', label: 'STOMP' },
   { id: 'beam', key: 'E', label: 'BEAM' },
   { id: 'roar', key: 'R', label: 'ROAR' },
+  { id: 'pulse', key: 'F', label: 'PULSE' },
 ];
 
 /** In-game HUD: health, energy, destruction score, ability cooldowns. */
@@ -30,6 +35,7 @@ export class Hud {
   private readonly slots = new Map<PlayerAbility, { el: HTMLDivElement; fill: HTMLDivElement }>();
   private readonly last = new Map<string, string | number | boolean>();
   private readonly vignette: HTMLDivElement;
+  private readonly upgrades: HTMLDivElement;
 
   constructor(parent: HTMLElement) {
     this.root = document.createElement('div');
@@ -38,8 +44,10 @@ export class Hud {
       <div class="hud-score"><span class="hud-label">DESTRUCTION</span><span class="hud-score-value">0</span></div>
       <div class="hud-bar"><span class="hud-label">HEALTH</span><div class="hud-bar-track"><div class="hud-bar-fill health"></div></div></div>
       <div class="hud-bar"><span class="hud-label">ENERGY</span><div class="hud-bar-track"><div class="hud-bar-fill energy"></div></div></div>
-      <div class="hud-abilities"></div>`;
+      <div class="hud-abilities"></div>
+      <div class="hud-upgrades"></div>`;
     parent.appendChild(this.root);
+    this.upgrades = this.root.querySelector('.hud-upgrades')!;
     this.vignette = document.createElement('div');
     this.vignette.className = 'hud-damage';
     parent.appendChild(this.vignette);
@@ -81,7 +89,9 @@ export class Hud {
       const cd = round(s.cooldowns[id]);
       if (this.changed(`cd-${id}`, cd)) slot.fill.style.transform = `scaleY(${cd})`;
       if (this.changed(`ok-${id}`, s.usable[id])) slot.el.classList.toggle('unusable', !s.usable[id]);
+      if (this.changed(`un-${id}`, s.unlocked[id])) slot.el.style.display = s.unlocked[id] ? '' : 'none';
     }
+    if (this.changed('upgrades', s.upgrades)) this.upgrades.textContent = s.upgrades;
   }
 
   private changed(key: string, v: string | number | boolean): boolean {

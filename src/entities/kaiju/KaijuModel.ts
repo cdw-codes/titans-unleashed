@@ -180,6 +180,7 @@ export class KaijuModel {
         if (a.move === 'tail') return this.poseTail(t);
         if (a.move === 'lunge') return this.poseLunge(t);
         if (a.move === 'volley') return this.poseVolley(t);
+        if (a.move === 'pulse') return this.posePulse(t);
         return this.poseClaw(t, a.side);
       case 'stomp':
         return this.poseStomp(t);
@@ -274,6 +275,33 @@ export class KaijuModel {
       b(`forearm${side}`).rotation.x += 0.4 * reach;
     }
     b('jaw').rotation.x += 0.4 * Math.max(0, k);
+  }
+
+  private posePulse(t: number): void {
+    const m = this.cfg.pulse;
+    if (!m) return;
+    const [ph, u] = movePhases(t, m);
+    // Hunch and gather (plates flare brighter), then throw the body open as the blast goes off.
+    let gather = 0;
+    let burst = 0;
+    if (ph === 'windup') gather = easeOut(u);
+    else if (ph === 'active') {
+      gather = 1 - u;
+      burst = u;
+    } else if (ph === 'recovery') burst = 1 - smooth01(u);
+    else return;
+    const b = (n: BoneName) => this.bone(n);
+    b('spine').rotation.x += 0.35 * gather - 0.25 * burst;
+    b('chest').rotation.x += 0.15 * gather - 0.1 * burst;
+    b('pelvis').position.y -= 4 * gather;
+    b('head').rotation.x += 0.3 * gather - 0.5 * burst;
+    b('jaw').rotation.x += 0.7 * burst;
+    for (const [side, sgn] of [['L', 1], ['R', -1]] as const) {
+      b(`upperArm${side}`).rotation.z += (-0.2 * gather + 1.0 * burst) * sgn;
+      b(`upperArm${side}`).rotation.x -= 0.5 * gather;
+    }
+    for (let i = 0; i < 7; i++) b(`tail${i}`).rotation.x += 0.05 * burst;
+    this.glowUniforms.uGlowIntensity.value = 1 + 5 * gather * gather + 8 * burst;
   }
 
   private poseVolley(t: number): void {

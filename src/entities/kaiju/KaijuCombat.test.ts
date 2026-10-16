@@ -109,6 +109,27 @@ describe('KaijuCombat', () => {
     expect(combat.health.isInvulnerable).toBe(true);
   });
 
+  it('pulse needs the upgrade and costs energy', () => {
+    const { body, pool, combat } = setup(100);
+    combat.update(DT, { ...none, pulse: true });
+    expect(body.state).toBe('idle'); // locked
+    combat.mods = { ...combat.mods, pulse: true };
+    combat.update(DT, { ...none, pulse: true });
+    expect(body.state).toBe('attack');
+    expect(pool.energy).toBe(100 - COMBAT.pulse!.energyCost!);
+    const poor = setup(10);
+    poor.combat.mods = { ...poor.combat.mods, pulse: true };
+    poor.combat.update(DT, { ...none, pulse: true });
+    expect(poor.body.state).toBe('idle');
+  });
+
+  it('charge-time upgrades charge the beam faster', () => {
+    const { combat } = setup();
+    combat.mods = { ...combat.mods, chargeTime: 0.5 };
+    run(combat, COMBAT.beam.chargeTime * 0.5 + 0.05, { ...none, beamHeld: true });
+    expect(combat.charge).toBe(1);
+  });
+
   it('defeat holds until respawn', () => {
     const { body, combat } = setup();
     combat.takeHit(1e6);

@@ -32,6 +32,8 @@ export interface MoveConfig {
   readonly hitAt?: 'start' | 'end';
   /** Volley moves: projectiles fired during the active window. */
   readonly projectile?: ProjectileConfig;
+  /** Energy spent when the move starts (it won't start without it). */
+  readonly energyCost?: number;
 }
 
 export interface ProjectileConfig {
@@ -122,6 +124,8 @@ export interface CombatConfig {
   /** Rival-only moves. */
   readonly lunge?: MoveConfig;
   readonly volley?: MoveConfig;
+  /** Unlockable player move (Atomic Pulse upgrade). */
+  readonly pulse?: MoveConfig;
   readonly beam: BeamConfig;
   readonly roar: RoarConfig;
   readonly health: HealthConfig;
@@ -186,6 +190,26 @@ export const COMBAT: CombatConfig = {
     debrisPerHit: 4,
     kaijuDamage: 110,
     poiseDamage: 60,
+  },
+  pulse: {
+    windup: 0.6,
+    active: 0.1,
+    recovery: 0.7,
+    cooldown: 8,
+    damage: 600,
+    edgeFalloff: 0.35,
+    radius: 150,
+    arcDeg: 360,
+    arcOffsetDeg: 0,
+    moveMultiplier: 0,
+    turnMultiplier: 0,
+    trauma: 0.8,
+    kick: 30,
+    hitPause: 0.15,
+    debrisPerHit: 4,
+    kaijuDamage: 220,
+    poiseDamage: 150,
+    energyCost: 35,
   },
   beam: {
     chargeTime: 1.4,

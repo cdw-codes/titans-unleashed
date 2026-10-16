@@ -32,6 +32,8 @@ export class KaijuMotor {
   sprinting = false;
   /** Forced forward speed this tick (lunges), or 0. */
   private lunge = 0;
+  /** Upgrade multiplier on all target speeds. */
+  speedMultiplier = 1;
 
   constructor(readonly cfg: KaijuMovementConfig) {}
 
@@ -74,6 +76,7 @@ export class KaijuMotor {
       this.lunge = 0;
       return;
     }
+    targetSpeed *= this.speedMultiplier;
     const rate = targetSpeed > this.speed ? (this.sprinting ? c.sprintAcceleration : c.acceleration) : c.deceleration;
     this.speed = approach(this.speed, targetSpeed, rate * dt);
   }

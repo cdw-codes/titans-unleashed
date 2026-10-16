@@ -3,8 +3,9 @@ import { clamp, wrapAngle } from '../../core/math';
 import { beamShot, clampBeamAim, Cooldowns, moveLength, movePhase, type MovePhase } from '../../systems/combat/rules';
 import { Health, type HitReaction } from '../../systems/combat/Health';
 import type { KaijuState } from './locomotion';
+import { baseModifiers, type KaijuModifiers } from '../../systems/progression/Upgrades';
 
-export type MoveId = 'claw' | 'tail' | 'stomp' | 'lunge' | 'volley';
+export type MoveId = 'claw' | 'tail' | 'stomp' | 'lunge' | 'volley' | 'pulse';
 export type CooldownId = MoveId | 'beam' | 'roar';
 
 /** Buttons for this tick (presses are edge-triggered; beamHeld is level). */
@@ -17,6 +18,8 @@ export interface CombatInput {
   /** Rival-only moves. */
   lunge?: boolean;
   volley?: boolean;
+  /** Unlockable player move. */
+  pulse?: boolean;
   /** World point to aim the beam / projectiles at (crosshair or AI target), or null. */
   aim: { x: number; y: number; z: number } | null;
 }
@@ -71,7 +74,7 @@ interface Body {
 const LOCOMOTION: KaijuState[] = ['idle', 'walk', 'sprint'];
 const FREE: MovementAllowance = { moveMultiplier: 1, turnMultiplier: 1, faceYaw: null, faceRate: 0, lungeSpeed: 0 };
 const ROOTED: MovementAllowance = { moveMultiplier: 0, turnMultiplier: 0, faceYaw: null, faceRate: 0, lungeSpeed: 0 };
-const PRIORITY: (MoveId | 'roar')[] = ['stomp', 'tail', 'lunge', 'volley', 'claw', 'roar'];
+const PRIORITY: (MoveId | 'roar')[] = ['pulse', 'stomp', 'tail', 'lunge', 'volley', 'claw', 'roar'];
 
 /**
  * Combat state for one kaiju (player or rival): move timelines, beam charge and
@@ -86,6 +89,8 @@ export class KaijuCombat {
   /** Last resolved beam endpoint (set by CombatSystem), for visuals. */
   readonly beamEnd = { x: 0, y: 0, z: 0, hit: false };
   readonly beamDir = { x: 0, y: 0, z: 1 };
+  /** Upgrade multipliers (player); rivals keep the base. */
+  mods: KaijuModifiers = baseModifiers();
 
   private move: MoveId | null = null;
   private emitted = 0;
@@ -122,6 +127,7 @@ export class KaijuCombat {
   }
 
   hasMove(id: MoveId): boolean {
+    if (id === 'pulse') return this.cfg.pulse !== undefined && this.mods.pulse;
     return this.cfg[id] !== undefined;
   }
 
@@ -136,6 +142,7 @@ export class KaijuCombat {
   canStart(id: CooldownId): boolean {
     if (this.busy) return false;
     if (id !== 'beam' && id !== 'roar' && !this.hasMove(id)) return false;
+    if (id !== 'beam' && id !== 'roar' && this.energy.energy < (this.moveCfg(id).energyCost ?? 0)) return false;
     if (id === 'beam' && this.energy.energy < this.cfg.beam.minEnergyToCharge) return false;
     return this.cooldowns.isReady(id);
   }
@@ -244,6 +251,11 @@ export class KaijuCombat {
       return;
     }
     if (q && q !== 'roar' && this.hasMove(q) && this.cooldowns.isReady(q)) {
+      const cost = this.moveCfg(q).energyCost ?? 0;
+      if (cost > 0 && !this.energy.spend(cost)) {
+        this.queued = null;
+        return;
+      }
       this.queued = null;
       this.move = q;
       if (q === 'claw') this.clawSide = this.clawSide === 1 ? -1 : 1;
@@ -324,7 +336,7 @@ export class KaijuCombat {
 
   private updateCharge(dt: number, input: CombatInput): MovementAllowance {
     const b = this.cfg.beam;
-    this.beamCharge = clamp(this.beamCharge + dt / b.chargeTime, 0, 1);
+    this.beamCharge = clamp(this.beamCharge + dt / (b.chargeTime * this.mods.chargeTime), 0, 1);
     this.action.charge = this.beamCharge;
     if (!input.beamHeld) {
       const shot = beamShot(this.beamCharge, b);
@@ -350,7 +362,7 @@ export class KaijuCombat {
         // Out of energy: cut the beam short.
         this.action.t = b.startup + this.beamDuration;
       } else {
-        this.emitBeam(input, this.beamDps * dt);
+        this.emitBeam(input, this.beamDps * this.mods.beamDamage * dt);
       }
     }
     if (t >= b.startup + this.beamDuration + b.recovery) {

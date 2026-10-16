@@ -40,10 +40,17 @@ import { ProjectileSystem } from '../systems/combat/ProjectileSystem';
 import { BarrierFx } from '../systems/effects/BarrierFx';
 import { EncounterDirector } from '../systems/encounters/EncounterDirector';
 import { EncounterHud } from '../ui/EncounterHud';
+import { MILITARY } from '../config/military';
+import { UPGRADES, UPGRADE_CHOICES, type UpgradeId } from '../config/upgrades';
+import { MilitarySystem } from '../systems/military/MilitarySystem';
+import { Threat } from '../systems/military/Threat';
+import { modifiersFor, rollChoices } from '../systems/progression/Upgrades';
+import { ThreatHud } from '../ui/ThreatHud';
+import { EvolutionOverlay } from '../ui/EvolutionOverlay';
 
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
-const COOLDOWN_IDS: PlayerAbility[] = ['claw', 'tail', 'stomp', 'beam', 'roar'];
+const COOLDOWN_IDS: PlayerAbility[] = ['claw', 'tail', 'stomp', 'beam', 'roar', 'pulse'];
 import { Kaiju } from '../entities/kaiju/Kaiju';
 import { PlayerController } from '../entities/kaiju/PlayerController';
 import { DebugSystem } from '../debug/DebugSystem';
@@ -77,12 +84,20 @@ export class Game {
   private readonly projectiles: ProjectileSystem;
   private readonly plasmaTrail = new DustSystem(PLASMA_TRAIL);
   readonly director: EncounterDirector;
+  readonly military: MilitarySystem;
+  readonly threat = new Threat(MILITARY.threat);
+  private readonly threatHud: ThreatHud;
+  private readonly evolution: EvolutionOverlay;
+  /** Upgrades owned this session (count per id). */
+  readonly upgrades: Partial<Record<UpgradeId, number>> = {};
   private readonly defeatOverlay: DefeatOverlay;
   private lastReactionT = 0;
   private readonly hudState = {
     score: 0, energy: 0, health: 1, charge: 0,
-    cooldowns: { claw: 0, tail: 0, stomp: 0, beam: 0, roar: 0 },
-    usable: { claw: true, tail: true, stomp: true, beam: true, roar: true },
+    cooldowns: { claw: 0, tail: 0, stomp: 0, beam: 0, roar: 0, pulse: 0 },
+    usable: { claw: true, tail: true, stomp: true, beam: true, roar: true, pulse: true },
+    unlocked: { claw: true, tail: true, stomp: true, beam: true, roar: true, pulse: false },
+    upgrades: '',
   };
   private readonly cityPools: CityPools;
   private readonly debris: DebrisSystem;
@@ -102,6 +117,7 @@ export class Game {
       `player     hp ${this.player.combat.health.health.toFixed(0)}  poise ${this.player.combat.health.poise.toFixed(0)}  ${this.player.combat.currentMove ?? ''}`,
       `encounter  ${this.director.encounter.phase} ${this.director.encounter.t.toFixed(0)}s  (next in ${Math.max(0, this.director.encounter.roamingDelay - this.director.encounter.t).toFixed(0)}s)`,
       `projectiles ${this.projectiles.count}`,
+      `military   threat ${this.threat.level} (heat ${this.threat.heat.toFixed(0)})  tanks ${this.military.tankCount}  helis ${this.military.heliCount}`,
     ],
   };
 
@@ -177,12 +193,38 @@ export class Game {
       progress: this.progress,
       hitPause: (s) => this.loop.hitStop(s),
       hiddenDistance: () => QUALITY_PRESETS[this.qualityLevel].drawDistance * 0.95,
+      onEncounterEnd: (victory) => {
+        if (victory) this.offerEvolution();
+      },
     });
+    this.military = new MilitarySystem(scene, physics, this.chunks, this.destruction, this.fire, this.dust, this.smoke, {
+      hitPlayer: (damage, poise) => this.combatSystem.hitKaiju(this.player, null, damage, poise),
+      unitDestroyed: (kind) => {
+        const c = kind === 'tank' ? MILITARY.tank : MILITARY.heli;
+        this.progress.score += c.points;
+        this.progress.gainEnergy(c.energy);
+        this.threat.addDestruction(c.points);
+        if (kind === 'heli') this.camera.shake.addTrauma(0.15);
+      },
+      explosion: (x, z, size) => {
+        const k = this.proximity(x, z, 400);
+        this.camera.shake.addTrauma(0.3 * size * k * k);
+      },
+    });
+    this.combatSystem.military = this.military;
+    this.threatHud = new ThreatHud(uiRoot);
+    this.evolution = new EvolutionOverlay(uiRoot);
     this.events.on('structure:destroyed', (e) => {
-      if (e.byPlayer) this.progress.onDestroyed(e.points, e.size);
+      if (!e.byPlayer) return;
+      this.progress.onDestroyed(e.points, e.size);
+      this.threat.addDestruction(e.points);
     });
     this.events.on('combat:impact', (e) => {
-      if (e.move === 'stomp') {
+      if (e.move === 'pulse') {
+        this.shockwaves.spawn(e.x, 3, e.z, e.radius * 1.2, SHOCKWAVE.duration, SHOCKWAVE.pulseColor, SHOCKWAVE.pulseOpacity);
+        this.shockwaves.spawn(e.x, 30, e.z, e.radius * 0.8, SHOCKWAVE.duration * 0.7, SHOCKWAVE.pulseColor, SHOCKWAVE.pulseOpacity * 0.6);
+        this.military.blastUnits(e.x, e.z, e.radius, true);
+      } else if (e.move === 'stomp') {
         this.shockwaves.spawn(e.x, 1, e.z, e.radius * 1.15, SHOCKWAVE.duration, SHOCKWAVE.stompColor, SHOCKWAVE.stompOpacity);
       } else if (e.move === 'tail') {
         // Dust kicked up along the sweep behind the kaiju.
@@ -199,6 +241,7 @@ export class Game {
     this.events.on('kaiju:footstep', (e) => {
       this.dust.burst(e.x, e.y, e.z, e.sprinting ? DUST.sprintStep : DUST.walkStep, e.scale);
       if (e.isPlayer) {
+        this.military.crushAt(e.x, e.z, DESTRUCTION.footCrushRadius * e.scale);
         this.camera.shake.addTrauma(e.sprinting ? KAIJU_FEEDBACK.sprintStepTrauma : KAIJU_FEEDBACK.walkStepTrauma);
         this.camera.shake.addKick(e.sprinting ? KAIJU_FEEDBACK.sprintStepKick : KAIJU_FEEDBACK.walkStepKick);
       } else {
@@ -268,6 +311,43 @@ export class Game {
     return Math.max(0, 1 - Math.hypot(c.x - x, c.z - z) / range);
   }
 
+  /** After a victory: pick 1 of 3 upgrades. The game pauses while choosing. */
+  offerEvolution(): void {
+    const ids = rollChoices(this.upgrades, UPGRADE_CHOICES, Math.random);
+    if (!ids.length) return;
+    document.exitPointerLock();
+    this.evolution.show(
+      ids.map((id) => ({
+        id,
+        name: UPGRADES[id].name,
+        description: UPGRADES[id].description,
+        stack: `${(this.upgrades[id] ?? 0) + 1} / ${UPGRADES[id].maxStacks}`,
+      })),
+      (id) => {
+        this.grantUpgrade(id as UpgradeId);
+        this.setPaused(!this.input.isLocked); // shows "click to play" if re-locking is refused
+        void this.input.requestLock();
+      },
+    );
+  }
+
+  grantUpgrade(id: UpgradeId): void {
+    this.upgrades[id] = (this.upgrades[id] ?? 0) + 1;
+    const mods = modifiersFor(this.upgrades);
+    this.player.setModifiers(mods);
+    this.progress.energyMultiplier = mods.energyGain;
+    this.hudState.upgrades = (Object.entries(this.upgrades) as [UpgradeId, number][])
+      .map(([k, n]) => (n > 1 ? `${UPGRADES[k].name} ×${n}` : UPGRADES[k].name))
+      .join(' · ');
+  }
+
+  /** Debug: push the threat up one level. */
+  raiseThreat(): void {
+    const th = MILITARY.threat.levelThresholds;
+    const next = th[Math.min(th.length - 1, this.threat.level)]!;
+    this.threat.addDestruction(Math.max(1, next - this.threat.heat));
+  }
+
   /** Debug: fill beam energy. */
   fillEnergy(): void {
     this.progress.energy = DESTRUCTION.maxEnergy;
@@ -281,6 +361,8 @@ export class Game {
     this.chunks.update(spot.x, spot.z, QUALITY_PRESETS[this.qualityLevel].drawDistance, Infinity);
     this.cityPools.flush();
     this.player.combat.respawn();
+    // A fresh start: the military loses track of you.
+    this.threat.heat = 0;
     this.defeatOverlay.visible = false;
     void this.input.requestLock();
   }
@@ -292,7 +374,7 @@ export class Game {
   private setPaused(paused: boolean): void {
     // Pause = pointer not locked. Rendering continues so the dev GUI stays live.
     this.loop.paused = paused;
-    this.pauseOverlay.visible = paused && !this.defeatOverlay.isVisible;
+    this.pauseOverlay.visible = paused && !this.defeatOverlay.isVisible && !this.evolution.isVisible;
     this.crosshair.visible = !paused;
     this.hud.visible = !paused;
     this.events.emit('game:pause', { paused });
@@ -316,6 +398,9 @@ export class Game {
     }
     this.destruction.tick(dt);
     for (const k of kaijus) this.destruction.fixedUpdate(dt, k);
+    this.threat.update(dt);
+    this.military.fixedUpdate(dt, this.player, this.threat.level, this.director.encounter.phase !== 'roaming');
+    this.military.crushAt(p.x, p.z, this.player.spec.body.capsuleRadius * DESTRUCTION.bodyCrushRadiusScale);
     this.director.fixedUpdateEncounter(dt);
     this.physics.step();
     this.debris.fixedUpdate(dt);
@@ -340,6 +425,7 @@ export class Game {
     this.shockwaves.update(fxDt);
     this.beamFx.update(this.player, fxDt);
     this.projectiles.render(alpha, fxDt);
+    this.military.render(alpha, fxDt);
     this.plasmaTrail.update(fxDt);
     this.updateReactions();
 
@@ -387,7 +473,8 @@ export class Game {
       this.drawCombatDebug();
     }
     this.debug.preRender(info);
-    this.render.render(this.beamFx.glowing || this.director.glowing || this.projectiles.count > 0);
+    const pulsing = this.player.combat.currentMove === 'pulse';
+    this.render.render(this.beamFx.glowing || this.director.glowing || this.projectiles.count > 0 || pulsing);
     this.debug.postRender(info);
   }
 
@@ -441,9 +528,12 @@ export class Game {
     h.charge = this.player.state === 'beamCharge' ? c.charge : 0;
     for (const id of COOLDOWN_IDS) {
       h.cooldowns[id] = c.cooldowns.remainingFraction(id, c.cooldownTotal(id));
-      h.usable[id] = id === 'beam' ? this.progress.energy >= COMBAT.beam.minEnergyToCharge : true;
+      const cost = id === 'beam' ? COMBAT.beam.minEnergyToCharge : id === 'pulse' ? (COMBAT.pulse?.energyCost ?? 0) : 0;
+      h.usable[id] = this.progress.energy >= cost;
     }
+    h.unlocked.pulse = c.mods.pulse;
     this.hud.update(h);
+    this.threatHud.update(this.threat.level, this.threat.progress, this.director.encounter.phase !== 'roaming');
     this.crosshair.charge = h.charge;
   }
 

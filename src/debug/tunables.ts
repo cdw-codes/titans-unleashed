@@ -6,6 +6,8 @@ import { COMBAT } from '../config/combat';
 import { POSTFX } from '../config/postfx';
 import { RIVALS } from '../config/rivals';
 import { ENCOUNTERS } from '../config/encounters';
+import { MILITARY } from '../config/military';
+import { UPGRADES } from '../config/upgrades';
 import { DESTRUCTION } from '../config/destruction';
 import { CITY } from '../config/city';
 import { ENVIRONMENT } from '../config/environment';
@@ -52,6 +54,8 @@ export const TUNABLES: Tunable[] = [
   { folder: 'Bloom', file: 'postfx.ts', exportName: 'POSTFX', obj: POSTFX, reloadOnly: true, ranges: { bloomThreshold: [0, 3, 0.05] } },
   { folder: 'Rivals', file: 'rivals.ts', exportName: 'RIVALS', obj: RIVALS, exclude: ['thornmaw.combat.beam'] },
   { folder: 'Encounters', file: 'encounters.ts', exportName: 'ENCOUNTERS', obj: ENCOUNTERS },
+  { folder: 'Military', file: 'military.ts', exportName: 'MILITARY', obj: MILITARY },
+  { folder: 'Upgrades', file: 'upgrades.ts', exportName: 'UPGRADES', obj: UPGRADES },
   { folder: 'Destruction', file: 'destruction.ts', exportName: 'DESTRUCTION', obj: DESTRUCTION },
   { folder: 'Dust', file: 'effects.ts', exportName: 'DUST', obj: DUST, exclude: ['capacity'] },
   { folder: 'Smoke', file: 'effects.ts', exportName: 'SMOKE', obj: SMOKE, exclude: ['capacity'] },

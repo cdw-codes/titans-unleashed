@@ -14,6 +14,7 @@ export const BINDINGS = {
   stomp: ['Space'],
   beam: ['KeyE'],
   roar: ['KeyR'],
+  pulse: ['KeyF'],
   lockOn: ['KeyQ', 'Mouse1'],
   debug: ['F1'],
 } as const satisfies Record<string, readonly string[]>;

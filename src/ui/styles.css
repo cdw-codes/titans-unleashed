@@ -338,3 +338,100 @@ html, body {
 @keyframes enc-reticle {
   50% { width: 54px; height: 54px; }
 }
+
+.hud-upgrades {
+  max-width: 340px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #8ff1ff;
+  opacity: 0.85;
+}
+
+.threat-hud {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  color: var(--ui-fg);
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
+}
+.threat-hud.suppressed { opacity: 0.4; }
+.threat-stars { font-size: 24px; letter-spacing: 2px; }
+.threat-stars span { color: rgba(255, 255, 255, 0.22); }
+.threat-stars span.on { color: #ffb347; text-shadow: 0 0 8px rgba(255, 150, 40, 0.8); }
+.threat-track {
+  width: 130px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.threat-fill {
+  height: 100%;
+  background: #ffb347;
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.3s;
+}
+
+.evo-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(6, 18, 26, 0.72);
+  color: var(--ui-fg);
+  pointer-events: auto;
+  transition: opacity 0.3s;
+}
+.evo-overlay.hidden { opacity: 0; pointer-events: none; }
+.evo-panel { text-align: center; }
+.evo-panel h1 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 56px);
+  letter-spacing: 0.3em;
+  color: #8ff1ff;
+  text-shadow: 0 0 24px rgba(88, 216, 255, 0.6);
+}
+.evo-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 20px;
+}
+.evo-card {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  width: 220px;
+  padding: 22px 18px;
+  font: inherit;
+  text-align: left;
+  color: var(--ui-fg);
+  background: rgba(15, 40, 52, 0.9);
+  border: 1px solid rgba(143, 241, 255, 0.4);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.evo-card:hover, .evo-card:focus-visible {
+  transform: translateY(-4px);
+  border-color: #8ff1ff;
+  box-shadow: 0 0 22px rgba(88, 216, 255, 0.4);
+  outline: none;
+}
+.evo-key {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 12px;
+  opacity: 0.6;
+}
+.evo-name { font-size: 18px; font-weight: 900; letter-spacing: 0.06em; }
+.evo-desc { font-size: 14px; opacity: 0.85; }
+.evo-stack { font-size: 12px; color: #8ff1ff; }

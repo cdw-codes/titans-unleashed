@@ -5,7 +5,7 @@ import type { MoveIntent } from './KaijuMotor';
 /** Turns WASD + camera yaw into a MoveIntent, and buttons + crosshair into CombatInput. */
 export class PlayerController {
   readonly intent: MoveIntent = { x: 0, z: 0, sprint: false };
-  readonly combat: CombatInput = { claw: false, tail: false, stomp: false, roar: false, beamHeld: false, aim: null };
+  readonly combat: CombatInput = { claw: false, tail: false, stomp: false, roar: false, beamHeld: false, pulse: false, aim: null };
   /** World point under the crosshair, refreshed every render frame by the camera. */
   readonly aimPoint = { x: 0, y: 0, z: 0 };
   hasAim = false;
@@ -37,6 +37,7 @@ export class PlayerController {
     c.tail = input.wasPressed('tail');
     c.stomp = input.wasPressed('stomp');
     c.roar = input.wasPressed('roar');
+    c.pulse = input.wasPressed('pulse');
     c.beamHeld = input.isDown('beam');
     if (lock) {
       this.lockAim.x = lock.x;
