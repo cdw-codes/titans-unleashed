@@ -24,6 +24,9 @@ type BoneName =
   | 'thighL' | 'shinL' | 'footL' | 'thighR' | 'shinR' | 'footR'
   | `tail${number}`;
 
+/** Height the primitives are authored at; the entity scales the model to KAIJU_BODY.height. */
+export const MODEL_DESIGN_HEIGHT = 80;
+
 const TAIL_SEGMENTS = 7;
 const TAIL_STEP = new THREE.Vector3(0, -3.8, -9.5);
 const TAIL_RADII = [9, 8, 6.8, 5.6, 4.4, 3.2, 2.0, 0.8];
@@ -51,7 +54,7 @@ const _dir = new THREE.Vector3();
 export class KaijuModel {
   readonly object = new THREE.Group();
   readonly mesh: THREE.SkinnedMesh;
-  /** Hip-to-ankle length, used to derive stride angles. */
+  /** Hip-to-ankle length at design scale, used to derive stride angles. */
   readonly legLength: number;
   readonly glowUniforms = {
     uGlowColor: { value: new THREE.Color(0x58d8ff) },

@@ -59,7 +59,7 @@ describe('Gait', () => {
     const steps: Foot[] = [];
     const speed = 10;
     let dist = 0;
-    while (dist < KAIJU_GAIT.walkStride * 2 + 0.01) {
+    while (dist < KAIJU_GAIT.walkStride * 2 + 1) {
       const f = g.update(speed * DT, 0, false, DT);
       if (f) steps.push(f);
       dist += speed * DT;
@@ -83,6 +83,17 @@ describe('Gait', () => {
     let steps = 0;
     for (let i = 0; i < 600; i++) if (g.update(0, KAIJU_MOVEMENT.turnRate * DT, false, DT)) steps++;
     expect(steps).toBeGreaterThan(0);
+  });
+});
+
+describe('Gait at walking speed', () => {
+  it('steps in sync with distance (no foot sliding)', () => {
+    const g = new Gait(KAIJU_GAIT);
+    let steps = 0;
+    const seconds = 20;
+    for (let i = 0; i < seconds * 60; i++) if (g.update(KAIJU_MOVEMENT.walkSpeed * DT, 0, false, DT)) steps++;
+    const expected = (KAIJU_MOVEMENT.walkSpeed * seconds) / (KAIJU_GAIT.walkStride / 2);
+    expect(Math.abs(steps - expected)).toBeLessThanOrEqual(1);
   });
 });
 

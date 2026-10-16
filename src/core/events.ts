@@ -8,7 +8,11 @@ export interface GameEvents {
   'debug:toggle': { enabled: boolean };
   'quality:change': { level: QualityLevel };
   /** A kaiju foot hit the ground (sim tick). Drives camera shake, dust, crushing. */
-  'kaiju:footstep': { x: number; y: number; z: number; foot: Foot; sprinting: boolean; isPlayer: boolean };
+  'kaiju:footstep': {
+    x: number; y: number; z: number; foot: Foot; sprinting: boolean; isPlayer: boolean;
+    /** Body size relative to the model's design height; scales dust and impact effects. */
+    scale: number;
+  };
 }
 
 export type GameEventBus = EventBus<GameEvents>;

@@ -27,7 +27,7 @@ export interface KaijuGaitConfig {
 }
 
 export interface KaijuBodyConfig {
-  /** Approximate standing height to top of head (m). */
+  /** Standing height to top of head (m). The model is scaled to match. */
   readonly height: number;
   readonly capsuleRadius: number;
   /** Half the straight section of the capsule. Total height = 2 * (halfHeight + radius). */
@@ -57,38 +57,38 @@ export interface KaijuFeedbackConfig {
 }
 
 export const KAIJU_MOVEMENT: KaijuMovementConfig = {
-  walkSpeed: 9,
-  sprintSpeed: 17,
-  acceleration: 3.5,
-  sprintAcceleration: 2.2,
-  deceleration: 6,
-  turnRate: 1.1,
-  sprintTurnRate: 0.6,
+  walkSpeed: 13,
+  sprintSpeed: 24,
+  acceleration: 5,
+  sprintAcceleration: 3.2,
+  deceleration: 7,
+  turnRate: 1.35,
+  sprintTurnRate: 0.75,
   turnSlowdown: 0.85,
   idleSpeed: 0.4,
 };
 
 export const KAIJU_GAIT: KaijuGaitConfig = {
-  walkStride: 34,
-  sprintStride: 48,
-  pivotStride: 14,
+  walkStride: 46,
+  sprintStride: 64,
+  pivotStride: 18,
   settleRate: 0.35,
 };
 
 export const KAIJU_BODY: KaijuBodyConfig = {
-  height: 80,
-  capsuleRadius: 13,
-  capsuleHalfHeight: 24,
-  footSpread: 9,
+  height: 100,
+  capsuleRadius: 16,
+  capsuleHalfHeight: 30,
+  footSpread: 11,
 };
 
 export const KAIJU_CONTROLLER: KaijuControllerConfig = {
   offset: 0.5,
   maxSlopeClimbDeg: 40,
   minSlopeSlideDeg: 50,
-  autostepHeight: 4,
+  autostepHeight: 5,
   autostepMinWidth: 2,
-  snapToGround: 3,
+  snapToGround: 4,
   gravityScale: 2,
 };
 

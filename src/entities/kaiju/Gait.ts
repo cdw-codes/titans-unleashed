@@ -18,10 +18,12 @@ export class Gait {
   update(distance: number, turnAngle: number, sprinting: boolean, dt: number): Foot | null {
     const c = this.cfg;
     const stride = sprinting ? c.sprintStride : c.walkStride;
-    let advance = (distance + Math.abs(turnAngle) * c.pivotStride) / stride;
+    const travel = distance + Math.abs(turnAngle) * c.pivotStride;
+    let advance = travel / stride;
 
-    // Standing still mid-step: keep going until the raised foot comes down.
-    if (advance < c.settleRate * dt && !this.isPlanted()) advance = c.settleRate * dt;
+    // Stopped mid-step: keep going until the raised foot comes down.
+    const settling = travel < 1e-3 && !this.isPlanted();
+    if (settling) advance = c.settleRate * dt;
     if (advance <= 0) {
       this.prevPhase = this.phase;
       return null;
@@ -35,7 +37,7 @@ export class Gait {
     if (before < 0.5 && after >= 0.5) foot = 'right';
     if (after >= 1) foot = 'left';
     // If a plant was crossed while settling, stop exactly on it.
-    if (foot && advance <= c.settleRate * dt + 1e-9) after = foot === 'right' ? 0.5 : 1;
+    if (foot && settling) after = foot === 'right' ? 0.5 : 1;
 
     this.phase = after % 1;
     return foot;

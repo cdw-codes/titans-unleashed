@@ -6,7 +6,7 @@ import { DUST } from '../config/effects';
 import { createEventBus, type GameEventBus } from './events';
 import { GameLoop } from './GameLoop';
 import type { StepResult } from './FixedStepper';
-import { loadQualityLevel, saveQualityLevel } from './settings';
+import { loadQualityLevel } from './settings';
 import { Input } from '../input/Input';
 import { RenderSystem } from '../systems/RenderSystem';
 import { PhysicsSystem } from '../systems/PhysicsSystem';
@@ -75,7 +75,7 @@ export class Game {
     });
 
     this.events.on('kaiju:footstep', (e) => {
-      this.dust.burst(e.x, e.y, e.z, e.sprinting ? DUST.sprintStep : DUST.walkStep);
+      this.dust.burst(e.x, e.y, e.z, e.sprinting ? DUST.sprintStep : DUST.walkStep, e.scale);
       if (e.isPlayer) {
         this.camera.shake.addTrauma(e.sprinting ? KAIJU_FEEDBACK.sprintStepTrauma : KAIJU_FEEDBACK.walkStepTrauma);
         this.camera.shake.addKick(e.sprinting ? KAIJU_FEEDBACK.sprintStepKick : KAIJU_FEEDBACK.walkStepKick);
@@ -106,7 +106,6 @@ export class Game {
     const preset = QUALITY_PRESETS[level];
     const needsReload = preset.antialias !== this.render.antialias;
     this.qualityLevel = level;
-    saveQualityLevel(level);
     this.render.applyQuality(preset);
     this.environment.applyQuality(preset);
     this.events.emit('quality:change', { level });

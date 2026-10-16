@@ -7,7 +7,7 @@ import { wrapAngle } from '../../core/math';
 import type { GameEventBus } from '../../core/events';
 import type { PhysicsSystem } from '../../systems/PhysicsSystem';
 import { Gait } from './Gait';
-import { KaijuModel } from './KaijuModel';
+import { KaijuModel, MODEL_DESIGN_HEIGHT } from './KaijuModel';
 import { KaijuMotor, type MoveIntent } from './KaijuMotor';
 import { locomotionState, type KaijuState } from './locomotion';
 
@@ -36,6 +36,8 @@ export class Kaiju {
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly centerOffset: number;
   private time = 0;
+  /** Model scale relative to its design height; also scales foot offsets and dust. */
+  readonly scale = KAIJU_BODY.height / MODEL_DESIGN_HEIGHT;
 
   constructor(
     private readonly physics: PhysicsSystem,
@@ -64,6 +66,7 @@ export class Kaiju {
     this.controller.setApplyImpulsesToDynamicBodies(true);
     this.controller.setCharacterMass(50000);
 
+    this.model.object.scale.setScalar(this.scale);
     this.fsm = new StateMachine<KaijuState, Kaiju>('idle', {}, this);
   }
 
@@ -135,7 +138,7 @@ export class Kaiju {
       stepping: !this.gait.isPlanted() || this.motor.speed > KAIJU_MOVEMENT.idleSpeed,
       sprinting: sprinting && this.motor.speed > KAIJU_MOVEMENT.walkSpeed,
       turnVelocity: this.motor.turnVelocity,
-      strideAngle: Math.asin(Math.min(0.8, stride / 4 / this.model.legLength)),
+      strideAngle: Math.asin(Math.min(0.8, stride / 4 / (this.model.legLength * this.scale))),
       time: this.time,
       dt: frameDt,
     });
@@ -145,7 +148,8 @@ export class Kaiju {
     const side = foot === 'left' ? 1 : -1;
     const stride = this.motor.sprinting ? KAIJU_GAIT.sprintStride : KAIJU_GAIT.walkStride;
     const lx = KAIJU_BODY.footSpread * side;
-    const lz = this.motor.speed > KAIJU_MOVEMENT.idleSpeed ? stride / 4 + 4.5 : 4.5;
+    const footCenter = 4.5 * this.scale;
+    const lz = this.motor.speed > KAIJU_MOVEMENT.idleSpeed ? stride / 4 + footCenter : footCenter;
     const s = Math.sin(this.motor.yaw);
     const c = Math.cos(this.motor.yaw);
     this.events.emit('kaiju:footstep', {
@@ -155,6 +159,7 @@ export class Kaiju {
       foot,
       sprinting: this.motor.sprinting,
       isPlayer: this.isPlayer,
+      scale: this.scale,
     });
   }
 
