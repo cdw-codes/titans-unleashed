@@ -115,36 +115,34 @@ WASD move (camera-relative) · Shift sprint · LMB claw · RMB tail sweep · Spa
 hold E charge beam / release fire · R roar · F Atomic Pulse (unlock) · Q or MMB lock-on · F1 debug.
 
 ## Milestones
-1–6 done (see status).
-7. Art + audio — glTF pipeline, licensed CC0 models, skeletal anim blending, spatial audio, menus, minimap
-8. Perf + ship — profiling per preset, loading screen, key remapping, prod build, static-host deploy
+All 8 done (foundation, kaiju, city + destruction, combat, rivals, military + progression,
+art + audio, perf + ship) except publishing the build.
 
 ## Current status
-**Milestone 7 done — awaiting playtest/go-ahead for Milestone 8.**
+**Waiting for the user to pick a host and publish (README → Deploy).**
 
-Done: M1 foundation · M2 kaiju + heavy camera · M3 streamed destructible city · M4 combat ·
-M5 rival encounters · M6 military (threat stars, tanks, helicopters) + evolution upgrades,
-Atomic Pulse, health regen.
+Recent (M7/M8): CC0 audio + Kenney cars (BatchedMesh) + Quaternius tank, menus, minimap,
+asset pipeline (`npm run assets`); loading screen (city streamed in slices, MessageChannel
+yields), key remapping, per-preset LOD + AutoQuality, dev profiler, relative-base build,
+music streamed after first click, GitHub Pages workflow. Desktop-GPU stress profile:
+low 7 / medium 11 / high 15 ms per frame; sim ~1 ms.
 
-M7: spatial audio (AudioSystem/AudioDirector, real CC0 sounds + music), title/pause/
-game-over screens, minimap, asset pipeline (`npm run assets`, docs/ASSETS.md), Kenney cars
-(BatchedMesh, culled at 320 m) and Quaternius tank models with code-built fallbacks.
-
-Next (M8): profile each preset (target 30 FPS integrated GPU), loading screen (preload city +
-assets, replace the blocking build), key remapping UI over `config/input.ts`, production
-build, deploy to a free static host. Consider ffmpeg OGG encoding / Safari audio formats.
+Next: publish; playtest on an integrated-GPU laptop; tune from player feedback.
 
 Known issues:
 - Rapier compat bundle ~1.7 MB gzip (base64 wasm); M8 may switch builds (needs a plugin: ask).
 - Camera can still clip into towers in dense downtown (occluder fading not built).
-- ~630k tris at medium (pools draw every loaded instance); levers: draw distance,
-  propRadius, carDrawDistance, small-pool shadows. Initial city build blocks (M8 loader).
+- ~630k tris at medium (pools draw every loaded instance); levers per preset in
+  `config/quality.ts`: drawDistance, propRadius, carDrawDistance, smallShadows, pixel ratio.
+- Not yet measured on an integrated GPU (estimate: medium near the 33 ms budget in beam
+  fights; AutoQuality steps down). Safari may not decode OGG audio.
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
 
 Decisions:
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
 - F1 debug ships in production builds (needed for M8 perf checks); lil-gui is dev-only.
-- No settings UI or persistence; medium preset, 30 FPS cap (saves GPU/heat, not RAM).
+- No graphics settings UI: medium preset + AutoQuality step-down, 30 FPS cap. Only key
+  bindings persist (localStorage `kaiju.bindings`).
 - Movement is facing-based (turn-limited, heavy); lock-on switches to strafing.
 - Defeat: Respawn relocates the player beyond the fog end from the rival (out of sight), onto a
   street intersection, 5 s invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
