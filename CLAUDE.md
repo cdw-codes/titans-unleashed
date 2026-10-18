@@ -1,4 +1,4 @@
-# Kaiju Rampage — project memory
+# Titans Unleashed — project memory
 
 ## Game
 Third-person 3D browser action game. The player is an ORIGINAL giant atomic lizard kaiju
@@ -148,6 +148,7 @@ Decisions:
   street intersection, 5 s invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
 - Audio deferred to M7 (user declined placeholder audio).
 - Tuning: ship genre-typical defaults; the user tunes from player feedback later.
+- Game name: **Titans Unleashed** (repo `titans-unleashed`).
 - Art: kaiju, rivals, buildings, helicopter stay code-built (kaiju anim = procedural skeletal
   with blended layers); downloaded CC0 models for cars and tanks only. Compression: meshopt
   + WebP (no Draco/KTX2 decoders). Thousands of small props: simplify, no shadows, cull by

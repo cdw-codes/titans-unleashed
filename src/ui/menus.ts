@@ -64,7 +64,7 @@ export class TitleScreen extends Screen {
     this.el.innerHTML = `
       <div class="menu-card">
         <p class="menu-kicker">A city. A monster. No mercy.</p>
-        <h1 class="menu-title">KAIJU RAMPAGE</h1>
+        <h1 class="menu-title">TITANS UNLEASHED</h1>
         <button class="menu-primary" type="button">Begin the rampage</button>
         <div class="title-controls">${controlsHtml(bindings)}</div>
         <p class="pause-hint">Esc pauses · F1 debug</p>
