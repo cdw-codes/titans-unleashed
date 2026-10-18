@@ -104,6 +104,14 @@ export class CityPools {
 
   private cullTimer = 0;
 
+  /** Small-prop shadows on/off (quality preset). */
+  setSmallShadows(on: boolean): void {
+    for (const id of ['tree', 'roof', 'car'] as const) {
+      const p = this.pools[id];
+      if (p instanceof InstancePool) p.setCastShadow(on);
+    }
+  }
+
   /** Distance-cull model cars (cheap, a few times per second). */
   cull(x: number, z: number, radius: number, dt: number): void {
     this.cullTimer -= dt;

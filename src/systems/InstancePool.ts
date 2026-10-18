@@ -18,6 +18,7 @@ export class InstancePool {
   private readonly slots = new SlotAllocator();
   private dirtyMatrix = false;
   private dirtyColor = false;
+  private castShadow: boolean;
 
   constructor(
     private readonly scene: THREE.Scene,
@@ -26,8 +27,15 @@ export class InstancePool {
     capacity: number,
     private readonly opts: InstancePoolOptions = {},
   ) {
+    this.castShadow = opts.castShadow ?? true;
     this.mesh = this.createMesh(capacity);
     scene.add(this.mesh);
+  }
+
+  /** Survives capacity growth (the mesh is recreated then). */
+  setCastShadow(on: boolean): void {
+    this.castShadow = on;
+    this.mesh.castShadow = on;
   }
 
   get used(): number {
@@ -84,7 +92,7 @@ export class InstancePool {
     const mesh = new THREE.InstancedMesh(this.geometry, this.material, capacity);
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     mesh.count = 0;
-    mesh.castShadow = this.opts.castShadow ?? true;
+    mesh.castShadow = this.castShadow;
     mesh.receiveShadow = this.opts.receiveShadow ?? true;
     mesh.frustumCulled = false; // spans every loaded chunk
     mesh.setColorAt(0, new THREE.Color(1, 1, 1)); // force instanceColor allocation

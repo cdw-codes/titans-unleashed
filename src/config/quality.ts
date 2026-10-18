@@ -18,6 +18,12 @@ export interface QualityPreset {
   /** Hard cap on simultaneously simulated debris bodies. */
   readonly debrisCap: number;
   readonly postProcessing: boolean;
+  /** Small props (cars, trees, containers) exist within this radius (m). */
+  readonly propRadius: number;
+  /** Model cars are drawn within this radius (m). */
+  readonly carDrawDistance: number;
+  /** Trees, house roofs and code-built cars cast shadows (doubles their vertex cost). */
+  readonly smallShadows: boolean;
 }
 
 export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
@@ -31,9 +37,12 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     fogStart: 0.3,
     debrisCap: 60,
     postProcessing: false,
+    propRadius: 500,
+    carDrawDistance: 220,
+    smallShadows: false,
   },
   medium: {
-    maxPixelRatio: 1.5,
+    maxPixelRatio: 1.25,
     antialias: true,
     shadows: true,
     shadowMapSize: 2048,
@@ -42,6 +51,9 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     fogStart: 0.35,
     debrisCap: 150,
     postProcessing: true,
+    propRadius: 800,
+    carDrawDistance: 320,
+    smallShadows: true,
   },
   high: {
     maxPixelRatio: 2,
@@ -53,7 +65,19 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     fogStart: 0.4,
     debrisCap: 300,
     postProcessing: true,
+    propRadius: 1000,
+    carDrawDistance: 450,
+    smallShadows: true,
   },
+};
+
+/** Automatic step-down when the frame budget is missed (never steps up). */
+export const AUTO_QUALITY = {
+  /** 30 FPS cap → 33 ms frames; allow some slack before calling a frame slow. */
+  budgetMs: 42,
+  windowSeconds: 4,
+  overBudgetFraction: 0.35,
+  settleSeconds: 5,
 };
 
 export const isQualityLevel = (v: unknown): v is QualityLevel =>

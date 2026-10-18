@@ -50,6 +50,8 @@ export class ChunkManager {
   readonly chunks = new Map<string, LoadedChunk>();
   private readonly byCollider = new Map<number, Structure>();
   private readonly size: number;
+  /** Small props exist within this radius (quality preset). */
+  propRadius = 800;
 
   constructor(
     private readonly cfg: CityConfig,
@@ -86,7 +88,7 @@ export class ChunkManager {
     const half = this.size * 0.75;
     for (const chunk of this.chunks.values()) {
       const d = chunkDistance(chunk.cx, chunk.cz, x, z, this.size);
-      const wantProps = d < this.cfg.propRadius + half;
+      const wantProps = d < this.propRadius + half;
       if (wantProps !== chunk.propsOn) this.setProps(chunk, wantProps);
       const wantPhysics = d < this.cfg.physicsRadius + half;
       if (wantPhysics !== chunk.physicsOn) this.setPhysics(chunk, wantPhysics);

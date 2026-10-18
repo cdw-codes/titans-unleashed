@@ -68,6 +68,20 @@ export class Hud {
     this.root.style.display = v ? '' : 'none';
   }
 
+  /** Short notice at the top of the screen. */
+  toast(text: string): void {
+    let el = document.querySelector<HTMLDivElement>('.hud-toast');
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'hud-toast';
+      this.root.parentElement?.appendChild(el);
+    }
+    el.textContent = text;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+  }
+
   /** Red edge flash when the player is hurt; stronger for bigger hits. */
   flashDamage(amount: number): void {
     this.vignette.style.setProperty('--strength', String(Math.min(1, 0.35 + amount / 250)));

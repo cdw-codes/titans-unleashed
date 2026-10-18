@@ -498,3 +498,23 @@ html, body {
 .bind-slot:hover, .bind-slot:focus-visible { border-color: var(--ui-accent); outline: none; }
 .bind-slot.capturing { color: #0b1a14; background: var(--ui-accent); }
 .bind-reset { justify-self: start; margin-top: 8px; padding: 6px 14px; font-size: 12px; }
+
+.hud-toast {
+  position: fixed;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ui-fg);
+  background: rgba(0, 0, 0, 0.6);
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+}
+.hud-toast.show { animation: hud-toast 4s ease-out forwards; }
+@keyframes hud-toast {
+  0%, 85% { opacity: 1; }
+  100% { opacity: 0; }
+}

@@ -32,6 +32,10 @@ export async function createDevGui(game: Game): Promise<GUI> {
     },
     evolve: () => game.offerEvolution(),
     pulse: () => game.grantUpgrade('pulse'),
+    profile: async () => {
+      const { profilePresets } = await import('./Profiler');
+      await profilePresets(game);
+    },
   };
   gui.add(state, 'quality', QUALITY_LEVELS).name('Quality preset').onChange((v: typeof state.quality) => game.setQuality(v));
   gui.add(game.loop, 'timeScale', 0.05, 2, 0.05).name('Time scale');
@@ -39,6 +43,7 @@ export async function createDevGui(game: Game): Promise<GUI> {
   dbg.add(game.debug, 'showColliders').name('Colliders');
   dbg.add(game.debug, 'showChunks').name('Chunk grid');
   dbg.add(state, 'spawnCrates').name('Drop 25 crates');
+  dbg.add(state, 'profile').name('Profile presets (console)');
   dbg.add(state, 'energy').name('Fill energy');
   dbg.add(state, 'hurt').name('Hit player (60)');
   dbg.add(state, 'heavy').name('Heavy hit (knockdown)');

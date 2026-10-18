@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { QUALITY_PRESETS, type QualityLevel } from '../config/quality';
+import { AUTO_QUALITY, QUALITY_LEVELS, QUALITY_PRESETS, type QualityLevel } from '../config/quality';
 import { SIM } from '../config/sim';
 import { KAIJU_FEEDBACK } from '../config/kaiju';
 import RAPIER from '@dimforge/rapier3d-compat';
@@ -12,7 +12,8 @@ import { DESTRUCTION } from '../config/destruction';
 import { createEventBus, type GameEventBus } from './events';
 import { GameLoop } from './GameLoop';
 import type { StepResult } from './FixedStepper';
-import { loadQualityLevel } from './settings';
+import { loadQualityLevel, qualityForced } from './settings';
+import { AutoQuality } from './AutoQuality';
 import { Input } from '../input/Input';
 import { RenderSystem } from '../systems/RenderSystem';
 import { PhysicsSystem } from '../systems/PhysicsSystem';
@@ -50,6 +51,7 @@ import { AudioSystem } from '../systems/audio/AudioSystem';
 import { AudioDirector } from '../systems/audio/AudioDirector';
 import { Minimap } from '../ui/Minimap';
 import { loadModels, type LoadedModels } from '../assets/ModelLibrary';
+import { yieldToBrowser } from './yieldToBrowser';
 
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
@@ -101,6 +103,7 @@ export class Game {
   private readonly gameOver: GameOverScreen;
   private readonly title: TitleScreen;
   private started = false;
+  private readonly autoQuality = qualityForced() ? null : new AutoQuality(AUTO_QUALITY);
   private lastReactionT = 0;
   private readonly hudState = {
     score: 0, energy: 0, health: 1, charge: 0,
@@ -147,6 +150,8 @@ export class Game {
     this.water = new Water(scene, preset.drawDistance);
     this.cityPools = new CityPools(scene, models);
     this.chunks = new ChunkManager(CITY, new CityGenerator(CITY), this.cityPools, physics, new DestructionState());
+    this.chunks.propRadius = preset.propRadius;
+    this.cityPools.setSmallShadows(preset.smallShadows);
     this.crates = new TestCrates(scene, physics);
     this.debris = new DebrisSystem(scene, physics, preset.debrisCap);
     scene.add(this.dust.mesh, this.smoke.mesh, this.fire.mesh, this.plasmaTrail.mesh);
@@ -346,7 +351,7 @@ export class Game {
       onProgress(1 - missing / total);
       if (missing === 0) break;
       this.chunks.update(p.x, p.z, draw, 12);
-      await new Promise((r) => requestAnimationFrame(() => r(null)));
+      await yieldToBrowser();
     }
     this.cityPools.flush();
   }
@@ -362,6 +367,8 @@ export class Game {
     this.render.applyQuality(preset);
     this.environment.applyQuality(preset);
     this.debris.setCap(preset.debrisCap);
+    this.applyLod(preset);
+    this.autoQuality?.reset();
     this.events.emit('quality:change', { level });
     if (needsReload) console.info('[quality] Antialiasing changes apply after a reload.');
   }
@@ -373,6 +380,12 @@ export class Game {
     const p = this.player.position;
     this.events.emit('kaiju:hurt', { reaction: r, isPlayer: true, x: p.x, z: p.z });
     this.camera.shake.addTrauma(r === 'stagger' ? 0.35 : 0.6);
+  }
+
+  private applyLod(preset: (typeof QUALITY_PRESETS)[QualityLevel]): void {
+    this.chunks.propRadius = preset.propRadius;
+    this.cityPools.setSmallShadows(preset.smallShadows);
+    this.cityPools.cull(this.player.position.x, this.player.position.z, preset.carDrawDistance, 1);
   }
 
   /** Debug: encounters. */
@@ -523,6 +536,13 @@ export class Game {
   private renderFrame(alpha: number, frameDelta: number, step: StepResult): void {
     // Visual-only systems use scaled time and freeze while paused.
     const visualDt = this.loop.paused ? 0 : Math.min(frameDelta, SIM.maxFrameDelta) * this.loop.timeScale;
+    if (this.autoQuality && this.started && !this.loop.paused && this.autoQuality.sample(frameDelta * 1000)) {
+      const i = QUALITY_LEVELS.indexOf(this.qualityLevel);
+      if (i > 0) {
+        this.setQuality(QUALITY_LEVELS[i - 1]!);
+        this.hud.toast(`Graphics lowered to ${this.qualityLevel} to keep the game smooth`);
+      }
+    }
 
     this.player.render(alpha, visualDt);
     this.director.render(alpha, visualDt);
@@ -551,7 +571,7 @@ export class Game {
     this.ground.follow(focus);
     this.water.follow(focus);
     this.chunks.update(focus.x, focus.z, QUALITY_PRESETS[this.qualityLevel].drawDistance);
-    this.cityPools.cull(focus.x, focus.z, CITY.carDrawDistance, Math.max(visualDt, 1 / 60));
+    this.cityPools.cull(focus.x, focus.z, QUALITY_PRESETS[this.qualityLevel].carDrawDistance, Math.max(visualDt, 1 / 60));
     this.cityPools.flush();
     this.updateHud();
     this.updateMinimap(visualDt);

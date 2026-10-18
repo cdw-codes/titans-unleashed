@@ -13,7 +13,7 @@ describe('resolveQualityLevel', () => {
 
 describe('QUALITY_PRESETS', () => {
   it('scale monotonically from low to high', () => {
-    const keys = ['shadowMapSize', 'drawDistance', 'debrisCap', 'maxPixelRatio'] as const;
+    const keys = ['shadowMapSize', 'drawDistance', 'debrisCap', 'maxPixelRatio', 'propRadius', 'carDrawDistance'] as const;
     for (const k of keys) {
       const values = QUALITY_LEVELS.map((l) => QUALITY_PRESETS[l][k]);
       expect([...values].sort((a, b) => a - b)).toEqual(values);
