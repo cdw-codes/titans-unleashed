@@ -27,6 +27,7 @@ export class AudioSystem {
   private readonly voices = new Map<number, Voice>();
   private readonly limiter: VoiceLimiter<SoundId>;
   private loading: Promise<void> | null = null;
+  private deferred: Promise<void> | null = null;
   private music: { id: SoundId; voice: Voice } | null = null;
 
   constructor(private readonly cfg: AudioConfig = AUDIO) {
@@ -47,14 +48,16 @@ export class AudioSystem {
    */
   prepare(onProgress?: (done: number, total: number) => void): Promise<void> {
     this.init();
-    this.loading ??= this.preload(onProgress);
+    // Sound effects block loading; music/ambience (most of the bytes) stream in later.
+    this.loading ??= this.preload((b) => b === 'sfx', onProgress);
     return this.loading;
   }
 
   /** Must be called from a user gesture (browsers block audio until then). */
   unlock(): void {
     this.init();
-    this.loading ??= this.preload();
+    this.loading ??= this.preload((b) => b === 'sfx');
+    this.deferred ??= this.preload((b) => b !== 'sfx');
     void this.ctx!.resume();
   }
 
@@ -177,8 +180,8 @@ export class AudioSystem {
     l.upZ.value = _up.z;
   }
 
-  private async preload(onProgress?: (done: number, total: number) => void): Promise<void> {
-    const files = new Set(Object.values(this.cfg.sounds).flatMap((s) => s.files));
+  private async preload(busFilter: (bus: Bus) => boolean, onProgress?: (done: number, total: number) => void): Promise<void> {
+    const files = new Set(Object.values(this.cfg.sounds).filter((s) => busFilter(s.bus)).flatMap((s) => s.files));
     let done = 0;
     await Promise.all(
       [...files].map(async (f) => {

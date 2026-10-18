@@ -2,6 +2,8 @@ import { defineConfig } from 'vitest/config';
 import { tuningPlugin } from './tools/tuningPlugin.ts';
 
 export default defineConfig({
+  // Relative asset URLs: the build works from any static host or sub-path (e.g. GitHub Pages).
+  base: './',
   plugins: [tuningPlugin()],
   build: {
     target: 'es2022',
