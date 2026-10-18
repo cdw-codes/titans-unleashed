@@ -93,6 +93,15 @@ export class ChunkManager {
     }
   }
 
+  /** Chunks within view that are not loaded yet (loading screen progress). */
+  missingCount(x: number, z: number, drawDistance: number): number {
+    let n = 0;
+    for (const c of chunksInRadius(x, z, drawDistance + this.size * 0.75, this.size)) {
+      if (!this.chunks.has(chunkKey(c.cx, c.cz))) n++;
+    }
+    return n;
+  }
+
   structureForCollider(handle: number): Structure | undefined {
     return this.byCollider.get(handle);
   }

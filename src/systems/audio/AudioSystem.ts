@@ -41,8 +41,24 @@ export class AudioSystem {
     return this.buffers.size;
   }
 
+  /**
+   * Build the audio graph and start decoding all files. Safe before any user
+   * gesture: the context just stays suspended until `unlock()`.
+   */
+  prepare(onProgress?: (done: number, total: number) => void): Promise<void> {
+    this.init();
+    this.loading ??= this.preload(onProgress);
+    return this.loading;
+  }
+
   /** Must be called from a user gesture (browsers block audio until then). */
   unlock(): void {
+    this.init();
+    this.loading ??= this.preload();
+    void this.ctx!.resume();
+  }
+
+  private init(): void {
     if (!this.ctx) {
       const ctx = new AudioContext();
       this.ctx = ctx;
@@ -59,9 +75,7 @@ export class AudioSystem {
         g.connect(this.master);
         this.buses.set(bus, g);
       }
-      this.loading = this.preload();
     }
-    void this.ctx.resume();
   }
 
   setPaused(paused: boolean): void {
@@ -163,9 +177,15 @@ export class AudioSystem {
     l.upZ.value = _up.z;
   }
 
-  private async preload(): Promise<void> {
+  private async preload(onProgress?: (done: number, total: number) => void): Promise<void> {
     const files = new Set(Object.values(this.cfg.sounds).flatMap((s) => s.files));
-    await Promise.all([...files].map((f) => this.loadFile(f)));
+    let done = 0;
+    await Promise.all(
+      [...files].map(async (f) => {
+        await this.loadFile(f);
+        onProgress?.(++done, files.size);
+      }),
+    );
     if (import.meta.env.DEV) console.info(`[audio] loaded ${this.buffers.size}/${files.size} files`);
   }
 

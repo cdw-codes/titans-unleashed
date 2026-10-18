@@ -154,9 +154,6 @@ export class Game {
 
     const spawn = new THREE.Vector3(CITY.spawnX, 0, CITY.spawnZ);
     this.player = new Kaiju(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
-    // Build the city around the spawn before the first frame (blocking; loading screen in M8).
-    this.chunks.update(spawn.x, spawn.z, preset.drawDistance, Infinity);
-    this.cityPools.flush();
     scene.add(this.player.model.object);
 
     this.input = new Input(this.render.canvas);
@@ -301,9 +298,35 @@ export class Game {
     this.setPaused(true);
   }
 
-  static async create(container: HTMLElement): Promise<Game> {
+  /**
+   * Boot with progress (0..1, label) for the loading screen: physics + models,
+   * audio decoding, then the city around the spawn, built in slices so the page
+   * stays responsive.
+   */
+  static async create(container: HTMLElement, onProgress: (fraction: number, label: string) => void = () => {}): Promise<Game> {
+    onProgress(0.02, 'Waking the beast');
     const [physics, models] = await Promise.all([PhysicsSystem.create(1 / SIM.tickRate), loadModels()]);
-    return new Game(container, physics, models);
+    onProgress(0.2, 'Tuning the roars');
+    const game = new Game(container, physics, models);
+    await game.audio.prepare((done, total) => onProgress(0.2 + 0.25 * (done / total), 'Tuning the roars'));
+    await game.buildCity((f) => onProgress(0.45 + 0.55 * f, 'Raising the city'));
+    onProgress(1, 'Ready');
+    return game;
+  }
+
+  /** Stream in every chunk around the spawn, a slice per frame. */
+  private async buildCity(onProgress: (fraction: number) => void): Promise<void> {
+    const p = this.player.position;
+    const draw = QUALITY_PRESETS[this.qualityLevel].drawDistance;
+    const total = Math.max(1, this.chunks.missingCount(p.x, p.z, draw));
+    for (;;) {
+      const missing = this.chunks.missingCount(p.x, p.z, draw);
+      onProgress(1 - missing / total);
+      if (missing === 0) break;
+      this.chunks.update(p.x, p.z, draw, 12);
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
+    this.cityPools.flush();
   }
 
   start(): void {

@@ -440,3 +440,42 @@ html, body {
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
 }
 .menu-credits { margin: 0; font-size: 11px; opacity: 0.55; }
+
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 18px;
+  padding: 16px;
+  color: var(--ui-fg);
+  background: radial-gradient(ellipse at center, #1b2730, #070b0e);
+  transition: opacity 0.5s;
+}
+.loading-screen.done { opacity: 0; pointer-events: none; }
+.loading-title {
+  margin: 0;
+  font-size: clamp(36px, 7vw, 80px);
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-shadow: 0 0 30px rgba(88, 216, 255, 0.35);
+}
+.loading-track {
+  width: min(420px, 80vw);
+  height: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.loading-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2bb6e8, #8ff1ff);
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.2s ease-out;
+}
+.loading-label { margin: 0; font-size: 14px; letter-spacing: 0.08em; opacity: 0.8; }
+.loading-screen.failed .loading-track { display: none; }
+.loading-screen.failed .loading-label { max-width: 520px; text-align: center; color: #ffb3a6; opacity: 1; }
