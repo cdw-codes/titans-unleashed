@@ -70,6 +70,7 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   height. Never assume y = 0: towns are flat at 0, countryside is not. Structures carry a base
   `y`. Ground = per-chunk tiles in one BatchedMesh + per-chunk Rapier heightfields within the
   physics radius; kaiju beyond it follow `heightAt` analytically (no colliders there).
+  Feet plant on slopes via two-bone leg IK after the walk pose (`KaijuModel.plantFeet`).
 - Kaiju = primitives rigidly skinned to bones, merged into ONE SkinnedMesh (1 draw call).
 - World = pure deterministic data (`CityGenerator.generate(cx, cz)`, seeded per chunk) rendered
   through GLOBAL instance pools shared by all chunks (never per-chunk meshes: draw calls would
@@ -135,7 +136,6 @@ Known issues:
   (props + full-detail terrain), smallShadows, pixel ratio.
 - Not measured on an integrated GPU (AutoQuality steps down). Safari may not decode OGG.
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
-- Kaiju feet don't adapt to slopes (body follows the ground; legs can float/clip a few m).
 - Chunk generation ~1.3 ms each (terrain sampling); 3 per frame while streaming.
 
 Decisions:

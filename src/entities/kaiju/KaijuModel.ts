@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { clamp, damp, lerp, noise1D, TAU } from '../../core/math';
+import { clamp, damp, lerp, noise1D, TAU, wrapAngle } from '../../core/math';
 import type { CombatConfig } from '../../config/combat';
 import type { CombatAction } from './KaijuCombat';
 import type { KaijuDesign } from './designs';
@@ -60,6 +60,9 @@ function movePhases(t: number, m: { windup: number; active: number; recovery: nu
   if (t < m.windup + m.active + m.recovery) return ['recovery', (t - m.windup - m.active) / m.recovery];
   return ['done', 1];
 }
+
+/** Most a foot is raised or lowered to meet the ground (design units). */
+const MAX_PLANT = 9;
 
 const _m = new THREE.Matrix4();
 const _q = new THREE.Quaternion();
@@ -399,6 +402,74 @@ export class KaijuModel {
     shin.rotation.x = lift * 0.65;
     // Keep the sole roughly level; a little toe-off at the back of the stride.
     foot.rotation.x = -(thigh.rotation.x + shin.rotation.x) + Math.max(0, s) * 0.15 * m * (c < 0 ? 1 : 0);
+  }
+
+  /**
+   * Plant the feet on uneven ground after `pose()`. `groundAt(x, z)` takes a point in
+   * model space (design units, +Z forward) and returns the ground height there
+   * relative to the body's own ground, in design units. Each leg is solved as a
+   * two-bone chain in its sagittal plane; the hips drop when a foot must reach lower
+   * than the leg can extend. `slope` (rad, + = uphill ahead) leans the torso into
+   * climbs; `weight` (0..1) fades the whole effect (off while lying down).
+   */
+  plantFeet(groundAt: (x: number, z: number) => number, slope: number, weight: number): void {
+    if (weight <= 0.001) return;
+    const pelvis = this.bone('pelvis');
+    const dy: number[] = [];
+    for (const side of ['L', 'R'] as const) {
+      const ankle = this.ankleOf(side);
+      const thigh = this.bindPos.get(`thigh${side}`)!;
+      // Sample under the ankle (the foot pivots there and is tilted to the slope below).
+      dy.push(clamp(groundAt(thigh.x, ankle.z), -MAX_PLANT, MAX_PLANT) * weight);
+    }
+    const drop = Math.max(0, -Math.min(dy[0]!, dy[1]!));
+    pelvis.position.y -= drop;
+    this.solveLeg('L', dy[0]! + drop, slope * weight);
+    this.solveLeg('R', dy[1]! + drop, slope * weight);
+    this.bone('spine').rotation.x += clamp(slope, -0.4, 0.4) * 0.35 * weight;
+  }
+
+  /** Ankle position in pelvis space (y, z) from the current thigh/shin angles. */
+  private ankleOf(side: 'L' | 'R'): { y: number; z: number } {
+    const a = this.bone(`thigh${side}`).rotation.x;
+    const b = this.bone(`shin${side}`).rotation.x;
+    const s = this.bindPos.get(`shin${side}`)!;
+    const f = this.bindPos.get(`foot${side}`)!;
+    // Rotation about X acts on (y, z) like multiplying y + iz by e^(i angle).
+    const fy = f.y * Math.cos(b) - f.z * Math.sin(b);
+    const fz = f.y * Math.sin(b) + f.z * Math.cos(b);
+    const uy = s.y + fy;
+    const uz = s.z + fz;
+    return { y: uy * Math.cos(a) - uz * Math.sin(a), z: uy * Math.sin(a) + uz * Math.cos(a) };
+  }
+
+  /** Move one ankle `lift` design units up (two-bone IK), keeping the sole on the slope. */
+  private solveLeg(side: 'L' | 'R', lift: number, slope: number): void {
+    const thigh = this.bone(`thigh${side}`);
+    const shin = this.bone(`shin${side}`);
+    const foot = this.bone(`foot${side}`);
+    const s = this.bindPos.get(`shin${side}`)!;
+    const f = this.bindPos.get(`foot${side}`)!;
+    const sole = foot.rotation.x + thigh.rotation.x + shin.rotation.x;
+    const ankle = this.ankleOf(side);
+    const ty = ankle.y + lift;
+    const tz = ankle.z;
+    const l1 = Math.hypot(s.y, s.z);
+    const l2 = Math.hypot(f.y, f.z);
+    const d = clamp(Math.hypot(ty, tz), Math.abs(l1 - l2) + 0.01, l1 + l2 - 0.01);
+    const psiS = Math.atan2(s.z, s.y);
+    const psiF = Math.atan2(f.z, f.y);
+    const k = Math.acos(clamp((d * d - l1 * l1 - l2 * l2) / (2 * l1 * l2), -1, 1));
+    // Two knee solutions: keep the one closest to the current bend.
+    const b1 = psiS - psiF + k;
+    const b2 = psiS - psiF - k;
+    const b = Math.abs(wrapAngle(b1 - shin.rotation.x)) < Math.abs(wrapAngle(b2 - shin.rotation.x)) ? b1 : b2;
+    const uy = s.y + f.y * Math.cos(b) - f.z * Math.sin(b);
+    const uz = s.z + f.y * Math.sin(b) + f.z * Math.cos(b);
+    const a = Math.atan2(tz, ty) - Math.atan2(uz, uy);
+    thigh.rotation.x = wrapAngle(a);
+    shin.rotation.x = wrapAngle(b);
+    foot.rotation.x = sole - thigh.rotation.x - shin.rotation.x - clamp(slope, -0.5, 0.5) * 0.8;
   }
 
   // ---------------------------------------------------------------- build

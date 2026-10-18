@@ -3,7 +3,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { KAIJU_CONTROLLER } from '../../config/kaiju';
 import { SIM } from '../../config/sim';
 import { StateMachine } from '../../core/StateMachine';
-import { wrapAngle } from '../../core/math';
+import { damp, wrapAngle } from '../../core/math';
 import type { GameEventBus } from '../../core/events';
 import { ALL_GROUPS, collisionGroups, GROUP, type PhysicsSystem } from '../../systems/PhysicsSystem';
 import { constrainToCircle } from '../../systems/encounters/EncounterSystem';
@@ -44,6 +44,8 @@ export class Kaiju {
   private readonly prevPosition = new THREE.Vector3();
   private prevYaw = 0;
   private verticalVelocity = 0;
+  /** How strongly the feet adapt to the ground (fades out while lying down). */
+  private plantWeight = 1;
   private grounded = false;
   private readonly controller: RAPIER.KinematicCharacterController;
   private readonly centerOffset: number;
@@ -243,6 +245,24 @@ export class Kaiju {
       action: this.combat.action,
       beamPitch: Math.asin(this.combat.beamDir.y),
     });
+    this.plantFeet(yaw, frameDt);
+  }
+
+  /** Feet meet uneven ground; the torso leans into slopes. Off while lying down. */
+  private plantFeet(yaw: number, dt: number): void {
+    const down = this.fsm.is('knockdown', 'defeated');
+    this.plantWeight = damp(this.plantWeight, down ? 0 : 1, 0.15, dt);
+    const p = this.renderPosition;
+    const s = Math.sin(yaw);
+    const c = Math.cos(yaw);
+    const k = this.scale;
+    // Relative to where the body actually stands (the capsule rides a little high on slopes).
+    const base = p.y;
+    // Model space (design units, +Z forward) → world.
+    const groundAt = (lx: number, lz: number) => (terrain.heightAt(p.x + (lx * c + lz * s) * k, p.z + (-lx * s + lz * c) * k) - base) / k;
+    const reach = 20 * k;
+    const slope = Math.atan2(terrain.heightAt(p.x + s * reach, p.z + c * reach) - terrain.heightAt(p.x - s * reach, p.z - c * reach), 2 * reach);
+    this.model.plantFeet(groundAt, slope, this.plantWeight);
   }
 
   private emitFootstep(foot: 'left' | 'right'): void {
@@ -253,10 +273,12 @@ export class Kaiju {
     const lz = this.motor.speed > this.spec.movement.idleSpeed ? stride / 4 + footCenter : footCenter;
     const s = Math.sin(this.motor.yaw);
     const c = Math.cos(this.motor.yaw);
+    const fx = this.position.x + lx * c + lz * s;
+    const fz = this.position.z - lx * s + lz * c;
     this.events.emit('kaiju:footstep', {
-      x: this.position.x + lx * c + lz * s,
-      y: this.position.y,
-      z: this.position.z - lx * s + lz * c,
+      x: fx,
+      y: terrain.heightAt(fx, fz),
+      z: fz,
       foot,
       sprinting: this.motor.sprinting,
       isPlayer: this.isPlayer,
