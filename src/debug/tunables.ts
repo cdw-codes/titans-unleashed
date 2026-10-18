@@ -10,6 +10,7 @@ import { MILITARY } from '../config/military';
 import { UPGRADES } from '../config/upgrades';
 import { DESTRUCTION } from '../config/destruction';
 import { CITY } from '../config/city';
+import { TERRAIN } from '../config/terrain';
 import { ENVIRONMENT } from '../config/environment';
 import { SIM } from '../config/sim';
 
@@ -61,6 +62,7 @@ export const TUNABLES: Tunable[] = [
   { folder: 'Smoke', file: 'effects.ts', exportName: 'SMOKE', obj: SMOKE, exclude: ['capacity'] },
   { folder: 'Environment', file: 'environment.ts', exportName: 'ENVIRONMENT', obj: ENVIRONMENT, reloadOnly: true, ranges: { sunElevation: [5, 85, 1], sunAzimuth: [0, 360, 1] } },
   { folder: 'City generation', file: 'city.ts', exportName: 'CITY', obj: CITY, reloadOnly: true, exclude: ['seed'] },
+  { folder: 'Terrain', file: 'terrain.ts', exportName: 'TERRAIN', obj: TERRAIN, reloadOnly: true, exclude: ['seed'] },
   { folder: 'Frame rate', file: 'sim.ts', exportName: 'SIM', obj: SIM, reloadOnly: true, exclude: ['tickRate', 'maxStepsPerFrame', 'maxFrameDelta'], ranges: { renderFpsCap: [0, 144, 1] } },
 ];
 

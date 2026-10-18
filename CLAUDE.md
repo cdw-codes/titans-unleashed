@@ -4,9 +4,11 @@
 Third-person 3D browser action game. The player is an ORIGINAL giant atomic lizard kaiju
 (tail, claws, charged energy beam). Never use Godzilla or any trademarked names/designs.
 
-Core loop: roam a large streamed city → smash buildings/vehicles → grow stronger from
-destruction → get ambushed by rival kaiju (energy-barrier arena until one is defeated) →
-roam again. Military (tanks, helicopters) harasses and escalates with destruction.
+Core loop: roam a large streamed world (main city, satellite towns, hilly countryside, lakes,
+coast) → smash buildings/vehicles → grow stronger from destruction → get ambushed by rival
+kaiju (energy-barrier arena until one is defeated) → roam again. Military (tanks,
+helicopters) harasses and escalates with destruction. Look: stylized low-poly (flat shading,
+warm pastel palette, autumn trees, soft sky, lilac horizon mountains).
 
 **Design priority above all: feel GIGANTIC and HEAVY.** Slow weighty movement, buildings
 crumbling underfoot, camera shake + dust on every step and impact, constant scale cues.
@@ -40,8 +42,9 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 ## Folder structure
 - `src/core` — Game (composition root + update order), GameLoop, FixedStepper, EventBus, events,
   StateMachine, math (damp/Spring/noise), Random (seeded), settings
-- `src/world` — environment, ground, water; `city/` (CityGenerator → ChunkSpec data, ChunkManager
-  streaming, CityPools, DestructionState); `materials/` (world-space window shader)
+- `src/world` — Environment (sky, clouds, mountains, sun), Water; `terrain/` (Terrain: the one
+  height/biome/town function, TerrainRenderer); `city/` (CityGenerator → ChunkSpec data,
+  ChunkManager streaming, CityPools, DestructionState); `materials/` (window shader)
 - `src/entities` — `kaiju/` (Kaiju, KaijuSpec, KaijuMotor, Gait, KaijuCombat, KaijuModel, designs,
   PlayerController); `rivals/` (RivalAI, rival specs)
 - `src/systems` — render, physics, camera, InstancePool, PhysicsInstances, Progress (score/energy),
@@ -52,9 +55,9 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - `src/ui` — HUD, menus, overlays, styles.css
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
 - `src/debug` — F1 debug system, DebugDraw, DebugLabels, dev GUI + tunables registry, test tools
-- `tools` — dev-only Node code: Vite tuning-save plugin + config source patcher (tested)
-- `src/assets` — ModelLibrary (glTF load + bake for instancing, fallbacks); `public/` holds
-  processed assets; `assets-src/` raw downloads (git-ignored)
+- `tools` — dev-only Node code: Vite plugin (tuning save + `/__dev/shot` screenshots into
+  `.dev-shots/`), config source patcher (tested), `build-assets.mjs` (audio only)
+- `public/audio` processed sounds; `assets-src/` raw downloads (git-ignored)
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
 
 ## Architecture rules
@@ -63,14 +66,19 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - Footsteps are `kaiju:footstep` events; shake/dust/crushing subscribe.
 - Rapier KCC gotchas: never push down while grounded (stalls horizontal motion; rely on
   snap-to-ground); keep static colliders a few km max (huge slabs break precision).
-- Placeholder kaiju = primitives rigidly skinned to bones, merged into ONE SkinnedMesh.
-  Keep that pattern (1 draw call) until M7 swaps in authored models.
-- City = pure deterministic data (`CityGenerator.generate(cx, cz)`, seeded per chunk) rendered
+- Terrain: `terrain.heightAt(x, z)` (world/terrain/Terrain.ts) is the single source of ground
+  height. Never assume y = 0: towns are flat at 0, countryside is not. Structures carry a base
+  `y`. Ground = per-chunk tiles in one BatchedMesh + per-chunk Rapier heightfields within the
+  physics radius; kaiju beyond it follow `heightAt` analytically (no colliders there).
+- Kaiju = primitives rigidly skinned to bones, merged into ONE SkinnedMesh (1 draw call).
+- World = pure deterministic data (`CityGenerator.generate(cx, cz)`, seeded per chunk) rendered
   through GLOBAL instance pools shared by all chunks (never per-chunk meshes: draw calls would
   scale with chunk count). Destroyed state is persisted as (chunk, index), so generation must
   stay deterministic — changing generator code reshuffles indices (fine pre-save-games).
-- Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops, crushed on
-  contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
+- Towns (main city + jittered satellite grid) have street grids and city districts; other
+  chunks are countryside biomes (forest, farmland, meadow) with trees, farms, country roads.
+- Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops/barns,
+  crushed on contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
 - Every kaiju (player or rival) is the same `Kaiju` class built from a `KaijuSpec` (body,
   movement, gait, combat config, design). Controllers only produce MoveIntent + CombatInput:
   PlayerController from input, RivalAI from perception. Never special-case rivals in Kaiju.
@@ -114,29 +122,21 @@ Click canvas = pointer lock; Esc = release + pause. Mouse orbits camera; crossha
 WASD move (camera-relative) · Shift sprint · LMB claw · RMB tail sweep · Space stomp ·
 hold E charge beam / release fire · R roar · F Atomic Pulse (unlock) · Q or MMB lock-on · F1 debug.
 
-## Milestones
-All 8 done (foundation, kaiju, city + destruction, combat, rivals, military + progression,
-art + audio, perf + ship) except publishing the build.
-
 ## Current status
-**Waiting for the user to pick a host and publish (README → Deploy).**
-
-Recent (M7/M8): CC0 audio + Kenney cars (BatchedMesh) + Quaternius tank, menus, minimap,
-asset pipeline (`npm run assets`); loading screen (city streamed in slices, MessageChannel
-yields), key remapping, per-preset LOD + AutoQuality, dev profiler, relative-base build,
-music streamed after first click, GitHub Pages workflow. Desktop-GPU stress profile:
-low 7 / medium 11 / high 15 ms per frame; sim ~1 ms.
-
-Next: publish; playtest on an integrated-GPU laptop; tune from player feedback.
+All 8 milestones done and published (`cdw-codes/titans-unleashed`; pushing `main` deploys
+Pages). Post-launch world overhaul (terrain, towns, countryside, look) done.
+**Waiting for the user to playtest the new map locally, then tune** (terrain/environment in
+the dev panel). Still to do: playtest on an integrated-GPU laptop.
 
 Known issues:
-- Rapier compat bundle ~1.7 MB gzip (base64 wasm); M8 may switch builds (needs a plugin: ask).
+- Rapier compat bundle ~1.7 MB gzip (base64 wasm); a non-compat build needs a plugin (ask).
 - Camera can still clip into towers in dense downtown (occluder fading not built).
-- ~630k tris at medium (pools draw every loaded instance); levers per preset in
-  `config/quality.ts`: drawDistance, propRadius, carDrawDistance, smallShadows, pixel ratio.
-- Not yet measured on an integrated GPU (estimate: medium near the 33 ms budget in beam
-  fights; AutoQuality steps down). Safari may not decode OGG audio.
+- ~300k tris at medium; levers per preset in `config/quality.ts`: drawDistance, propRadius
+  (props + full-detail terrain), smallShadows, pixel ratio.
+- Not measured on an integrated GPU (AutoQuality steps down). Safari may not decode OGG.
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
+- Kaiju feet don't adapt to slopes (body follows the ground; legs can float/clip a few m).
+- Chunk generation ~1.3 ms each (terrain sampling); 3 per frame while streaming.
 
 Decisions:
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
@@ -144,12 +144,12 @@ Decisions:
 - No graphics settings UI: medium preset + AutoQuality step-down, 30 FPS cap. Only key
   bindings persist (localStorage `kaiju.bindings`).
 - Movement is facing-based (turn-limited, heavy); lock-on switches to strafing.
-- Defeat: Respawn relocates the player beyond the fog end from the rival (out of sight), onto a
-  street intersection, 5 s invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
-- Audio deferred to M7 (user declined placeholder audio).
+- Defeat: Respawn beyond the fog from the rival, on dry ground at a street-grid point, 5 s
+  invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
 - Tuning: ship genre-typical defaults; the user tunes from player feedback later.
 - Game name: **Titans Unleashed** (repo `titans-unleashed`).
-- Art: kaiju, rivals, buildings, helicopter stay code-built (kaiju anim = procedural skeletal
-  with blended layers); downloaded CC0 models for cars and tanks only. Compression: meshopt
-  + WebP (no Draco/KTX2 decoders). Thousands of small props: simplify, no shadows, cull by
-  distance. Beam = hold to charge/fire, release cancels.
+- Art: ALL 3D content is code-built (kaiju, buildings, terrain, trees, vehicles, military;
+  kaiju anim = procedural skeletal with blended layers). No model files or glTF pipeline; if
+  the user supplies models later, add a loader then. Only sounds are downloaded (CC0).
+- Look reference: the user's "Quiet Ridge" screenshot (stylized autumn valley); Neutral tone
+  mapping. Beam = hold to charge/fire, release cancels.

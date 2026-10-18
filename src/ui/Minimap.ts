@@ -73,11 +73,12 @@ export class Minimap {
     const ox = s.playerX;
     const oz = s.playerZ;
 
-    // Ground and streets.
+    // Ground and streets. (`s.chunks` may be a one-shot iterator: walk it once.)
+    const chunks = [...s.chunks];
     const S = s.chunkSize;
     g.imageSmoothingEnabled = true;
     g.fillStyle = 'rgba(255, 255, 255, 0.1)';
-    for (const chunk of s.chunks) {
+    for (const chunk of chunks) {
       const x0 = chunk.cx * S - ox;
       const z0 = chunk.cz * S - oz;
       if (Math.abs(x0 + S / 2) > R * 1.5 + S || Math.abs(z0 + S / 2) > R * 1.5 + S) continue;
@@ -88,7 +89,7 @@ export class Minimap {
     }
 
     // Buildings.
-    for (const chunk of s.chunks) {
+    for (const chunk of chunks) {
       for (const st of chunk.structures) {
         const sp = st.spec;
         if (sp.size === 'prop') continue;

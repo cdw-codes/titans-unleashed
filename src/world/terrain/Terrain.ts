@@ -58,7 +58,7 @@ export class Terrain {
   /** Coastline x at this z (sea to the east). */
   coastX(z: number): number {
     const c = this.c;
-    const s = c.coastWaveScale;
+    const s = 1 / c.coastWaveSize;
     return c.coastX + (noise2D(z * s, 0.5, c.seed + 11) - 0.5) * 2 * c.coastWave + (noise2D(z * s * 4, 3.5, c.seed + 12) - 0.5) * c.coastWave * 0.35;
   }
 
@@ -143,16 +143,16 @@ export class Terrain {
   /** Open-country relief before towns, lakes and the coast shape it. */
   private hills(x: number, z: number): number {
     const c = this.c;
-    const n = fbm(x * c.hillScale, z * c.hillScale, c.seed);
+    const n = fbm(x / c.hillSize, z / c.hillSize, c.seed);
     const rolling = Math.pow(clamp(n, 0, 1), 1.6) * c.hillHeight;
-    const r = smoothstep(c.ridgeStart, 0.95, noise2D(x * c.ridgeScale + 31.7, z * c.ridgeScale - 12.9, c.seed + 5));
-    const detail = noise2D(x * c.detailScale, z * c.detailScale, c.seed + 9) * c.detailHeight;
+    const r = smoothstep(c.ridgeStart, 0.95, noise2D(x / c.ridgeSize + 31.7, z / c.ridgeSize - 12.9, c.seed + 5));
+    const detail = noise2D(x / c.detailSize, z / c.detailSize, c.seed + 9) * c.detailHeight;
     return 1.5 + rolling + r * r * c.ridgeHeight + detail;
   }
 
   lakeWeight(x: number, z: number): number {
     const c = this.c;
-    const s = c.lakeScale;
+    const s = 1 / c.lakeSize;
     const l = noise2D(x * s + 17.3, z * s - 4.1, c.seed + 21) * 0.75 + noise2D(x * s * 2.3 - z * s * 1.4, z * s * 2.3 + x * s * 1.4, c.seed + 22) * 0.25;
     return smoothstep(c.lakeThreshold, c.lakeThreshold + 0.07, l);
   }
@@ -184,13 +184,13 @@ export class Terrain {
   /** 0..1 forest density (0 in towns and water). */
   forestDensity(x: number, z: number): number {
     const c = this.c;
-    const f = fbm(x * c.forestScale + 70.1, z * c.forestScale - 33.3, c.seed + 31);
+    const f = fbm(x / c.forestSize + 70.1, z / c.forestSize - 33.3, c.seed + 31);
     return smoothstep(c.forestThreshold - 0.03, c.forestThreshold + 0.14, f);
   }
 
   farmWeight(x: number, z: number): number {
     const c = this.c;
-    return smoothstep(c.farmThreshold, c.farmThreshold + 0.06, noise2D(x * c.farmScale - 50.5, z * c.farmScale + 8.8, c.seed + 41));
+    return smoothstep(c.farmThreshold, c.farmThreshold + 0.06, noise2D(x / c.farmSize - 50.5, z / c.farmSize + 8.8, c.seed + 41));
   }
 
   biomeAt(x: number, z: number): Biome {
