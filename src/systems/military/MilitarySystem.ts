@@ -1,3 +1,4 @@
+import { terrain } from '../../world/terrain/Terrain';
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { MILITARY, type MilitaryConfig } from '../../config/military';
@@ -156,7 +157,7 @@ export class MilitarySystem {
       const d = c.spawnMin + Math.random() * (c.spawnMax - c.spawnMin);
       const x = Math.round((player.position.x + Math.sin(a) * d) / this.pitch) * this.pitch;
       const z = Math.round((player.position.z + Math.cos(a) * d) / this.pitch) * this.pitch;
-      if (x > CITY.coastX - 100) continue;
+      if (terrain.isWater(x, z, 2)) continue;
       const yaw = Math.atan2(player.position.x - x, player.position.z - z);
       this.tanks.push({
         x, z, px: x, pz: z, yaw, pyaw: yaw, turret: yaw, pturret: yaw,
@@ -245,10 +246,11 @@ export class MilitarySystem {
       const len = c.length;
       const mx2 = t.x + Math.sin(aimYaw) * len * 0.75;
       const mz2 = t.z + Math.cos(aimYaw) * len * 0.75;
-      this.fireAt('tank', mx2, len * 0.34, mz2, player, accuracy, c.spread, c.shellSpeed);
-      this.cb.fired('tank', mx2, len * 0.34, mz2);
-      this.fire.burst(mx2, len * 0.34, mz2, MUZZLE, 1);
-      this.dust.burst(t.x, 0, t.z, DUST.crush, 0.5);
+      const my = terrain.heightAt(t.x, t.z) + len * 0.34;
+      this.fireAt('tank', mx2, my, mz2, player, accuracy, c.spread, c.shellSpeed);
+      this.cb.fired('tank', mx2, my, mz2);
+      this.fire.burst(mx2, my, mz2, MUZZLE, 1);
+      this.dust.burst(t.x, terrain.heightAt(t.x, t.z), t.z, DUST.crush, 0.5);
     }
     return false;
   }
@@ -270,8 +272,9 @@ export class MilitarySystem {
       h.z += h.vz * dt;
       h.yaw += h.spin * dt;
       if (Math.random() < dt * 20) this.smoke.burst(h.x, h.y, h.z, CRASH_SMOKE, 1);
-      if (h.y <= 0) {
-        this.blast(h.x, 0, h.z, c.crashBlastRadius, c.missStructureDamage * 2, true);
+      const gy = terrain.heightAt(h.x, h.z);
+      if (h.y <= gy) {
+        this.blast(h.x, gy, h.z, c.crashBlastRadius, c.missStructureDamage * 2, true);
         return true;
       }
       return false;
@@ -296,7 +299,11 @@ export class MilitarySystem {
     h.bob += dt;
     const tx = p.x + Math.sin(h.angle) * h.radius;
     const tz = p.z + Math.cos(h.angle) * h.radius;
-    const ty = c.altitudeMin + (c.altitudeMax - c.altitudeMin) * (0.5 + 0.5 * Math.sin(h.bob * 0.4));
+    // Altitude relative to the kaiju's feet, but never skimming a hill.
+    const ty = Math.max(
+      p.y + c.altitudeMin + (c.altitudeMax - c.altitudeMin) * (0.5 + 0.5 * Math.sin(h.bob * 0.4)),
+      terrain.heightAt(h.x, h.z) + c.altitudeMin * 0.6,
+    );
     const k = Math.min(1, dt * 0.8);
     h.x += Math.max(-c.speed * dt, Math.min(c.speed * dt, (tx - h.x) * k));
     h.z += Math.max(-c.speed * dt, Math.min(c.speed * dt, (tz - h.z) * k));
@@ -380,9 +387,9 @@ export class MilitarySystem {
   /** Explosion: fire, dust, crush props, damage buildings (not player-attributed). */
   private blast(x: number, y: number, z: number, radius: number, damage: number, big: boolean): void {
     this.fire.burst(x, y, z, SMALL_BLAST, big ? 1.6 : 0.7);
-    this.dust.burst(x, 0, z, DUST.crush, big ? 2 : 0.8);
+    this.dust.burst(x, terrain.heightAt(x, z), z, DUST.crush, big ? 2 : 0.8);
     this.chunks.forEachNear(x, z, radius, (st) => {
-      if (y > st.spec.height + radius) return;
+      if (y > st.spec.y + st.spec.height + radius) return;
       if (st.spec.size !== 'large') this.destruction.crush(st, false);
       else this.destruction.damage(st, damage, x, z, false);
     });
@@ -400,6 +407,7 @@ export class MilitarySystem {
   }
 
   /** Melee arc. Helicopters only get swatted if they fly within reach height. */
+  /** `reachHeight` is absolute (world y): helicopters above it are out of reach. */
   hitArc(x: number, z: number, yaw: number, radius: number, arcDeg: number, arcOffsetDeg: number, reachHeight: number): number {
     let hits = 0;
     for (let i = this.tanks.length - 1; i >= 0; i--) {
@@ -427,8 +435,9 @@ export class MilitarySystem {
     };
     for (let i = this.tanks.length - 1; i >= 0; i--) {
       const t = this.tanks[i]!;
-      const blasted = end.hit && Math.hypot(t.x - end.x, t.z - end.z) < impactRadius + 6 && end.y < 30;
-      if (blasted || near(t.x, 3, t.z, 8)) this.destroyTank(i);
+      const gy = terrain.heightAt(t.x, t.z);
+      const blasted = end.hit && Math.hypot(t.x - end.x, t.z - end.z) < impactRadius + 6 && end.y < gy + 30;
+      if (blasted || near(t.x, gy + 3, t.z, 8)) this.destroyTank(i);
     }
     for (const h of this.helis) {
       if (!h.falling && near(h.x, h.y, h.z, this.cfg.heli.hitRadius + 6)) this.downHeli(h, Math.atan2(dx, dz), true);
@@ -454,9 +463,10 @@ export class MilitarySystem {
   private destroyTank(i: number, byPlayer = true): void {
     const t = this.tanks[i]!;
     this.tanks.splice(i, 1);
-    this.fire.burst(t.x, 3, t.z, SMALL_BLAST, 1);
-    this.smoke.burst(t.x, 3, t.z, CRASH_SMOKE, 1.5);
-    this.dust.burst(t.x, 0, t.z, DUST.crush, 1);
+    const gy = terrain.heightAt(t.x, t.z);
+    this.fire.burst(t.x, gy + 3, t.z, SMALL_BLAST, 1);
+    this.smoke.burst(t.x, gy + 3, t.z, CRASH_SMOKE, 1.5);
+    this.dust.burst(t.x, gy, t.z, DUST.crush, 1);
     if (byPlayer) this.cb.unitDestroyed('tank', t.x, t.z);
   }
 
@@ -477,6 +487,7 @@ export class MilitarySystem {
     _s.setScalar(tl);
     this.tanks.forEach((t, i) => {
       _p.set(t.px + (t.x - t.px) * alpha, 0, t.pz + (t.z - t.pz) * alpha);
+      _p.y = terrain.heightAt(_p.x, _p.z);
       _q.setFromAxisAngle(UP, t.pyaw + wrapAngle(t.yaw - t.pyaw) * alpha);
       this.hull.setMatrixAt(i, _m.compose(_p, _q, _s));
       _q.setFromAxisAngle(UP, t.pturret + wrapAngle(t.turret - t.pturret) * alpha);

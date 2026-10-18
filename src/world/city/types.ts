@@ -1,16 +1,19 @@
 /** Plain data describing generated city content. No three.js / Rapier here (testable). */
+import type { TerrainTileData } from '../terrain/Terrain';
 
-export type District = 'downtown' | 'fringe' | 'suburbs' | 'industrial' | 'docks' | 'sea';
+/** Town districts (street grid) and countryside biomes (open terrain, no streets). */
+export type UrbanDistrict = 'downtown' | 'fringe' | 'suburbs' | 'industrial' | 'docks';
+export type District = UrbanDistrict | 'forest' | 'farmland' | 'meadow' | 'sea';
 
 export type StructureKind =
-  | 'tower' | 'midrise' | 'warehouse' | 'chimney' | 'tank' // large: collider + HP
-  | 'shop' | 'house' // small: crushed on contact
+  | 'tower' | 'midrise' | 'warehouse' | 'chimney' | 'tank' | 'silo' // large: collider + HP
+  | 'shop' | 'house' | 'barn' // small: crushed on contact
   | 'tree' | 'car' | 'container'; // prop: crushed on contact, only near the player
 
 export type SizeClass = 'large' | 'small' | 'prop';
 
 /** Which shared instanced pool renders a part. */
-export type PoolId = 'windowed' | 'plain' | 'roof' | 'cylinder' | 'tree' | 'car' | 'truck' | 'flat';
+export type PoolId = 'windowed' | 'plain' | 'roof' | 'cylinder' | 'tree' | 'pine' | 'car' | 'truck' | 'flat';
 
 /** One instance in a pool. Position is the base center; scale is the full size. */
 export interface PartSpec {
@@ -31,6 +34,8 @@ export interface StructureSpec {
   /** Footprint center and half extents (axis aligned in the structure's rotY frame). */
   x: number;
   z: number;
+  /** Ground height at the base (parts already include it). */
+  y: number;
   halfW: number;
   halfD: number;
   height: number;
@@ -45,6 +50,8 @@ export interface ChunkSpec {
   structures: StructureSpec[];
   /** Ground decals: roads, lawns, lots. Not destructible. */
   flats: PartSpec[];
+  /** Terrain heights and colors for this chunk. */
+  ground: TerrainTileData;
 }
 
 export const SIZE_OF: Readonly<Record<StructureKind, SizeClass>> = {
@@ -53,8 +60,10 @@ export const SIZE_OF: Readonly<Record<StructureKind, SizeClass>> = {
   warehouse: 'large',
   chimney: 'large',
   tank: 'large',
+  silo: 'large',
   shop: 'small',
   house: 'small',
+  barn: 'small',
   tree: 'prop',
   car: 'prop',
   container: 'prop',

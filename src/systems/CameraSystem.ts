@@ -5,6 +5,7 @@ import { MOUSE } from '../config/input';
 import { clamp, damp } from '../core/math';
 import type { PhysicsSystem } from './PhysicsSystem';
 import { CameraShake } from './CameraShake';
+import { terrain } from '../world/terrain/Terrain';
 
 const _desired = new THREE.Vector3();
 const _dir = new THREE.Vector3();
@@ -92,7 +93,7 @@ export class CameraSystem {
     this.distance = damp(this.distance, allowed, halfLife, dt);
 
     _desired.copy(this.pivot).addScaledVector(_dir, this.distance);
-    _desired.y = Math.max(_desired.y, this.focus.y + C.groundClearance);
+    _desired.y = Math.max(_desired.y, this.focus.y + C.groundClearance, terrain.heightAt(_desired.x, _desired.z) + C.groundClearance + 6);
 
     this.shake.update(dt);
     const o = this.shake.offset;

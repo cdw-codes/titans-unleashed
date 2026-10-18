@@ -4,7 +4,7 @@ import type { StructureSpec } from '../../world/city/types';
 import { collapseDuration, collapseTrauma, impactDamage, maxHpFor, pointsFor, pushDamage } from './damage';
 
 const spec = (over: Partial<StructureSpec>): StructureSpec => ({
-  kind: 'midrise', size: 'large', x: 0, z: 0, halfW: 17, halfD: 17, height: 35, rotY: 0, parts: [], ...over,
+  kind: 'midrise', size: 'large', x: 0, z: 0, y: 0, halfW: 17, halfD: 17, height: 35, rotY: 0, parts: [], ...over,
 });
 
 describe('destruction damage rules', () => {

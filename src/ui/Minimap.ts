@@ -1,4 +1,6 @@
 import type { LoadedChunk } from '../world/city/ChunkManager';
+import { ROAD_COLOR } from '../world/city/CityGenerator';
+import { terrain } from '../world/terrain/Terrain';
 
 export interface MinimapState {
   playerX: number;
@@ -6,22 +8,23 @@ export interface MinimapState {
   /** Camera yaw (0 = camera at +Z looking -Z); the map is heading-up. */
   cameraYaw: number;
   chunks: Iterable<LoadedChunk>;
-  coastX: number;
-  pitch: number;
+  chunkSize: number;
   rival: { x: number; z: number; yaw: number } | null;
   arena: { x: number; z: number; radius: number } | null;
   units: (cb: (kind: 'tank' | 'heli', x: number, z: number) => void) => void;
 }
 
 /**
- * Heading-up radar (bottom right): streets, buildings (wrecked ones darker),
- * sea, arena ring, rival and military. Redrawn a few times per second.
+ * Heading-up radar (bottom right): terrain (water, forest, fields), streets,
+ * buildings (wrecked ones darker), arena ring, rival and military. Redrawn a few
+ * times per second; each chunk's ground is baked once into a tiny image.
  */
 export class Minimap {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
   private timer = 0;
   private readonly px: number;
+  private readonly groundImages = new WeakMap<LoadedChunk, HTMLCanvasElement>();
 
   constructor(parent: HTMLElement, private readonly range = 900, size = 190) {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -70,25 +73,19 @@ export class Minimap {
     const ox = s.playerX;
     const oz = s.playerZ;
 
-    // Sea.
-    if (s.coastX - ox < R) {
-      g.fillStyle = 'rgba(40, 90, 120, 0.85)';
-      g.fillRect(s.coastX - ox, -R * 1.5, R * 3, R * 3);
+    // Ground and streets.
+    const S = s.chunkSize;
+    g.imageSmoothingEnabled = true;
+    g.fillStyle = 'rgba(255, 255, 255, 0.1)';
+    for (const chunk of s.chunks) {
+      const x0 = chunk.cx * S - ox;
+      const z0 = chunk.cz * S - oz;
+      if (Math.abs(x0 + S / 2) > R * 1.5 + S || Math.abs(z0 + S / 2) > R * 1.5 + S) continue;
+      g.drawImage(this.groundImage(chunk), x0, z0, S, S);
+      for (const f of chunk.spec.flats) {
+        if (f.color === ROAD_COLOR) g.fillRect(f.x - ox - f.sx / 2, f.z - oz - f.sz / 2, f.sx, f.sz);
+      }
     }
-    // Streets.
-    g.strokeStyle = 'rgba(255, 255, 255, 0.08)';
-    g.lineWidth = 6;
-    g.beginPath();
-    const p = s.pitch;
-    for (let x = Math.ceil((ox - R * 1.5) / p) * p; x < ox + R * 1.5; x += p) {
-      g.moveTo(x - ox, -R * 1.5);
-      g.lineTo(x - ox, R * 1.5);
-    }
-    for (let z = Math.ceil((oz - R * 1.5) / p) * p; z < oz + R * 1.5; z += p) {
-      g.moveTo(-R * 1.5, z - oz);
-      g.lineTo(R * 1.5, z - oz);
-    }
-    g.stroke();
 
     // Buildings.
     for (const chunk of s.chunks) {
@@ -143,6 +140,29 @@ export class Minimap {
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     g.fillText('N', sx, sy);
+  }
+
+  /** The chunk's ground colors (dimmed) with water in blue, baked once. */
+  private groundImage(chunk: LoadedChunk): HTMLCanvasElement {
+    let img = this.groundImages.get(chunk);
+    if (img) return img;
+    const gd = chunk.spec.ground;
+    const m = gd.n + 1;
+    img = document.createElement('canvas');
+    img.width = img.height = m;
+    const ctx = img.getContext('2d')!;
+    const data = ctx.createImageData(m, m);
+    for (let k = 0; k < m * m; k++) {
+      const wet = gd.heights[k]! < terrain.waterLevel;
+      const o = k * 4;
+      data.data[o] = wet ? 40 : gd.colors[k * 3]! * 120;
+      data.data[o + 1] = wet ? 90 : gd.colors[k * 3 + 1]! * 120;
+      data.data[o + 2] = wet ? 125 : gd.colors[k * 3 + 2]! * 120;
+      data.data[o + 3] = 230;
+    }
+    ctx.putImageData(data, 0, 0);
+    this.groundImages.set(chunk, img);
+    return img;
   }
 
   /** Triangle at (dx, dz) pointing along yaw (0 = +Z), in map space. */

@@ -104,10 +104,10 @@ export class CollapseSystem {
     _axis.set(c.tiltZ, 0, -c.tiltX).normalize();
     _tilt.makeRotationAxis(_axis, 0.22 * e);
     const jitter = 0.6 * (1 - p) * Math.sin(c.t * 47);
-    _base.makeTranslation(st.x + jitter, 0, st.z - jitter);
+    _base.makeTranslation(st.x + jitter, st.y, st.z - jitter);
     st.parts.forEach((part, i) => {
       _q.setFromAxisAngle(UP, part.rotY);
-      _p.set(part.x - st.x, part.y * squash, part.z - st.z);
+      _p.set(part.x - st.x, (part.y - st.y) * squash, part.z - st.z);
       _s.set(part.sx, part.sy * squash, part.sz);
       _local.compose(_p, _q, _s);
       _m.multiplyMatrices(_base, _tilt).multiply(_local);
@@ -121,7 +121,7 @@ export class CollapseSystem {
     c.dustTimer -= dt;
     if (c.dustTimer <= 0) {
       c.dustTimer = DUST.collapseInterval;
-      this.dust.burst(st.x, 0, st.z, DUST.collapse, scale);
+      this.dust.burst(st.x, st.y, st.z, DUST.collapse, scale);
     }
     const target = Math.floor(Math.min(1, p * 1.3) * c.debrisTotal);
     const top = st.height * (1 - 0.92 * p * p);
@@ -147,7 +147,7 @@ export class CollapseSystem {
     const st = c.s.spec;
     this.chunks.finishCollapse(c.s);
     const scale = Math.min(DUST.maxBurstScale, Math.max(st.halfW, st.halfD) / 8);
-    this.dust.burst(st.x, 0, st.z, DUST.collapse, scale);
+    this.dust.burst(st.x, st.y, st.z, DUST.collapse, scale);
     this.smoke.push({
       x: st.x,
       z: st.z,

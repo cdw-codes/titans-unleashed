@@ -7,6 +7,7 @@ import type { ChunkManager } from '../../world/city/ChunkManager';
 import type { PhysicsSystem } from '../PhysicsSystem';
 import type { DestructionSystem } from '../destruction/DestructionSystem';
 import type { DustSystem } from '../effects/DustSystem';
+import { terrain } from '../../world/terrain/Terrain';
 
 interface Projectile {
   owner: Kaiju;
@@ -129,8 +130,8 @@ export class ProjectileSystem {
         const hit = this.physics.world.castRay(_ray, step, true, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, undefined, undefined, p.owner.body);
         if (hit && this.chunks.structureForCollider(hit.collider.handle)) {
           explodeAt = p.pos.copy(p.prev).addScaledVector(p.vel, hit.timeOfImpact / p.vel.length());
-        } else if (p.pos.y <= 0) {
-          p.pos.y = 0;
+        } else if (p.pos.y <= terrain.heightAt(p.pos.x, p.pos.z)) {
+          p.pos.y = terrain.heightAt(p.pos.x, p.pos.z);
           explodeAt = p.pos;
         } else if (p.age > p.cfg.lifetime) {
           explodeAt = p.pos;
@@ -175,7 +176,7 @@ export class ProjectileSystem {
       }
     }
     this.chunks.forEachNear(x, z, c.blastRadius, (s) => {
-      if (y > s.spec.height + c.blastRadius) return;
+      if (y > s.spec.y + s.spec.height + c.blastRadius) return;
       if (s.spec.size !== 'large') this.destruction.crush(s, byPlayer);
       else this.destruction.damage(s, c.structureDamage, x, z, byPlayer);
     });

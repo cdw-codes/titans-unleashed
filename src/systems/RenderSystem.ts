@@ -29,7 +29,8 @@ export class RenderSystem {
       stencil: false,
     });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    // Neutral keeps the stylized palette saturated (ACES washes pastels out).
+    this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = ENVIRONMENT.exposure;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     container.appendChild(this.renderer.domElement);

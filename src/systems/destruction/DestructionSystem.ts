@@ -102,10 +102,10 @@ export class DestructionSystem {
     const st = s.spec;
     this.chunks.destroyInstant(s);
     if (st.size === 'small') {
-      this.dust.burst(st.x, 0, st.z, DUST.collapse, Math.min(1.2, Math.max(st.halfW, st.halfD) / 8));
-      for (let i = 0; i < 2; i++) this.chipAt(st.x, st.height * 0.5, st.z, st.parts[0]?.color ?? 0x999999, 2 + Math.random() * 2);
+      this.dust.burst(st.x, st.y, st.z, DUST.collapse, Math.min(1.2, Math.max(st.halfW, st.halfD) / 8));
+      for (let i = 0; i < 2; i++) this.chipAt(st.x, st.y + st.height * 0.5, st.z, st.parts[0]?.color ?? 0x999999, 2 + Math.random() * 2);
     } else {
-      this.dust.burst(st.x, 0, st.z, DUST.crush, 0.8);
+      this.dust.burst(st.x, st.y, st.z, DUST.crush, 0.8);
     }
     this.emitDestroyed(s, byPlayer);
   }
@@ -119,9 +119,9 @@ export class DestructionSystem {
     const fx = st.x + (dx / len) * Math.max(st.halfW, st.halfD);
     const fz = st.z + (dz / len) * Math.max(st.halfW, st.halfD);
     for (let i = 0; i < count; i++) {
-      this.chipAt(fx, st.height * (0.3 + Math.random() * 0.6), fz, st.parts[0]?.color ?? 0x999999, 2 + Math.random() * 3);
+      this.chipAt(fx, st.y + st.height * (0.3 + Math.random() * 0.6), fz, st.parts[0]?.color ?? 0x999999, 2 + Math.random() * 3);
     }
-    this.dust.burst(fx, 0, fz, DUST.crush, 1.2);
+    this.dust.burst(fx, st.y, fz, DUST.crush, 1.2);
   }
 
   private chipAt(x: number, y: number, z: number, color: number, size: number): void {

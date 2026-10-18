@@ -9,6 +9,7 @@ import type { CityPools } from './CityPools';
 import { chunkDistance, chunkKey, chunksInRadius, chunksOverlappingCircle } from './chunkMath';
 import type { DestructionState } from './DestructionState';
 import type { ChunkSpec, PartSpec, StructureSpec } from './types';
+import type { TerrainRenderer } from '../terrain/TerrainRenderer';
 
 export type StructureState = 'intact' | 'collapsing' | 'destroyed';
 
@@ -35,6 +36,8 @@ export interface LoadedChunk {
   readonly flatSlots: number[];
   propsOn: boolean;
   physicsOn: boolean;
+  /** Heightfield ground collider while physics is on. */
+  groundCollider: RAPIER.Collider | null;
 }
 
 const _q = new THREE.Quaternion();
@@ -52,6 +55,8 @@ export class ChunkManager {
   private readonly size: number;
   /** Small props exist within this radius (quality preset). */
   propRadius = 800;
+  private focusX = 0;
+  private focusZ = 0;
 
   constructor(
     private readonly cfg: CityConfig,
@@ -59,6 +64,7 @@ export class ChunkManager {
     private readonly pools: CityPools,
     private readonly physics: PhysicsSystem,
     private readonly destroyed: DestructionState,
+    private readonly ground: TerrainRenderer | null = null,
   ) {
     this.size = gen.chunkSize;
   }
@@ -69,6 +75,8 @@ export class ChunkManager {
 
   /** Stream around (x, z). `budget` caps chunk loads this call (Infinity for the initial load). */
   update(x: number, z: number, drawDistance: number, budget = this.cfg.chunkLoadsPerFrame): void {
+    this.focusX = x;
+    this.focusZ = z;
     const keepRadius = drawDistance + this.size * (0.75 + this.cfg.unloadHysteresis);
     for (const [key, chunk] of this.chunks) {
       if (chunkDistance(chunk.cx, chunk.cz, x, z, this.size) > keepRadius) {
@@ -84,6 +92,7 @@ export class ChunkManager {
       this.load(c.cx, c.cz);
     }
 
+    this.ground?.update(x, z);
     // Detail levels for loaded chunks.
     const half = this.size * 0.75;
     for (const chunk of this.chunks.values()) {
@@ -174,7 +183,8 @@ export class ChunkManager {
 
   private load(cx: number, cz: number): void {
     const spec = this.gen.generate(cx, cz);
-    const chunk: LoadedChunk = { cx, cz, spec, structures: [], flatSlots: [], propsOn: false, physicsOn: false };
+    const chunk: LoadedChunk = { cx, cz, spec, structures: [], flatSlots: [], propsOn: false, physicsOn: false, groundCollider: null };
+    this.ground?.add(cx, cz, spec.ground, this.focusX, this.focusZ);
     for (const f of spec.flats) chunk.flatSlots.push(this.pools.addPart(f));
     spec.structures.forEach((st, index) => {
       const s: Structure = {
@@ -193,6 +203,7 @@ export class ChunkManager {
 
   private unload(chunk: LoadedChunk): void {
     if (chunk.physicsOn) this.setPhysics(chunk, false);
+    this.ground?.remove(chunk.cx, chunk.cz);
     for (const slot of chunk.flatSlots) this.pools.removePart('flat', slot);
     for (const s of chunk.structures) {
       this.hideParts(s);
@@ -222,6 +233,7 @@ export class ChunkManager {
 
   private setPhysics(chunk: LoadedChunk, on: boolean): void {
     chunk.physicsOn = on;
+    this.setGroundCollider(chunk, on);
     for (const s of chunk.structures) {
       if (s.spec.size !== 'large') continue;
       if (!on) {
@@ -230,15 +242,36 @@ export class ChunkManager {
       }
       if (s.state !== 'intact' || s.collider) continue;
       const st = s.spec;
-      const round = st.kind === 'chimney' || st.kind === 'tank';
+      const round = st.kind === 'chimney' || st.kind === 'tank' || st.kind === 'silo';
       const desc = round
         ? RAPIER.ColliderDesc.cylinder(st.height / 2, st.halfW)
         : RAPIER.ColliderDesc.cuboid(st.halfW, st.height / 2, st.halfD);
       _q.setFromAxisAngle(UP, st.rotY);
-      desc.setTranslation(st.x, st.height / 2, st.z).setRotation(_q).setCollisionGroups(collisionGroups(GROUP.STRUCTURE, ALL_GROUPS));
+      desc.setTranslation(st.x, st.y + st.height / 2, st.z).setRotation(_q).setCollisionGroups(collisionGroups(GROUP.STRUCTURE, ALL_GROUPS));
       s.collider = this.physics.world.createCollider(desc);
       this.byCollider.set(s.collider.handle, s);
     }
+  }
+
+  /** Terrain heightfield for the chunk (same samples as the rendered ground). */
+  private setGroundCollider(chunk: LoadedChunk, on: boolean): void {
+    if (!on) {
+      if (chunk.groundCollider) this.physics.world.removeCollider(chunk.groundCollider, false);
+      chunk.groundCollider = null;
+      return;
+    }
+    if (chunk.groundCollider) return;
+    const g = chunk.spec.ground;
+    const m = g.n + 1;
+    // Rapier wants column-major with rows along z: transpose our row-major (z rows, x columns).
+    const heights = new Float32Array(m * m);
+    for (let j = 0; j < m; j++) for (let i = 0; i < m; i++) heights[j + i * m] = g.heights[j * m + i]!;
+    const S = this.size;
+    const desc = RAPIER.ColliderDesc.heightfield(g.n, g.n, heights, { x: S, y: 1, z: S })
+      .setTranslation(chunk.cx * S + S / 2, 0, chunk.cz * S + S / 2)
+      .setFriction(0.9)
+      .setCollisionGroups(collisionGroups(GROUP.GROUND, ALL_GROUPS));
+    chunk.groundCollider = this.physics.world.createCollider(desc);
   }
 
   /** Rubble mound for buildings; a flattened wreck for cars; nothing for other props. */
@@ -253,13 +286,13 @@ export class ChunkManager {
     const D = DESTRUCTION;
     const h = Math.min(D.rubbleMaxHeight, Math.max(D.rubbleMinHeight, st.height * D.rubbleHeightFraction));
     const rubble: PartSpec = {
-      pool: 'flat', x: st.x, y: 0, z: st.z,
+      pool: 'flat', x: st.x, y: st.y, z: st.z,
       sx: st.halfW * 2 * 1.2, sy: h, sz: st.halfD * 2 * 1.2, rotY: st.rotY,
       color: rubbleColor(st.parts[0]?.color ?? 0x888888),
     };
     s.rubbleSlot = this.pools.pools.rubble.add(
       new THREE.Matrix4().compose(
-        new THREE.Vector3(rubble.x, 0, rubble.z),
+        new THREE.Vector3(rubble.x, rubble.y, rubble.z),
         _q.setFromAxisAngle(UP, rubble.rotY),
         new THREE.Vector3(rubble.sx, rubble.sy, rubble.sz),
       ),

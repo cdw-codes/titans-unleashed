@@ -14,6 +14,7 @@ import { KaijuMotor, type MoveIntent } from './KaijuMotor';
 import { locomotionState, type KaijuState } from './locomotion';
 import type { KaijuSpec } from './KaijuSpec';
 import type { KaijuModifiers } from '../../systems/progression/Upgrades';
+import { terrain } from '../../world/terrain/Terrain';
 
 const _desired = { x: 0, y: 0, z: 0 };
 const _scaledIntent: MoveIntent = { x: 0, z: 0, sprint: false };
@@ -149,6 +150,13 @@ export class Kaiju {
     this.controller.computeColliderMovement(this.collider, _desired, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.kccGroups);
     const moved = this.controller.computedMovement();
     this.grounded = this.controller.computedGrounded();
+    // Beyond the terrain colliders (physics radius) follow the analytic ground instead.
+    const groundY = terrain.heightAt(this.position.x + moved.x, this.position.z + moved.z);
+    if (!this.grounded && this.position.y + moved.y < groundY + 3) {
+      moved.y = groundY - this.position.y;
+      this.grounded = true;
+      this.verticalVelocity = 0;
+    }
     this.contacts.length = 0;
     for (let i = 0; i < this.controller.numComputedCollisions(); i++) {
       const hit = this.controller.computedCollision(i);
@@ -182,15 +190,16 @@ export class Kaiju {
 
   /** Move instantly (respawn). Clears momentum and interpolation. */
   teleport(x: number, z: number, yaw: number): void {
-    this.position.set(x, 0, z);
+    const y = terrain.heightAt(x, z);
+    this.position.set(x, y, z);
     this.prevPosition.copy(this.position);
     this.renderPosition.copy(this.position);
     this.motor.yaw = this.motor.moveYaw = yaw;
     this.prevYaw = yaw;
     this.motor.speed = 0;
     this.verticalVelocity = 0;
-    this.body.setTranslation({ x, y: this.centerOffset, z }, true);
-    this.body.setNextKinematicTranslation({ x, y: this.centerOffset, z });
+    this.body.setTranslation({ x, y: y + this.centerOffset, z }, true);
+    this.body.setNextKinematicTranslation({ x, y: y + this.centerOffset, z });
   }
 
   /** Apply upgrade multipliers (player progression). */

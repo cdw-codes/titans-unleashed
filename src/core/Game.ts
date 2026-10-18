@@ -20,9 +20,11 @@ import { PhysicsSystem } from '../systems/PhysicsSystem';
 import { CameraSystem } from '../systems/CameraSystem';
 import { DustSystem } from '../systems/effects/DustSystem';
 import { Environment } from '../world/Environment';
-import { Ground } from '../world/Ground';
+import { TerrainRenderer } from '../world/terrain/TerrainRenderer';
+import { terrain } from '../world/terrain/Terrain';
 import { Water } from '../world/Water';
-import { CityGenerator } from '../world/city/CityGenerator';
+import { CityGenerator, GROUND_CELLS } from '../world/city/CityGenerator';
+import { WORLD } from '../config/world';
 import { CityPools } from '../world/city/CityPools';
 import { ChunkManager } from '../world/city/ChunkManager';
 import { DestructionState } from '../world/city/DestructionState';
@@ -79,7 +81,7 @@ export class Game {
 
   private readonly input: Input;
   private readonly playerController = new PlayerController();
-  private readonly ground: Ground;
+  private readonly terrainTiles: TerrainRenderer;
   private readonly water: Water;
   private readonly dust = new DustSystem(DUST);
   private readonly smoke = new DustSystem(SMOKE);
@@ -145,10 +147,11 @@ export class Game {
     const scene = this.render.scene;
 
     this.environment = new Environment(scene, preset);
-    this.ground = new Ground(scene, physics, this.render.renderer.capabilities.getMaxAnisotropy(), preset.drawDistance);
+    this.terrainTiles = new TerrainRenderer(scene, WORLD.chunkSize, GROUND_CELLS, 900);
+    this.terrainTiles.nearRadius = preset.propRadius;
     this.water = new Water(scene, preset.drawDistance);
     this.cityPools = new CityPools(scene);
-    this.chunks = new ChunkManager(CITY, new CityGenerator(CITY), this.cityPools, physics, new DestructionState());
+    this.chunks = new ChunkManager(CITY, new CityGenerator(CITY), this.cityPools, physics, new DestructionState(), this.terrainTiles);
     this.chunks.propRadius = preset.propRadius;
     this.cityPools.setSmallShadows(preset.smallShadows);
     this.crates = new TestCrates(scene, physics);
@@ -158,7 +161,7 @@ export class Game {
     this.beamFx = new BeamFx(scene, this.fire);
     this.collapse = new CollapseSystem(this.chunks, this.cityPools, this.dust, this.smoke, this.debris);
 
-    const spawn = new THREE.Vector3(CITY.spawnX, 0, CITY.spawnZ);
+    const spawn = new THREE.Vector3(CITY.spawnX, terrain.heightAt(CITY.spawnX, CITY.spawnZ), CITY.spawnZ);
     this.player = new Kaiju(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
     scene.add(this.player.model.object);
 
@@ -254,7 +257,7 @@ export class Game {
       explosion: (x, z, size) => {
         const k = this.proximity(x, z, 400);
         this.camera.shake.addTrauma(0.3 * size * k * k);
-        this.events.emit('fx:explosion', { x, y: 0, z, size });
+        this.events.emit('fx:explosion', { x, y: terrain.heightAt(x, z), z, size });
       },
       fired: (kind, x, y, z) => this.events.emit('military:fire', { kind, x, y, z }),
     });
@@ -279,22 +282,26 @@ export class Game {
     });
     this.events.on('combat:impact', (e) => {
       if (e.move === 'pulse') {
-        this.shockwaves.spawn(e.x, 3, e.z, e.radius * 1.2, SHOCKWAVE.duration, SHOCKWAVE.pulseColor, SHOCKWAVE.pulseOpacity);
-        this.shockwaves.spawn(e.x, 30, e.z, e.radius * 0.8, SHOCKWAVE.duration * 0.7, SHOCKWAVE.pulseColor, SHOCKWAVE.pulseOpacity * 0.6);
+        const gy = terrain.heightAt(e.x, e.z);
+        this.shockwaves.spawn(e.x, gy + 3, e.z, e.radius * 1.2, SHOCKWAVE.duration, SHOCKWAVE.pulseColor, SHOCKWAVE.pulseOpacity);
+        this.shockwaves.spawn(e.x, gy + 30, e.z, e.radius * 0.8, SHOCKWAVE.duration * 0.7, SHOCKWAVE.pulseColor, SHOCKWAVE.pulseOpacity * 0.6);
         this.military.blastUnits(e.x, e.z, e.radius, true);
       } else if (e.move === 'stomp') {
-        this.shockwaves.spawn(e.x, 1, e.z, e.radius * 1.15, SHOCKWAVE.duration, SHOCKWAVE.stompColor, SHOCKWAVE.stompOpacity);
+        this.shockwaves.spawn(e.x, terrain.heightAt(e.x, e.z) + 1, e.z, e.radius * 1.15, SHOCKWAVE.duration, SHOCKWAVE.stompColor, SHOCKWAVE.stompOpacity);
       } else if (e.move === 'tail') {
         // Dust kicked up along the sweep behind the kaiju.
         for (const off of [-1.1, -0.5, 0, 0.5, 1.1]) {
           const a = e.yaw + Math.PI + off;
-          this.dust.burst(e.x + Math.sin(a) * e.radius * 0.7, 0, e.z + Math.cos(a) * e.radius * 0.7, DUST.crush, 1.6);
+          const dx = e.x + Math.sin(a) * e.radius * 0.7;
+          const dz = e.z + Math.cos(a) * e.radius * 0.7;
+          this.dust.burst(dx, terrain.heightAt(dx, dz), dz, DUST.crush, 1.6);
         }
       }
     });
     this.events.on('kaiju:roar', (e) => {
-      this.shockwaves.spawn(e.x, 2, e.z, SHOCKWAVE.roarRadius, SHOCKWAVE.duration * 1.8, SHOCKWAVE.roarColor, SHOCKWAVE.roarOpacity);
-      this.dust.burst(e.x, 0, e.z, DUST.collapse, DUST.maxBurstScale);
+      const gy = terrain.heightAt(e.x, e.z);
+      this.shockwaves.spawn(e.x, gy + 2, e.z, SHOCKWAVE.roarRadius, SHOCKWAVE.duration * 1.8, SHOCKWAVE.roarColor, SHOCKWAVE.roarOpacity);
+      this.dust.burst(e.x, gy, e.z, DUST.collapse, DUST.maxBurstScale);
     });
     this.events.on('kaiju:footstep', (e) => {
       this.dust.burst(e.x, e.y, e.z, e.sprinting ? DUST.sprintStep : DUST.walkStep, e.scale);
@@ -383,6 +390,7 @@ export class Game {
 
   private applyLod(preset: (typeof QUALITY_PRESETS)[QualityLevel]): void {
     this.chunks.propRadius = preset.propRadius;
+    this.terrainTiles.nearRadius = preset.propRadius;
     this.cityPools.setSmallShadows(preset.smallShadows);
   }
 
@@ -413,8 +421,7 @@ export class Game {
       playerZ: this.player.renderPosition.z,
       cameraYaw: this.camera.yaw,
       chunks: this.chunks.chunks.values(),
-      coastX: CITY.coastX,
-      pitch: CITY.blockSize + CITY.streetWidth,
+      chunkSize: this.chunks.chunkSize,
       rival: r && r.state !== 'defeated' ? { x: r.renderPosition.x, z: r.renderPosition.z, yaw: r.yaw } : null,
       arena: a.active ? a : null,
       units: (cb) => this.military.forEachUnit(cb),
@@ -565,9 +572,8 @@ export class Game {
     this.camera.update(this.player.renderPosition, visualDt, this.player.state === 'sprint' ? 1 : 0);
     this.updateAim();
     const focus = this.player.renderPosition;
-    this.environment.follow(focus, this.render.camera.position);
-    this.ground.follow(focus);
-    this.water.follow(focus);
+    this.environment.follow(focus, this.render.camera.position, visualDt);
+    this.water.follow(focus, visualDt);
     this.chunks.update(focus.x, focus.z, QUALITY_PRESETS[this.qualityLevel].drawDistance);
     this.cityPools.flush();
     this.updateHud();
@@ -590,7 +596,7 @@ export class Game {
           this.destruction.recentlyDamaged.delete(s);
           continue;
         }
-        this.debug.label({ x: s.spec.x, y: s.spec.height + 5, z: s.spec.z }, `${s.spec.kind} ${s.hp.toFixed(0)}/${s.maxHp.toFixed(0)}`);
+        this.debug.label({ x: s.spec.x, y: s.spec.y + s.spec.height + 5, z: s.spec.z }, `${s.spec.kind} ${s.hp.toFixed(0)}/${s.maxHp.toFixed(0)}`);
       }
       const r = this.director.rival;
       if (r) {
@@ -623,7 +629,9 @@ export class Game {
     const max = COMBAT.beam.range + 400;
     const hit = this.physics.world.castRay(_aimRay, max, true, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, undefined, undefined, this.player.body);
     let t = hit ? hit.timeOfImpact : max;
-    if (_camDir.y < 0) t = Math.min(t, -cam.position.y / _camDir.y);
+    // Beyond the colliders: the ground plane under the player.
+    const groundY = this.player.position.y;
+    if (_camDir.y < 0) t = Math.min(t, (groundY - cam.position.y) / _camDir.y);
     const aim = this.playerController.aimPoint;
     aim.x = cam.position.x + _camDir.x * t;
     aim.y = cam.position.y + _camDir.y * t;
@@ -640,7 +648,7 @@ export class Game {
       const yaw = this.player.yaw;
       // The body lands behind the feet.
       const d = 55 * this.player.scale;
-      this.dust.burst(p.x - Math.sin(yaw) * d, 0, p.z - Math.cos(yaw) * d, DUST.collapse, DUST.maxBurstScale);
+      this.dust.burst(p.x - Math.sin(yaw) * d, p.y, p.z - Math.cos(yaw) * d, DUST.collapse, DUST.maxBurstScale);
       this.camera.shake.addTrauma(0.7);
       this.camera.shake.addKick(20);
     }

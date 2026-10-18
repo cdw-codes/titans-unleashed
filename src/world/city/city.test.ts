@@ -2,23 +2,25 @@ import { describe, expect, it } from 'vitest';
 import { CITY } from '../../config/city';
 import { CityGenerator } from './CityGenerator';
 import { districtAt } from './district';
+import { terrain } from '../terrain/Terrain';
 
 const gen = new CityGenerator(CITY);
 const S = gen.chunkSize;
+const URBAN = new Set(['downtown', 'fringe', 'suburbs', 'industrial', 'docks']);
 
 describe('districtAt', () => {
-  it('places downtown at the origin, sea past the coast, docks before it', () => {
-    expect(districtAt(0, 0, CITY)).toBe('downtown');
-    expect(districtAt(CITY.coastX + 10, 0, CITY)).toBe('sea');
-    expect(districtAt(CITY.coastX - 10, 0, CITY)).toBe('docks');
+  it('puts downtown at the origin and sea past the coast', () => {
+    expect(districtAt(-S / 2, -S / 2, S, terrain, CITY)).toBe('downtown');
+    const x = terrain.coastX(0) + 800;
+    expect(districtAt(x, 0, S, terrain, CITY)).toBe('sea');
   });
 
-  it('has suburbs and industrial zones in the outer ring', () => {
+  it('has every town district and countryside biome somewhere', () => {
     const seen = new Set<string>();
-    for (let x = -6000; x < 1000; x += 128) for (let z = -6000; z < 6000; z += 128) seen.add(districtAt(x, z, CITY));
-    expect(seen).toContain('suburbs');
-    expect(seen).toContain('industrial');
-    expect(seen).toContain('fringe');
+    for (let x = -8000; x < 2400; x += S) for (let z = -8000; z < 8000; z += S) seen.add(districtAt(x, z, S, terrain, CITY));
+    for (const d of ['downtown', 'fringe', 'suburbs', 'industrial', 'docks', 'forest', 'farmland', 'meadow', 'sea']) {
+      expect(seen).toContain(d);
+    }
   });
 });
 
@@ -32,7 +34,7 @@ describe('CityGenerator', () => {
   });
 
   it('leaves sea chunks empty', () => {
-    const c = gen.generate(Math.ceil(CITY.coastX / S) + 1, 0);
+    const c = gen.generate(Math.ceil((terrain.coastX(0) + 800) / S), 0);
     expect(c.district).toBe('sea');
     expect(c.structures).toHaveLength(0);
     expect(c.flats).toHaveLength(0);
@@ -43,7 +45,9 @@ describe('CityGenerator', () => {
     const pitch = CITY.blockSize + W;
     for (let cx = -4; cx <= 4; cx++) {
       for (let cz = -4; cz <= 4; cz++) {
-        for (const s of gen.generate(cx, cz).structures) {
+        const chunk = gen.generate(cx, cz);
+        if (!URBAN.has(chunk.district)) continue;
+        for (const s of chunk.structures) {
           if (s.kind === 'car') continue;
           // Distance from the center to the nearest street line, per axis.
           for (const [v, half] of [[s.x, s.rotY ? s.halfD : s.halfW], [s.z, s.rotY ? s.halfW : s.halfD]] as const) {
@@ -66,6 +70,22 @@ describe('CityGenerator', () => {
         }
       }
     }
+  });
+
+  it('puts countryside structures on the terrain and keeps them out of the water', () => {
+    let checked = 0;
+    for (let cx = -30; cx <= -20; cx++) {
+      for (let cz = -5; cz <= 5; cz++) {
+        const chunk = gen.generate(cx, cz);
+        if (URBAN.has(chunk.district)) continue;
+        for (const s of chunk.structures) {
+          expect(s.y).toBeGreaterThan(terrain.waterLevel);
+          expect(Math.abs(s.y - terrain.heightAt(s.x, s.z))).toBeLessThan(25);
+          checked++;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
   });
 
   it('downtown towers are tall and have parts', () => {

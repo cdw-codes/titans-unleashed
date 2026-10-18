@@ -1,19 +1,32 @@
 import { clamp, hashCoords, lerp } from '../../core/math';
 import { Random } from '../../core/random';
 import type { CityConfig, Range } from '../../config/city';
+import { TERRAIN_COLORS } from '../../config/terrain';
+import { terrain as worldTerrain, type Terrain } from '../terrain/Terrain';
 import { districtAt } from './district';
-import { SIZE_OF, type ChunkSpec, type District, type PartSpec, type PoolId, type StructureKind, type StructureSpec } from './types';
+import { SIZE_OF, type ChunkSpec, type PartSpec, type PoolId, type StructureKind, type StructureSpec, type UrbanDistrict } from './types';
+
+/** Street color (the minimap draws flats of this color as roads). */
+export const ROAD_COLOR = 0x46474b;
 
 const COLORS = {
-  road: 0x3c3d3f,
-  lawn: 0x6d8650,
-  concrete: 0x8f8c84,
-  quay: 0x7d7a73,
+  road: ROAD_COLOR,
+  lawn: 0x7fa04f,
+  concrete: 0xa8a396,
+  quay: 0x8c8880,
   roof: 0x8a4b3a,
   rooftop: 0x8c8c88,
-  tree: 0xffffff, // tree pool uses vertex colors; instance color tints
+  park: 0x86ab55,
+  pond: 0x5f8ea6,
   containers: [0xb0442f, 0x2f6fa8, 0x3d8a4a, 0xd19a2b, 0x7a7d80, 0x9b3f78],
+  /** Tree crowns (instance colors; the tree pools keep trunks dark). */
+  autumn: TERRAIN_COLORS.canopy,
+  pines: [0x3f6d33, 0x4c7a3a, 0x335c33, 0x6e8a3a, 0xc9a23a],
+  barns: [0x9c3b2c, 0x8a3a2a, 0xa65a35, 0x7d6a55],
 };
+
+/** Terrain samples per chunk edge (16 m cells at the default chunk size). */
+export const GROUND_CELLS = 16;
 
 /**
  * Deterministic chunk generator: same seed + chunk coords = same content,
@@ -23,7 +36,7 @@ export class CityGenerator {
   private readonly pitch: number;
   readonly chunkSize: number;
 
-  constructor(private readonly c: CityConfig) {
+  constructor(private readonly c: CityConfig, private readonly terrain: Terrain = worldTerrain) {
     this.pitch = c.blockSize + c.streetWidth;
     this.chunkSize = this.pitch * 2;
   }
@@ -32,11 +45,27 @@ export class CityGenerator {
     const S = this.chunkSize;
     const x0 = cx * S;
     const z0 = cz * S;
-    const district = districtAt(x0 + S / 2, z0 + S / 2, this.c);
+    const district = districtAt(x0, z0, S, this.terrain, this.c);
     const rng = new Random(hashCoords(cx, cz, this.c.seed));
-    const chunk: ChunkSpec = { cx, cz, district, structures: [], flats: [] };
+    const ground = this.terrain.buildTile(x0, z0, S, GROUND_CELLS, this.pitch);
+    const chunk: ChunkSpec = { cx, cz, district, structures: [], flats: [], ground };
     if (district === 'sea') return chunk;
+    if (district === 'forest' || district === 'farmland' || district === 'meadow') {
+      this.countryside(chunk, district, rng, x0, z0);
+    } else {
+      this.town(chunk, district, rng, x0, z0);
+    }
 
+    // Keep the spawn point clear.
+    const { spawnX, spawnZ, spawnClearRadius: r } = this.c;
+    chunk.structures = chunk.structures.filter(
+      (s) => Math.hypot(s.x - spawnX, s.z - spawnZ) > r + Math.max(s.halfW, s.halfD),
+    );
+    return chunk;
+  }
+
+  /** Street grid with blocks (towns are flat at y = 0); nothing where the coast cuts in. */
+  private town(chunk: ChunkSpec, district: UrbanDistrict, rng: Random, x0: number, z0: number): void {
     this.roads(chunk, x0, z0);
     const half = this.c.streetWidth / 2;
     const B = this.c.blockSize;
@@ -48,13 +77,110 @@ export class CityGenerator {
       }
     }
     this.cars(chunk, district, rng, x0, z0);
+    const dry = (x: number, z: number) => !this.terrain.isWater(x, z, 1);
+    chunk.structures = chunk.structures.filter((s) => dry(s.x, s.z));
+    chunk.flats = chunk.flats.filter((f) => dry(f.x, f.z));
+  }
 
-    // Keep the spawn point clear.
-    const { spawnX, spawnZ, spawnClearRadius: r } = this.c;
-    chunk.structures = chunk.structures.filter(
-      (s) => Math.hypot(s.x - spawnX, s.z - spawnZ) > r + Math.max(s.halfW, s.halfD),
-    );
-    return chunk;
+  // ------------------------------------------------------------- countryside
+
+  private countryside(chunk: ChunkSpec, biome: 'forest' | 'farmland' | 'meadow', rng: Random, x0: number, z0: number): void {
+    const S = this.chunkSize;
+    const t = this.terrain;
+    const cfg = t.c;
+    // Forest: jittered grid, kept by local density so edges thin out naturally.
+    const cell = Math.sqrt(10000 / cfg.forestTreesPerHa);
+    const n = Math.floor(S / cell);
+    for (let i = 0; i < n; i++) {
+      for (let j = 0; j < n; j++) {
+        const x = x0 + (i + rng.range(0.1, 0.9)) * (S / n);
+        const z = z0 + (j + rng.range(0.1, 0.9)) * (S / n);
+        if (rng.next() < t.forestDensity(x, z) * (1 - t.urbanWeight(x, z))) this.tree(chunk, rng, x, z, 1.5, 2.7);
+      }
+    }
+    // Clumps of trees in the open.
+    const clumps = Math.round((cfg.meadowTreesPerHa * (S * S) / 10000) / 5 * rng.range(0.4, 1.6));
+    for (let k = 0; k < clumps; k++) {
+      const cxp = x0 + rng.range(20, S - 20);
+      const czp = z0 + rng.range(20, S - 20);
+      for (let m = rng.int(3, 8); m > 0; m--) this.tree(chunk, rng, cxp + rng.range(-25, 25), czp + rng.range(-25, 25), 1.2, 2.3);
+    }
+    // Outskirts: houses straggle out along the edge of town.
+    const u = t.urbanWeight(x0 + S / 2, z0 + S / 2);
+    for (let k = Math.round(u * rng.range(2, 7)); k > 0; k--) {
+      this.house(chunk, rng, x0 + rng.range(20, S - 20), z0 + rng.range(20, S - 20), rng.chance(0.5) ? 0 : Math.PI / 2);
+    }
+    if (biome === 'farmland' && rng.chance(0.6)) this.farm(chunk, rng, x0 + rng.range(60, S - 60), z0 + rng.range(60, S - 60));
+    if (biome === 'forest' && rng.chance(0.08)) this.house(chunk, rng, x0 + rng.range(40, S - 40), z0 + rng.range(40, S - 40), rng.next() * Math.PI);
+  }
+
+  /** Farmhouse, barn, a silo or two and a windbreak row. */
+  private farm(chunk: ChunkSpec, rng: Random, x: number, z: number): void {
+    if (this.terrain.isWater(x, z, 2)) return;
+    const rot = rng.chance(0.5) ? 0 : Math.PI / 2;
+    const c = Math.cos(rot);
+    const s = Math.sin(rot);
+    const at = (lx: number, lz: number): [number, number] => [x + lx * c + lz * s, z - lx * s + lz * c];
+    this.house(chunk, rng, ...at(-22, 0), rot);
+    const [bx, bz] = at(14, 4);
+    const bw = rng.range(16, 22);
+    const bd = rng.range(24, 32);
+    const bh = rng.range(7, 10);
+    const by = this.baseY(bx, bz, bw / 2, bd / 2);
+    const barn = rng.pick(COLORS.barns);
+    this.add(chunk, 'barn', bx, bz, bw / 2, bd / 2, bh * 1.6, rot, [
+      part('plain', bx, by, bz, bw, bh, bd, rot, barn),
+      part('roof', bx, by + bh, bz, bw * 1.06, bh * 0.6, bd * 1.02, rot, 0x5b4a42),
+    ], by);
+    for (let k = rng.int(1, 2); k > 0; k--) {
+      const [sx, sz] = at(34 + k * 11, -10);
+      const r = rng.range(3.5, 5);
+      const h = range(rng, this.c.siloHeight);
+      const sy = this.baseY(sx, sz, r, r);
+      this.add(chunk, 'silo', sx, sz, r, r, h, 0, [
+        part('cylinder', sx, sy, sz, r * 2, h, r * 2, 0, 0xc8c3b8),
+        part('cylinder', sx, sy + h, sz, r * 1.7, r * 0.8, r * 1.7, 0, 0x8b9196),
+      ], sy);
+    }
+    for (let k = 0; k < 7; k++) {
+      const [tx, tz] = at(-40 + k * 14, 32);
+      this.tree(chunk, rng, tx, tz, 1.3, 1.9);
+    }
+  }
+
+  private house(chunk: ChunkSpec, rng: Random, x: number, z: number, rot: number): void {
+    if (this.terrain.isWater(x, z, 2)) return;
+    const w = rng.range(10, 14);
+    const d = rng.range(8, 11);
+    const h = range(rng, this.c.houseHeight);
+    const y = this.baseY(x, z, w / 2, d / 2);
+    const wall = hsl(rng.range(0.07, 0.13), rng.range(0.2, 0.4), rng.range(0.62, 0.82));
+    const roof = hsl(rng.range(0.0, 0.05), rng.range(0.35, 0.55), rng.range(0.28, 0.42));
+    this.add(chunk, 'house', x, z, w / 2, d / 2, h * 1.55, rot, [
+      part('windowed', x, y, z, w, h, d, rot, wall),
+      part('roof', x, y + h, z, w * 1.08, h * 0.55, d * 1.05, rot, roof),
+    ], y);
+  }
+
+  /** A tree on the ground at (x, z): pines on high or cold ground, broadleaf in autumn colors lower down. */
+  private tree(chunk: ChunkSpec, rng: Random, x: number, z: number, minScale: number, maxScale: number): void {
+    const t = this.terrain;
+    const h = t.heightAt(x, z);
+    if (h < t.waterLevel + 1.5) return;
+    const s = rng.range(minScale, maxScale);
+    const pine = rng.next() < clamp((h - 30) / 120, 0.08, 0.85);
+    const color = pine ? rng.pick(COLORS.pines) : rng.pick(COLORS.autumn);
+    const r = (pine ? 2.2 : 2.8) * s;
+    this.add(chunk, 'tree', x, z, r, r, (pine ? 11 : 8) * s, 0, [
+      part(pine ? 'pine' : 'tree', x, h - 0.4, z, s, s, s, rng.range(0, Math.PI * 2), color),
+    ], h);
+  }
+
+  /** Lowest ground under a footprint, so buildings on slopes sink in rather than float. */
+  private baseY(x: number, z: number, hw: number, hd: number): number {
+    const t = this.terrain;
+    const r = Math.max(hw, hd);
+    return Math.min(t.heightAt(x, z), t.heightAt(x - r, z - r), t.heightAt(x + r, z - r), t.heightAt(x - r, z + r), t.heightAt(x + r, z + r)) - 0.3;
   }
 
   // ------------------------------------------------------------- layout
@@ -68,7 +194,7 @@ export class CityGenerator {
     }
   }
 
-  private block(chunk: ChunkSpec, d: District, rng: Random, minX: number, minZ: number, B: number): void {
+  private block(chunk: ChunkSpec, d: UrbanDistrict, rng: Random, minX: number, minZ: number, B: number): void {
     const cx = minX + B / 2;
     const cz = minZ + B / 2;
     switch (d) {
@@ -76,9 +202,11 @@ export class CityGenerator {
         chunk.flats.push(flat(cx, cz, B, B, COLORS.concrete, 0.015));
         return this.downtownBlock(chunk, rng, cx, cz, B);
       case 'fringe':
+        if (rng.chance(0.07)) return this.parkBlock(chunk, rng, cx, cz, B);
         chunk.flats.push(flat(cx, cz, B, B, COLORS.concrete, 0.015));
         return rng.chance(0.15) ? this.shopBlock(chunk, rng, cx, cz, B) : this.midriseBlock(chunk, rng, cx, cz, B);
       case 'suburbs':
+        if (rng.chance(0.06)) return this.parkBlock(chunk, rng, cx, cz, B);
         chunk.flats.push(flat(cx, cz, B, B, COLORS.lawn, 0.015));
         return rng.chance(0.1) ? this.shopBlock(chunk, rng, cx, cz, B) : this.suburbBlock(chunk, rng, minX, minZ, B);
       case 'industrial':
@@ -87,17 +215,36 @@ export class CityGenerator {
       case 'docks':
         chunk.flats.push(flat(cx, cz, B, B, COLORS.quay, 0.015));
         return this.docksBlock(chunk, rng, cx, cz, B);
-      case 'sea':
-        return;
+    }
+  }
+
+  /** Lawn, trees round the edge and sometimes a pond: open space for scale. */
+  private parkBlock(chunk: ChunkSpec, rng: Random, cx: number, cz: number, B: number): void {
+    chunk.flats.push(flat(cx, cz, B, B, COLORS.park, 0.015));
+    const pond = rng.chance(0.55);
+    if (pond) chunk.flats.push(flat(cx + rng.range(-10, 10), cz + rng.range(-10, 10), rng.range(30, 50), rng.range(26, 44), COLORS.pond, 0.025));
+    for (let k = rng.int(10, 18); k > 0; k--) {
+      const edge = rng.chance(0.7);
+      const a = rng.range(0, Math.PI * 2);
+      const r = edge ? B * 0.42 : rng.range(0, B * 0.4);
+      const x = cx + Math.sin(a) * r;
+      const z = cz + Math.cos(a) * r;
+      if (pond && Math.abs(x - cx) < 30 && Math.abs(z - cz) < 28) continue;
+      const s = rng.range(1.1, 1.8);
+      this.add(chunk, 'tree', x, z, 2.8 * s, 2.8 * s, 8 * s, 0, [part('tree', x, 0, z, s, s, s, rng.range(0, Math.PI * 2), rng.pick(COLORS.autumn))]);
     }
   }
 
   private downtownBlock(chunk: ChunkSpec, rng: Random, cx: number, cz: number, B: number): void {
-    const t = clamp(Math.hypot(cx, cz) / this.c.downtownRadius, 0, 1);
+    const main = this.terrain.main;
+    const t = clamp(Math.hypot(cx - main.x, cz - main.z) / (main.radius * this.c.downtownFraction), 0, 1);
     const hc = this.c.towerHeightCenter;
     const he = this.c.towerHeightEdge;
     const height = () => rng.range(lerp(hc.min, he.min, t), lerp(hc.max, he.max, t));
-    const color = () => hsl(rng.range(0.55, 0.62), rng.range(0.04, 0.14), rng.range(0.42, 0.66));
+    // Mix of blue-teal glass towers and warm stone ones.
+    const color = () => rng.chance(0.6)
+      ? hsl(rng.range(0.52, 0.6), rng.range(0.12, 0.3), rng.range(0.5, 0.72))
+      : hsl(rng.range(0.07, 0.12), rng.range(0.15, 0.32), rng.range(0.6, 0.8));
     const roll = rng.next();
     if (roll < 0.45) {
       this.tower(chunk, rng, cx, cz, rng.range(55, 80), rng.range(55, 80), height(), color());
@@ -133,7 +280,9 @@ export class CityGenerator {
       const h = range(rng, this.c.midriseHeight);
       const x = cx + ox * q;
       const z = cz + oz * q;
-      const color = hsl(rng.range(0.04, 0.12), rng.range(0.05, 0.2), rng.range(0.45, 0.72));
+      const color = rng.chance(0.8)
+        ? hsl(rng.range(0.03, 0.12), rng.range(0.2, 0.42), rng.range(0.55, 0.8))
+        : hsl(rng.range(0.3, 0.55), rng.range(0.15, 0.3), rng.range(0.55, 0.75));
       const parts = [part('windowed', x, 0, z, w, h, d, 0, color)];
       if (rng.chance(0.5)) parts.push(part('plain', x, h, z, rng.range(6, 10), 3, rng.range(6, 10), 0, COLORS.rooftop));
       this.add(chunk, 'midrise', x, z, w / 2, d / 2, h, 0, parts);
@@ -183,7 +332,7 @@ export class CityGenerator {
           const tx = x + rng.range(-m, m);
           const tz = z + rng.range(-m, m);
           this.add(chunk, 'tree', tx, tz, 2.8 * s, 2.8 * s, 8 * s, 0, [
-            part('tree', tx, 0, tz, s, s, s, rng.range(0, Math.PI * 2), hsl(0.25, rng.range(0, 0.2), rng.range(0.85, 1))),
+            part('tree', tx, 0, tz, s, s, s, rng.range(0, Math.PI * 2), rng.pick(COLORS.autumn)),
           ]);
         }
       }
@@ -240,8 +389,7 @@ export class CityGenerator {
     }
   }
 
-  private cars(chunk: ChunkSpec, d: District, rng: Random, x0: number, z0: number): void {
-    if (d === 'sea') return;
+  private cars(chunk: ChunkSpec, d: UrbanDistrict, rng: Random, x0: number, z0: number): void {
     const density = this.c.carDensity[d];
     const S = this.chunkSize;
     const W = this.c.streetWidth;
@@ -277,8 +425,8 @@ export class CityGenerator {
     }
   }
 
-  private add(chunk: ChunkSpec, kind: StructureKind, x: number, z: number, halfW: number, halfD: number, height: number, rotY: number, parts: PartSpec[]): void {
-    chunk.structures.push({ kind, size: SIZE_OF[kind], x, z, halfW, halfD, height, rotY, parts } satisfies StructureSpec);
+  private add(chunk: ChunkSpec, kind: StructureKind, x: number, z: number, halfW: number, halfD: number, height: number, rotY: number, parts: PartSpec[], y = 0): void {
+    chunk.structures.push({ kind, size: SIZE_OF[kind], x, z, y, halfW, halfD, height, rotY, parts } satisfies StructureSpec);
   }
 }
 

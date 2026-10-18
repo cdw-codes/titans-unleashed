@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { terrain } from '../../world/terrain/Terrain';
 
 /**
  * Energy barrier around the arena: a tall open cylinder with a scrolling hex
@@ -25,8 +26,17 @@ export class BarrierFx {
   }
 
   raise(x: number, z: number, radius: number): void {
-    this.mesh.position.set(x, 0, z);
-    this.mesh.scale.set(radius, this.height, radius);
+    // Rise from below the lowest ground on the ring so hills never leave a gap.
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      const h = terrain.heightAt(x + Math.sin(a) * radius, z + Math.cos(a) * radius);
+      lo = Math.min(lo, h);
+      hi = Math.max(hi, h);
+    }
+    this.mesh.position.set(x, lo - 10, z);
+    this.mesh.scale.set(radius, this.height + (hi - lo) + 10, radius);
     this.mesh.material.uniforms['uRadius']!.value = radius;
     this.target = 1;
     this.mesh.visible = true;

@@ -10,6 +10,7 @@ import type { DustSystem } from '../effects/DustSystem';
 import type { ProjectileHit, ProjectileSystem } from './ProjectileSystem';
 import type { MilitarySystem } from '../military/MilitarySystem';
 import { falloffDamage, inArc } from './rules';
+import { terrain } from '../../world/terrain/Terrain';
 
 export interface CombatFeedback {
   hitPause(seconds: number): void;
@@ -94,7 +95,7 @@ export class CombatSystem {
     const mult = attacker.combat.mods.meleeDamage;
     let hits = 0;
     if (byPlayer && this.military) {
-      hits += this.military.hitArc(a.x, a.z, a.yaw, radius, c.arcDeg, c.arcOffsetDeg, attacker.spec.body.height * 1.15);
+      hits += this.military.hitArc(a.x, a.z, a.yaw, radius, c.arcDeg, c.arcOffsetDeg, attacker.position.y + attacker.spec.body.height * 1.15);
     }
     this.chunks.forEachNear(a.x, a.z, radius, (s) => {
       const st = s.spec;
@@ -130,7 +131,7 @@ export class CombatSystem {
       this.feedback.addKick(c.kick);
       if (connected && c.hitPause > 0) this.feedback.hitPause(kaijuHits > 0 ? c.hitPause * 1.5 : c.hitPause);
     }
-    if (a.move === 'stomp' || a.move === 'pulse') this.dust.burst(a.x, 0, a.z, DUST.collapse, DUST.maxBurstScale);
+    if (a.move === 'stomp' || a.move === 'pulse') this.dust.burst(a.x, terrain.heightAt(a.x, a.z), a.z, DUST.collapse, DUST.maxBurstScale);
     this.events.emit('combat:impact', { move: a.move, x: a.x, z: a.z, yaw: a.yaw, radius, hits, isPlayer: byPlayer });
   }
 
@@ -160,8 +161,8 @@ export class CombatSystem {
     _ray.dir.z = a.dz;
     const hit = this.physics.world.castRay(_ray, b.range, true, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, undefined, undefined, attacker.body);
     let toi = hit ? hit.timeOfImpact : b.range;
-    // Ground plane (structures beyond the physics radius have no colliders).
-    if (a.dy < 0) toi = Math.min(toi, -a.oy / a.dy);
+    // Beyond the colliders (physics radius): the ground plane under the attacker.
+    if (a.dy < 0) toi = Math.min(toi, (attacker.position.y - a.oy) / a.dy);
     const end = attacker.combat.beamEnd;
     end.x = a.ox + a.dx * toi;
     end.y = a.oy + a.dy * toi;
@@ -182,7 +183,7 @@ export class CombatSystem {
       // Impact blast: crush small things, singe large ones near the impact.
       const blast = b.impactRadius;
       this.chunks.forEachNear(end.x, end.z, blast, (s) => {
-        if (end.y > s.spec.height + blast) return;
+        if (end.y > s.spec.y + s.spec.height + blast) return;
         if (s.spec.size !== 'large') this.destruction.crush(s, byPlayer);
         else this.destruction.damage(s, a.damage * b.impactDpsFraction, end.x, end.z, byPlayer);
       });

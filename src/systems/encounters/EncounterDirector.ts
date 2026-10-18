@@ -1,3 +1,4 @@
+import { terrain } from '../../world/terrain/Terrain';
 import * as THREE from 'three';
 import { CITY } from '../../config/city';
 import { DUST, SHOCKWAVE } from '../../config/effects';
@@ -151,7 +152,7 @@ export class EncounterDirector {
       playerDefeated: p.state === 'defeated',
       rivalDefeated: !!r && r.state === 'defeated',
       hiddenDistance: this.d.hiddenDistance(),
-      maxX: CITY.coastX - 150,
+      maxX: terrain.minCoastX - 150,
     });
     for (const a of actions) this.handle(a);
   }
@@ -164,7 +165,7 @@ export class EncounterDirector {
         r.kaiju.sink += dt * 22;
         if (Math.random() < dt * 6) {
           const pos = r.kaiju.position;
-          this.d.dust.burst(pos.x + (Math.random() - 0.5) * 60, 0, pos.z + (Math.random() - 0.5) * 60, DUST.collapse, 1.6);
+          this.d.dust.burst(pos.x + (Math.random() - 0.5) * 60, pos.y, pos.z + (Math.random() - 0.5) * 60, DUST.collapse, 1.6);
         }
       }
       r.kaiju.render(alpha, dt);
@@ -207,15 +208,29 @@ export class EncounterDirector {
   respawnSpot(): { x: number; z: number; yaw: number } {
     const p = this.d.player.position;
     const r = this.rival?.kaiju.position;
-    return respawnPoint({
+    const pitch = CITY.blockSize + CITY.streetWidth;
+    const spot = respawnPoint({
       fromX: p.x,
       fromZ: p.z,
       threat: r ? { x: r.x, z: r.z } : null,
       minDistance: this.d.hiddenDistance() + ENCOUNTERS.respawnBeyondFog,
-      maxX: CITY.coastX - 300,
-      pitch: CITY.blockSize + CITY.streetWidth,
+      maxX: terrain.minCoastX - 300,
+      pitch,
       rand: () => this.rng.next(),
     });
+    // Landed in a lake: walk outward along the street grid to dry ground.
+    for (let ring = 1; ring <= 6 && terrain.isWater(spot.x, spot.z, 3); ring++) {
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]] as const) {
+        const x = spot.x + dx * ring * pitch;
+        const z = spot.z + dz * ring * pitch;
+        if (x < terrain.minCoastX - 300 && !terrain.isWater(x, z, 3)) {
+          spot.x = x;
+          spot.z = z;
+          break;
+        }
+      }
+    }
+    return spot;
   }
 
   /** Spawn a rival right away, close by, and raise the barrier immediately. */
@@ -254,7 +269,7 @@ export class EncounterDirector {
         const x = p.x + a.dirX * 950;
         const z = p.z + a.dirZ * 950;
         this.d.shockwaves.spawn(x, 2, z, 500, 2.5, SHOCKWAVE.roarColor, SHOCKWAVE.roarOpacity);
-        this.d.dust.burst(x, 0, z, DUST.collapse, DUST.maxBurstScale);
+        this.d.dust.burst(x, terrain.heightAt(x, z), z, DUST.collapse, DUST.maxBurstScale);
         return;
       }
       case 'tremor':
@@ -297,7 +312,7 @@ export class EncounterDirector {
   }
 
   private spawn(id: RivalId, x: number, z: number): void {
-    const k = new Kaiju(this.d.physics, this.d.events, new THREE.Vector3(x, 0, z), false, UNLIMITED_ENERGY, rivalSpec(id), { plowsThrough: true });
+    const k = new Kaiju(this.d.physics, this.d.events, new THREE.Vector3(x, terrain.heightAt(x, z), z), false, UNLIMITED_ENERGY, rivalSpec(id), { plowsThrough: true });
     // Face the player.
     const p = this.d.player.position;
     k.motor.yaw = k.motor.moveYaw = Math.atan2(p.x - x, p.z - z);

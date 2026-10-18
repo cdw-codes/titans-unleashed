@@ -35,11 +35,19 @@ export class CityPools {
     const roofShape = new THREE.Shape([new THREE.Vector2(-0.5, 0), new THREE.Vector2(0.5, 0), new THREE.Vector2(0, 1)]);
     const roof = new THREE.ExtrudeGeometry(roofShape, { depth: 1, bevelEnabled: false }).translate(0, 0, -0.5);
 
-    const trunk = new THREE.CylinderGeometry(0.35, 0.5, 3.2, 5).translate(0, 1.6, 0);
-    const crown = new THREE.IcosahedronGeometry(2.8, 0).translate(0, 5.2, 0);
-    paint(trunk, 0x5a4330);
-    paint(crown, 0x4c6b35);
-    const tree = mergeGeometries([trunk.toNonIndexed(), crown.toNonIndexed()]);
+    // Trees: crowns painted white so the instance color sets the foliage; trunks stay dark.
+    const trunk = paint(new THREE.CylinderGeometry(0.35, 0.5, 3.4, 5).translate(0, 1.7, 0), 0x4a3a2c).toNonIndexed();
+    const tree = mergeGeometries([
+      trunk,
+      paint(new THREE.IcosahedronGeometry(2.8, 0).translate(0, 5.4, 0), 0xffffff).toNonIndexed(),
+      paint(new THREE.IcosahedronGeometry(1.7, 0).translate(1.4, 4.4, 0.6), 0xe6e6e6).toNonIndexed(),
+    ]);
+    const pine = mergeGeometries([
+      paint(new THREE.CylinderGeometry(0.3, 0.42, 2.4, 5).translate(0, 1.2, 0), 0x4a3a2c).toNonIndexed(),
+      paint(new THREE.ConeGeometry(2.2, 4.6, 7).translate(0, 4.3, 0), 0xe0e0e0).toNonIndexed(),
+      paint(new THREE.ConeGeometry(1.7, 3.8, 7).translate(0, 6.6, 0), 0xf2f2f2).toNonIndexed(),
+      paint(new THREE.ConeGeometry(1.1, 3, 7).translate(0, 8.9, 0), 0xffffff).toNonIndexed(),
+    ]);
 
     const { car, truck } = vehicleGeometries();
 
@@ -58,7 +66,8 @@ export class CityPools {
       plain: new InstancePool(scene, box, lambert(), 6000),
       roof: new InstancePool(scene, roof, lambert({ flatShading: true }), 6000),
       cylinder: new InstancePool(scene, new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0), lambert(), 1000),
-      tree: new InstancePool(scene, tree, lambert({ vertexColors: true, flatShading: true }), 6000),
+      tree: new InstancePool(scene, tree, lambert({ vertexColors: true, flatShading: true }), 12000),
+      pine: new InstancePool(scene, pine, lambert({ vertexColors: true, flatShading: true }), 8000),
       car: new InstancePool(scene, car, lambert({ vertexColors: true, flatShading: true }), 4000),
       truck: new InstancePool(scene, truck, lambert({ vertexColors: true, flatShading: true }), 1500),
       flat: new InstancePool(
@@ -82,7 +91,7 @@ export class CityPools {
 
   /** Small-prop shadows on/off (quality preset). */
   setSmallShadows(on: boolean): void {
-    for (const id of ['tree', 'roof', 'car', 'truck'] as const) (this.pools[id] as InstancePool).setCastShadow(on);
+    for (const id of ['tree', 'pine', 'roof', 'car', 'truck'] as const) (this.pools[id] as InstancePool).setCastShadow(on);
   }
 
   flush(): void {

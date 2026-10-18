@@ -13,28 +13,32 @@ export interface EnvironmentConfig {
   readonly hemiGround: number;
   readonly hemiIntensity: number;
   readonly exposure: number;
-  readonly groundColor: number;
-  /** World size (m) of one ground texture tile. */
-  readonly groundTile: number;
   readonly waterColor: number;
-  /** Sea surface height (m). The kaiju wades; the seabed is the ground plane. */
-  readonly waterLevel: number;
+  /** Cloud cover 0..1 and how fast the clouds drift. */
+  readonly cloudCover: number;
+  readonly cloudSpeed: number;
+  /** Distant mountain silhouettes: near and far ring colors and peak heights (m). */
+  readonly mountainNear: number;
+  readonly mountainFar: number;
+  readonly mountainHeight: number;
 }
 
 export const ENVIRONMENT: EnvironmentConfig = {
-  skyZenith: 0x5b7fa6,
-  skyHorizon: 0xc4cbcf,
-  fogColor: 0xc4cbcf,
-  sunElevation: 38,
-  sunAzimuth: 60,
-  sunColor: 0xffe7c4,
-  sunIntensity: 2.6,
-  hemiSky: 0xbcd3ec,
-  hemiGround: 0x6b6458,
-  hemiIntensity: 1.1,
+  skyZenith: 0x7da3d6,
+  skyHorizon: 0xd6dbe6,
+  fogColor: 0xc8d1df,
+  sunElevation: 30,
+  sunAzimuth: 55,
+  sunColor: 0xffe2b8,
+  sunIntensity: 3.2,
+  hemiSky: 0xc2d4ee,
+  hemiGround: 0x8c7b58,
+  hemiIntensity: 0.8,
   exposure: 1.0,
-  groundColor: 0x8a8b84,
-  groundTile: 128,
-  waterColor: 0x2d5868,
-  waterLevel: 6,
+  waterColor: 0x5f8ea6,
+  cloudCover: 0.45,
+  cloudSpeed: 0.004,
+  mountainNear: 0x8d93b3,
+  mountainFar: 0xaab0cc,
+  mountainHeight: 520,
 };

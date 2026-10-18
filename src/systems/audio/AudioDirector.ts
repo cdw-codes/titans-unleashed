@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { GameEventBus } from '../../core/events';
 import type { Kaiju } from '../../entities/kaiju/Kaiju';
 import type { AudioSystem, Voice } from './AudioSystem';
+import { terrain } from '../../world/terrain/Terrain';
 
 export interface AudioDirectorDeps {
   player: Kaiju;
@@ -35,10 +36,10 @@ export class AudioDirector {
     const at = (x: number, y: number, z: number) => _p.set(x, y, z);
     events.on('kaiju:footstep', (e) => {
       if (e.isPlayer) this.audio.play(e.sprinting ? 'footstepSprint' : 'footstep');
-      else this.audio.play('rivalFootstep', at(e.x, 0, e.z));
+      else this.audio.play('rivalFootstep', at(e.x, e.y, e.z));
     });
     events.on('structure:destroyed', (e) => {
-      const pos = at(e.x, 0, e.z);
+      const pos = at(e.x, terrain.heightAt(e.x, e.z), e.z);
       if (e.size === 'large') this.audio.play(e.height > 60 ? 'collapseLarge' : 'collapseSmall', pos);
       else if (e.size === 'small') this.audio.play('collapseSmall', pos, { volume: 0.5 });
       else this.audio.play('crush', pos, { volume: 0.5 });
