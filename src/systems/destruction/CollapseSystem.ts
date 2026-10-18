@@ -35,7 +35,7 @@ const _q = new THREE.Quaternion();
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _axis = new THREE.Vector3();
-const UP = new THREE.Vector3(0, 1, 0);
+const _euler = new THREE.Euler(0, 0, 0, 'YXZ');
 
 /**
  * Visual demolition: the building pancakes into its footprint with an
@@ -106,7 +106,7 @@ export class CollapseSystem {
     const jitter = 0.6 * (1 - p) * Math.sin(c.t * 47);
     _base.makeTranslation(st.x + jitter, st.y, st.z - jitter);
     st.parts.forEach((part, i) => {
-      _q.setFromAxisAngle(UP, part.rotY);
+      _q.setFromEuler(_euler.set(part.tilt ?? 0, part.rotY, 0));
       _p.set(part.x - st.x, (part.y - st.y) * squash, part.z - st.z);
       _s.set(part.sx, part.sy * squash, part.sz);
       _local.compose(_p, _q, _s);

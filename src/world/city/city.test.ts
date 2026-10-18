@@ -11,14 +11,14 @@ const URBAN = new Set(['downtown', 'fringe', 'suburbs', 'industrial', 'docks']);
 describe('districtAt', () => {
   it('puts downtown at the origin and sea past the coast', () => {
     expect(districtAt(-S / 2, -S / 2, S, terrain, CITY)).toBe('downtown');
-    const x = terrain.coastX(0) + 800;
-    expect(districtAt(x, 0, S, terrain, CITY)).toBe('sea');
+    const z = -2500; // between the island (south) and the Alps (north)
+    expect(districtAt(terrain.coastX(z) + 800, z, S, terrain, CITY)).toBe('sea');
   });
 
   it('has every town district and countryside biome somewhere', () => {
     const seen = new Set<string>();
     for (let x = -8000; x < 2400; x += S) for (let z = -8000; z < 8000; z += S) seen.add(districtAt(x, z, S, terrain, CITY));
-    for (const d of ['downtown', 'fringe', 'suburbs', 'industrial', 'docks', 'forest', 'farmland', 'meadow', 'sea']) {
+    for (const d of ['downtown', 'fringe', 'suburbs', 'industrial', 'docks', 'airport', 'plant', 'forest', 'farmland', 'meadow', 'sea']) {
       expect(seen).toContain(d);
     }
   });
@@ -34,7 +34,7 @@ describe('CityGenerator', () => {
   });
 
   it('leaves sea chunks empty', () => {
-    const c = gen.generate(Math.ceil((terrain.coastX(0) + 800) / S), 0);
+    const c = gen.generate(Math.ceil((terrain.coastX(-2500) + 800) / S), Math.floor(-2500 / S));
     expect(c.district).toBe('sea');
     expect(c.structures).toHaveLength(0);
     expect(c.flats).toHaveLength(0);
@@ -48,7 +48,8 @@ describe('CityGenerator', () => {
         const chunk = gen.generate(cx, cz);
         if (!URBAN.has(chunk.district)) continue;
         for (const s of chunk.structures) {
-          if (s.kind === 'car') continue;
+          // Cars park on streets; bridges and landmarks are placed by hand.
+          if (['car', 'bridge', 'mast', 'stadium', 'pylon'].includes(s.kind)) continue;
           // Distance from the center to the nearest street line, per axis.
           for (const [v, half] of [[s.x, s.rotY ? s.halfD : s.halfW], [s.z, s.rotY ? s.halfW : s.halfD]] as const) {
             const local = ((v % pitch) + pitch) % pitch;

@@ -14,7 +14,8 @@ describe('Terrain', () => {
   });
 
   it('keeps the main city and the spawn flat at y = 0', () => {
-    for (const [x, z] of [[0, 0], [600, 300], [CITY.spawnX, CITY.spawnZ], [-1100, 200]] as const) {
+    for (const [x, z] of [[-600, 500], [400, -600], [CITY.spawnX, CITY.spawnZ], [-1100, 200]] as const) {
+      expect(t.riverDistance(x, z)).toBeGreaterThan(200);
       expect(t.heightAt(x, z)).toBeCloseTo(0, 5);
     }
   });

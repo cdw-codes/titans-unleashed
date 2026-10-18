@@ -3,17 +3,19 @@ import type { TerrainTileData } from '../terrain/Terrain';
 
 /** Town districts (street grid) and countryside biomes (open terrain, no streets). */
 export type UrbanDistrict = 'downtown' | 'fringe' | 'suburbs' | 'industrial' | 'docks';
-export type District = UrbanDistrict | 'forest' | 'farmland' | 'meadow' | 'sea';
+export type District = UrbanDistrict | 'airport' | 'plant' | 'forest' | 'farmland' | 'meadow' | 'sea';
 
 export type StructureKind =
   | 'tower' | 'midrise' | 'warehouse' | 'chimney' | 'tank' | 'silo' // large: collider + HP
-  | 'shop' | 'house' | 'barn' // small: crushed on contact
-  | 'tree' | 'car' | 'container'; // prop: crushed on contact, only near the player
+  | 'mast' | 'pylon' | 'reactor' | 'stadium' | 'terminal' // large landmarks
+  | 'shop' | 'house' | 'barn' | 'bridge' // small: crushed on contact
+  | 'plane'
+  | 'tree' | 'car' | 'container'; // prop (with 'plane'): crushed on contact, only near the player
 
 export type SizeClass = 'large' | 'small' | 'prop';
 
 /** Which shared instanced pool renders a part. */
-export type PoolId = 'windowed' | 'plain' | 'roof' | 'cylinder' | 'tree' | 'pine' | 'car' | 'truck' | 'flat';
+export type PoolId = 'windowed' | 'plain' | 'roof' | 'cylinder' | 'cone' | 'dome' | 'cooling' | 'tree' | 'pine' | 'car' | 'truck' | 'plane' | 'flat';
 
 /** One instance in a pool. Position is the base center; scale is the full size. */
 export interface PartSpec {
@@ -25,6 +27,8 @@ export interface PartSpec {
   sy: number;
   sz: number;
   rotY: number;
+  /** Optional pitch (rad) about the part's local X axis, applied after rotY (cables, ramps). */
+  tilt?: number;
   color: number;
 }
 
@@ -61,9 +65,16 @@ export const SIZE_OF: Readonly<Record<StructureKind, SizeClass>> = {
   chimney: 'large',
   tank: 'large',
   silo: 'large',
+  mast: 'large',
+  pylon: 'large',
+  reactor: 'large',
+  stadium: 'large',
+  terminal: 'large',
   shop: 'small',
   house: 'small',
   barn: 'small',
+  bridge: 'small',
+  plane: 'prop',
   tree: 'prop',
   car: 'prop',
   container: 'prop',

@@ -1,14 +1,24 @@
 import { clamp, hashCoords, lerp, noise2D } from '../../core/math';
 import { Random } from '../../core/random';
 import { TERRAIN, TERRAIN_COLORS as COL, type TerrainConfig } from '../../config/terrain';
+import { REGIONS, type RegionsConfig } from '../../config/regions';
 
-export type TownKind = 'city' | 'village' | 'works' | 'port';
+/**
+ * city: the main city · metro: river city · island: offshore supertall island ·
+ * airport / plant: flat sites without a street grid · village / works / port: satellites.
+ */
+export type TownKind = 'city' | 'metro' | 'island' | 'airport' | 'plant' | 'village' | 'works' | 'port';
 
 export interface Town {
   readonly x: number;
   readonly z: number;
+  /** Circle radius, or the half-width of an ellipse. */
   readonly radius: number;
   readonly kind: TownKind;
+  /** Region name shown on entry (authored places only). */
+  readonly name?: string;
+  /** Elliptical towns: long half-axis and rotation of the long axis from north-south. */
+  readonly ellipse?: { readonly halfLength: number; readonly angle: number };
 }
 
 /** Countryside type of a chunk (towns use city districts instead). */
@@ -46,9 +56,31 @@ const _rgb = [0, 0, 0];
 export class Terrain {
   private readonly townCache = new Map<number, Town | null>();
   readonly main: Town;
+  /** Hand-placed towns and sites (regions.ts), checked before the satellite grid. */
+  readonly authored: readonly Town[];
+  readonly island: Town;
+  /** Per-river bounding boxes (with bank margin) to skip far rivers cheaply. */
+  private readonly riverBoxes: { minX: number; maxX: number; minZ: number; maxZ: number }[];
 
-  constructor(readonly c: TerrainConfig = TERRAIN) {
-    this.main = { x: 0, z: 0, radius: c.mainCityRadius, kind: 'city' };
+  constructor(readonly c: TerrainConfig = TERRAIN, readonly r: RegionsConfig = REGIONS) {
+    this.main = { x: 0, z: 0, radius: c.mainCityRadius, kind: 'city', name: r.mainName };
+    const isl = r.island;
+    this.island = { x: isl.x, z: isl.z, radius: isl.halfWidth, kind: 'island', name: isl.name, ellipse: { halfLength: isl.halfLength, angle: isl.angle } };
+    const margin = 900;
+    this.riverBoxes = r.rivers.map((rv) => ({
+      minX: Math.min(...rv.points.map((p) => p[0])) - margin,
+      maxX: Math.max(...rv.points.map((p) => p[0])) + margin,
+      minZ: Math.min(...rv.points.map((p) => p[1])) - margin,
+      maxZ: Math.max(...rv.points.map((p) => p[1])) + margin,
+    }));
+    const pp = r.powerPlant;
+    this.authored = [
+      this.main,
+      this.island,
+      { x: r.riverCity.x, z: r.riverCity.z, radius: r.riverCity.radius, kind: 'metro', name: r.riverCity.name },
+      { x: r.airport.x, z: r.airport.z, radius: r.airport.radius, kind: 'airport', name: r.airport.name },
+      { x: this.coastX(pp.z) - pp.inland - pp.radius, z: pp.z, radius: pp.radius, kind: 'plant', name: pp.name },
+    ];
   }
 
   get waterLevel(): number {
@@ -65,6 +97,23 @@ export class Terrain {
   /** Westmost the coast can reach: safe inland bound for spawns. */
   get minCoastX(): number {
     return this.c.coastX - this.c.coastWave * 1.2;
+  }
+
+  /** Signed distance (m) from a town's boundary: negative inside. Ellipses are approximate. */
+  townEdge(t: Town, x: number, z: number): number {
+    const dx = x - t.x;
+    const dz = z - t.z;
+    if (!t.ellipse) return Math.hypot(dx, dz) - t.radius;
+    const cs = Math.cos(t.ellipse.angle);
+    const sn = Math.sin(t.ellipse.angle);
+    const lx = dx * cs - dz * sn;
+    const lz = dx * sn + dz * cs;
+    return (Math.hypot(lx / t.radius, lz / t.ellipse.halfLength) - 1) * t.radius;
+  }
+
+  /** 0 at a town's center, 1 at its edge (used to lay out districts). */
+  townFraction(t: Town, x: number, z: number): number {
+    return 1 + this.townEdge(t, x, z) / t.radius;
   }
 
   /** The satellite town in grid cell (i, j), if any. */
@@ -84,60 +133,121 @@ export class Terrain {
     const x = (i + rng.range(0.25, 0.75)) * c.townCell;
     const z = (j + rng.range(0.25, 0.75)) * c.townCell;
     const radius = rng.range(c.townRadius.min, c.townRadius.max);
-    if (Math.hypot(x, z) < c.mainCityRadius + c.townGap + radius) return null;
+    for (const a of this.authored) {
+      const gap = a === this.main ? c.townGap : this.r.clearance;
+      if (this.townEdge(a, x, z) < gap + radius) return null;
+    }
+    // Not in the mountains or on a river.
+    if (this.alpsWeight(z) > 0.05 || this.riverDistance(x, z) < radius + 150) return null;
     const coast = this.coastX(z);
     if (x > coast - radius * 0.6) return null;
     const kind: TownKind = x > coast - radius - 350 ? 'port' : rng.chance(c.worksChance) ? 'works' : 'village';
     return { x, z, radius, kind };
   }
 
-  /** Visit the main city and the satellite towns that could reach (x, z). */
-  forTownsNear(x: number, z: number, cb: (t: Town, dist: number) => void): void {
-    cb(this.main, Math.hypot(x, z));
+  /** Visit authored towns and the satellite towns that could reach (x, z), with edge distances. */
+  forTownsNear(x: number, z: number, cb: (t: Town, edge: number) => void): void {
+    for (const t of this.authored) cb(t, this.townEdge(t, x, z));
     const cell = this.c.townCell;
     const ci = Math.floor(x / cell);
     const cj = Math.floor(z / cell);
     for (let i = ci - 1; i <= ci + 1; i++) {
       for (let j = cj - 1; j <= cj + 1; j++) {
         const t = this.townInCell(i, j);
-        if (t) cb(t, Math.hypot(x - t.x, z - t.z));
+        if (t) cb(t, Math.hypot(x - t.x, z - t.z) - t.radius);
       }
     }
   }
 
-  /** The town whose edge is closest (negative = inside), with the distance to its center. */
-  nearestTown(x: number, z: number): { town: Town; dist: number } {
+  /** The town whose edge is closest, with that signed edge distance (negative = inside). */
+  nearestTown(x: number, z: number): { town: Town; edge: number } {
     let best = this.main;
-    let bestDist = Math.hypot(x, z);
-    let bestEdge = bestDist - best.radius;
-    this.forTownsNear(x, z, (t, d) => {
-      if (d - t.radius < bestEdge) {
+    let bestEdge = Infinity;
+    this.forTownsNear(x, z, (t, e) => {
+      if (e < bestEdge) {
         best = t;
-        bestDist = d;
-        bestEdge = d - t.radius;
+        bestEdge = e;
       }
     });
-    return { town: best, dist: bestDist };
+    return { town: best, edge: bestEdge };
   }
 
   /** 1 on flat town ground, 0 in open country. */
   urbanWeight(x: number, z: number): number {
     const c = this.c;
     let u = 0;
-    this.forTownsNear(x, z, (t, d) => {
-      const flat = t.radius + c.flatMargin;
-      u = Math.max(u, 1 - smoothstep(flat, flat + c.blendWidth, d));
+    this.forTownsNear(x, z, (t, e) => {
+      // The island is flattened by its own coastline instead.
+      if (t.kind !== 'island') u = Math.max(u, 1 - smoothstep(c.flatMargin, c.flatMargin + c.blendWidth, e));
     });
     return u;
   }
 
-  /** True when the whole square is town ground (inside a town's radius). */
+  /** The town covering the whole square (all corners inside its boundary), if any. */
   isTownSquare(x0: number, z0: number, size: number): Town | null {
     const { town } = this.nearestTown(x0 + size / 2, z0 + size / 2);
     for (const [x, z] of [[x0, z0], [x0 + size, z0], [x0, z0 + size], [x0 + size, z0 + size]] as const) {
-      if (Math.hypot(x - town.x, z - town.z) > town.radius) return null;
+      if (this.townEdge(town, x, z) > 0) return null;
     }
     return town;
+  }
+
+  /** Named region at a point (authored places, the Alps), or null in open country. */
+  regionAt(x: number, z: number): string | null {
+    for (const t of this.authored) if (t.name && this.townEdge(t, x, z) < 250) return t.name;
+    if (this.alpsWeight(z) > 0.3) return this.r.alps.name;
+    return null;
+  }
+
+  /** 0 south of the Alps, 1 deep in them. */
+  alpsWeight(z: number): number {
+    const a = this.r.alps;
+    return smoothstep(a.startZ, a.fullZ, z);
+  }
+
+  /** Distance (m) to the nearest river centerline. */
+  riverDistance(x: number, z: number): number {
+    let best = Infinity;
+    this.r.rivers.forEach((r, i) => {
+      if (this.nearRiverBox(i, x, z)) best = Math.min(best, this.distToRiver(r.points, x, z));
+    });
+    return best;
+  }
+
+  private nearRiverBox(i: number, x: number, z: number): boolean {
+    const b = this.riverBoxes[i]!;
+    return x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ;
+  }
+
+  private distToRiver(pts: readonly (readonly [number, number])[], x: number, z: number): number {
+    let best = Infinity;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [ax, az] = pts[i]!;
+      const [bx, bz] = pts[i + 1]!;
+      const dx = bx - ax;
+      const dz = bz - az;
+      const t = clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0, 1);
+      best = Math.min(best, Math.hypot(x - ax - dx * t, z - az - dz * t));
+    }
+    return best;
+  }
+
+  /** 1 in a river channel, fading over the banks (wider where the ground is high). */
+  private riverWeight(x: number, z: number, h: number): number {
+    let w = 0;
+    for (let i = 0; i < this.r.rivers.length; i++) {
+      if (!this.nearRiverBox(i, x, z)) continue;
+      const r = this.r.rivers[i]!;
+      const d = this.distToRiver(r.points, x, z);
+      const bank = Math.min(600, 25 + Math.max(0, h) * 2.5); // stays inside the bounding-box margin
+      w = Math.max(w, 1 - smoothstep(r.width / 2 - 15, r.width / 2 + bank, d));
+    }
+    return w;
+  }
+
+  /** 1 on the island (flat), fading to 0 over its beach. */
+  islandWeight(x: number, z: number): number {
+    return 1 - smoothstep(0, 200, this.townEdge(this.island, x, z));
   }
 
   /** Open-country relief before towns, lakes and the coast shape it. */
@@ -148,6 +258,21 @@ export class Terrain {
     const r = smoothstep(c.ridgeStart, 0.95, noise2D(x / c.ridgeSize + 31.7, z / c.ridgeSize - 12.9, c.seed + 5));
     const detail = noise2D(x / c.detailSize, z / c.detailSize, c.seed + 9) * c.detailHeight;
     return 1.5 + rolling + r * r * c.ridgeHeight + detail;
+  }
+
+  /** Sharp ridged peaks for the Alps (0..1). */
+  private peaks(x: number, z: number): number {
+    const s = this.r.alps.size;
+    let sum = 0;
+    let amp = 0.6;
+    let f = 1 / s;
+    for (let o = 0; o < 3; o++) {
+      const n = noise2D(x * f + o * 13.1, z * f - o * 7.7, this.c.seed + 80 + o);
+      sum += (1 - Math.abs(n * 2 - 1)) ** 2 * amp;
+      amp *= 0.45;
+      f *= 2.2;
+    }
+    return sum;
   }
 
   lakeWeight(x: number, z: number): number {
@@ -162,23 +287,29 @@ export class Terrain {
     const c = this.c;
     const u = this.urbanWeight(x, z);
     let h = u < 1 ? this.hills(x, z) * (1 - u) : 0;
-    const lake = this.lakeWeight(x, z) * (1 - u);
+    const alps = this.alpsWeight(z) * (1 - u);
+    if (alps > 0) h += alps * this.peaks(x, z) * this.r.alps.height;
+    const lake = this.lakeWeight(x, z) * (1 - u) * (1 - alps);
     if (lake > 0) h = lerp(h, -c.lakeDepth, lake);
     const dx = x - this.coastX(z);
     if (dx > -2 * c.beachWidth) {
       h = lerp(h, Math.min(h, 1), smoothstep(-2 * c.beachWidth, -c.beachWidth * 0.2, dx));
       h = lerp(h, -c.seaDepth, smoothstep(0, c.shelfWidth, dx));
     }
+    const island = this.islandWeight(x, z);
+    if (island > 0) h = lerp(h, 0, island);
+    const river = this.riverWeight(x, z, h);
+    if (river > 0) h = lerp(h, -this.r.riverDepth, river);
     return h;
   }
 
-  /** Is this point under the sea or a lake? */
+  /** Is this point under the sea, a lake or a river? */
   isWater(x: number, z: number, margin = 0): boolean {
     return this.heightAt(x, z) < this.c.waterLevel + margin;
   }
 
   isSea(x: number, z: number): boolean {
-    return x > this.coastX(z);
+    return x > this.coastX(z) && this.islandWeight(x, z) < 0.5;
   }
 
   /** 0..1 forest density (0 in towns and water). */
@@ -263,6 +394,10 @@ export class Terrain {
 
     const rock = Math.max(smoothstep(c.rockSlope, c.rockSlope + 0.25, slope), smoothstep(c.rockHeight, c.rockHeight + 60, h));
     if (rock > 0) mixInto(out, vary > 0.5 ? COL.rock : COL.rockDark, rock);
+    // Snow caps the Alps, thinning on steep faces.
+    const snowLine = this.r.alps.snowLine + (vary - 0.5) * 80;
+    const snow = smoothstep(snowLine, snowLine + 40, h) * (1 - smoothstep(0.9, 1.4, slope));
+    if (snow > 0) mixInto(out, COL.snow, snow);
     // Low ground just above the water: a hint of sand.
     mixInto(out, COL.sand, smoothstep(wl + 5, wl + 2.2, h) * 0.7);
     return out;

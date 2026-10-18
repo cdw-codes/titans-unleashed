@@ -9,7 +9,7 @@ const _q = new THREE.Quaternion();
 const _p = new THREE.Vector3();
 const _s = new THREE.Vector3();
 const _c = new THREE.Color();
-const UP = new THREE.Vector3(0, 1, 0);
+const _e = new THREE.Euler(0, 0, 0, 'YXZ');
 
 export type CityPoolId = PoolId | 'rubble';
 
@@ -50,6 +50,14 @@ export class CityPools {
     ]);
 
     const { car, truck } = vehicleGeometries();
+    // Landmark shapes (unit size, base at y = 0).
+    const cone = new THREE.CylinderGeometry(0.3, 0.5, 1, 12).translate(0, 0.5, 0);
+    const dome = new THREE.SphereGeometry(0.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 2, 1);
+    // Cooling tower: a hyperboloid waist, open top.
+    const cooling = new THREE.LatheGeometry(
+      [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1].map((y) => new THREE.Vector2(0.5 - 0.17 * Math.sin(Math.PI * Math.min(1, y / 0.8)), y)),
+      16,
+    );
 
     // Rubble: a low, lumpy mound.
     const rubble = new THREE.ConeGeometry(0.6, 1, 7, 1).translate(0, 0.5, 0);
@@ -70,6 +78,10 @@ export class CityPools {
       pine: new InstancePool(scene, pine, lambert({ vertexColors: true, flatShading: true }), 8000),
       car: new InstancePool(scene, car, lambert({ vertexColors: true, flatShading: true }), 4000),
       truck: new InstancePool(scene, truck, lambert({ vertexColors: true, flatShading: true }), 1500),
+      plane: new InstancePool(scene, airlinerGeometry(), lambert({ vertexColors: true, flatShading: true }), 200),
+      cone: new InstancePool(scene, cone, lambert({ flatShading: true }), 2000),
+      dome: new InstancePool(scene, dome, lambert(), 200),
+      cooling: new InstancePool(scene, cooling, lambert({ side: THREE.DoubleSide }), 100),
       flat: new InstancePool(
         scene,
         flat,
@@ -104,7 +116,7 @@ export class CityPools {
 }
 
 export function partMatrix(p: PartSpec, out: THREE.Matrix4): THREE.Matrix4 {
-  _q.setFromAxisAngle(UP, p.rotY);
+  _q.setFromEuler(_e.set(p.tilt ?? 0, p.rotY, 0));
   _p.set(p.x, p.y, p.z);
   _s.set(p.sx, p.sy, p.sz);
   return out.compose(_p, _q, _s);
@@ -112,6 +124,26 @@ export function partMatrix(p: PartSpec, out: THREE.Matrix4): THREE.Matrix4 {
 
 const GLASS = 0x26303a;
 const UNDERSIDE = 0x232323;
+
+/** Airliner, 1 unit long along +Z (nose), base at y = 0; white so the instance color is the livery tint. */
+function airlinerGeometry(): THREE.BufferGeometry {
+  const box = (w: number, h: number, d: number, x: number, y: number, z: number, hex: number) =>
+    paint(new THREE.BoxGeometry(w, h, d).translate(x, y, z), hex).toNonIndexed();
+  const fuselage = paint(new THREE.CylinderGeometry(0.055, 0.05, 0.92, 10).rotateX(Math.PI / 2).translate(0, 0.09, 0), 0xffffff).toNonIndexed();
+  const nose = paint(new THREE.SphereGeometry(0.055, 10, 6).scale(1, 1, 1.6).translate(0, 0.09, 0.46), 0xffffff).toNonIndexed();
+  return mergeGeometries([
+    fuselage,
+    nose,
+    box(0.11, 0.025, 0.06, 0, 0.12, 0.43, GLASS),
+    // Swept wings, stabilizers, fin, engines.
+    box(0.82, 0.015, 0.14, 0, 0.07, 0.02, 0xe6e6e6),
+    box(0.3, 0.012, 0.07, 0, 0.11, -0.42, 0xe6e6e6),
+    box(0.012, 0.16, 0.1, 0, 0.19, -0.42, 0xffffff),
+    box(0.05, 0.05, 0.12, 0.2, 0.04, 0.08, 0x9aa0a6),
+    box(0.05, 0.05, 0.12, -0.2, 0.04, 0.08, 0x9aa0a6),
+    box(0.012, 0.06, 0.012, 0, 0.03, 0.3, UNDERSIDE),
+  ]);
+}
 
 /**
  * Unit-size vehicles (1 x 1 x 1, base at y = 0, front at +Z), scaled per part.

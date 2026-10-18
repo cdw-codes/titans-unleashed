@@ -3,11 +3,12 @@ import { Random } from '../../core/random';
 import type { CityConfig, Range } from '../../config/city';
 import { TERRAIN_COLORS } from '../../config/terrain';
 import { terrain as worldTerrain, type Terrain } from '../terrain/Terrain';
-import { districtAt } from './district';
+import { chunkPlace, type ChunkPlace } from './district';
+import { flat, hsl, part } from './parts';
+import { Sites, ROAD_COLOR } from './sites';
 import { SIZE_OF, type ChunkSpec, type PartSpec, type PoolId, type StructureKind, type StructureSpec, type UrbanDistrict } from './types';
 
-/** Street color (the minimap draws flats of this color as roads). */
-export const ROAD_COLOR = 0x46474b;
+export { ROAD_COLOR };
 
 const COLORS = {
   road: ROAD_COLOR,
@@ -36,25 +37,36 @@ export class CityGenerator {
   private readonly pitch: number;
   readonly chunkSize: number;
 
+  private readonly sites: Sites;
+  /** Town being generated (styles its blocks). */
+  private place: ChunkPlace | null = null;
+
   constructor(private readonly c: CityConfig, private readonly terrain: Terrain = worldTerrain) {
     this.pitch = c.blockSize + c.streetWidth;
     this.chunkSize = this.pitch * 2;
+    this.sites = new Sites(terrain, this.pitch);
   }
 
   generate(cx: number, cz: number): ChunkSpec {
     const S = this.chunkSize;
     const x0 = cx * S;
     const z0 = cz * S;
-    const district = districtAt(x0, z0, S, this.terrain, this.c);
+    const place = chunkPlace(x0, z0, S, this.terrain, this.c);
+    const district = place.district;
     const rng = new Random(hashCoords(cx, cz, this.c.seed));
     const ground = this.terrain.buildTile(x0, z0, S, GROUND_CELLS, this.pitch);
     const chunk: ChunkSpec = { cx, cz, district, structures: [], flats: [], ground };
-    if (district === 'sea') return chunk;
     if (district === 'forest' || district === 'farmland' || district === 'meadow') {
       this.countryside(chunk, district, rng, x0, z0);
-    } else {
+    } else if (district !== 'sea' && district !== 'airport' && district !== 'plant') {
+      this.place = place;
       this.town(chunk, district, rng, x0, z0);
+      this.place = null;
     }
+    // Authored set pieces (bridge, airport, power station, landmarks) go in on top.
+    const site = this.sites.forChunk(x0, z0, S);
+    chunk.structures.push(...site.structures);
+    chunk.flats.push(...site.flats);
 
     // Keep the spawn point clear.
     const { spawnX, spawnZ, spawnClearRadius: r } = this.c;
@@ -66,7 +78,7 @@ export class CityGenerator {
 
   /** Street grid with blocks (towns are flat at y = 0); nothing where the coast cuts in. */
   private town(chunk: ChunkSpec, district: UrbanDistrict, rng: Random, x0: number, z0: number): void {
-    this.roads(chunk, x0, z0);
+    const bridges = this.roads(chunk, x0, z0);
     const half = this.c.streetWidth / 2;
     const B = this.c.blockSize;
     for (const bx of [0, 1]) {
@@ -80,6 +92,7 @@ export class CityGenerator {
     const dry = (x: number, z: number) => !this.terrain.isWater(x, z, 1);
     chunk.structures = chunk.structures.filter((s) => dry(s.x, s.z));
     chunk.flats = chunk.flats.filter((f) => dry(f.x, f.z));
+    chunk.structures.push(...bridges);
   }
 
   // ------------------------------------------------------------- countryside
@@ -95,7 +108,7 @@ export class CityGenerator {
       for (let j = 0; j < n; j++) {
         const x = x0 + (i + rng.range(0.1, 0.9)) * (S / n);
         const z = z0 + (j + rng.range(0.1, 0.9)) * (S / n);
-        if (rng.next() < t.forestDensity(x, z) * (1 - t.urbanWeight(x, z))) this.tree(chunk, rng, x, z, 1.5, 2.7);
+        if (rng.next() < t.forestDensity(x, z) * (1 - t.urbanWeight(x, z)) && !this.inSite(x, z)) this.tree(chunk, rng, x, z, 1.5, 2.7);
       }
     }
     // Clumps of trees in the open.
@@ -103,15 +116,31 @@ export class CityGenerator {
     for (let k = 0; k < clumps; k++) {
       const cxp = x0 + rng.range(20, S - 20);
       const czp = z0 + rng.range(20, S - 20);
-      for (let m = rng.int(3, 8); m > 0; m--) this.tree(chunk, rng, cxp + rng.range(-25, 25), czp + rng.range(-25, 25), 1.2, 2.3);
+      for (let m = rng.int(3, 8); m > 0; m--) {
+        const x = cxp + rng.range(-25, 25);
+        const z = czp + rng.range(-25, 25);
+        if (!this.inSite(x, z)) this.tree(chunk, rng, x, z, 1.2, 2.3);
+      }
     }
     // Outskirts: houses straggle out along the edge of town.
     const u = t.urbanWeight(x0 + S / 2, z0 + S / 2);
-    for (let k = Math.round(u * rng.range(2, 7)); k > 0; k--) {
-      this.house(chunk, rng, x0 + rng.range(20, S - 20), z0 + rng.range(20, S - 20), rng.chance(0.5) ? 0 : Math.PI / 2);
+    for (let k = Math.round(u * rng.range(0, 4)); k > 0; k--) {
+      const x = x0 + rng.range(20, S - 20);
+      const z = z0 + rng.range(20, S - 20);
+      if (!this.inSite(x, z)) this.house(chunk, rng, x, z, rng.chance(0.5) ? 0 : Math.PI / 2);
     }
-    if (biome === 'farmland' && rng.chance(0.6)) this.farm(chunk, rng, x0 + rng.range(60, S - 60), z0 + rng.range(60, S - 60));
+    const fx = x0 + S / 2;
+    const fz = z0 + S / 2;
+    if (biome === 'farmland' && rng.chance(0.6) && !this.inSite(fx, fz)) this.farm(chunk, rng, x0 + rng.range(60, S - 60), z0 + rng.range(60, S - 60));
     if (biome === 'forest' && rng.chance(0.08)) this.house(chunk, rng, x0 + rng.range(40, S - 40), z0 + rng.range(40, S - 40), rng.next() * Math.PI);
+  }
+
+  /** Inside an authored site (airport, power station, island) where nothing else may stand. */
+  private inSite(x: number, z: number): boolean {
+    for (const t of this.terrain.authored) {
+      if ((t.kind === 'airport' || t.kind === 'plant' || t.kind === 'island') && this.terrain.townEdge(t, x, z) < 60) return true;
+    }
+    return false;
   }
 
   /** Farmhouse, barn, a silo or two and a windbreak row. */
@@ -127,6 +156,7 @@ export class CityGenerator {
     const bd = rng.range(24, 32);
     const bh = rng.range(7, 10);
     const by = this.baseY(bx, bz, bw / 2, bd / 2);
+    if (by < this.terrain.waterLevel + 1) return;
     const barn = rng.pick(COLORS.barns);
     this.add(chunk, 'barn', bx, bz, bw / 2, bd / 2, bh * 1.6, rot, [
       part('plain', bx, by, bz, bw, bh, bd, rot, barn),
@@ -154,6 +184,7 @@ export class CityGenerator {
     const d = rng.range(8, 11);
     const h = range(rng, this.c.houseHeight);
     const y = this.baseY(x, z, w / 2, d / 2);
+    if (y < this.terrain.waterLevel + 1) return;
     const wall = hsl(rng.range(0.07, 0.13), rng.range(0.2, 0.4), rng.range(0.62, 0.82));
     const roof = hsl(rng.range(0.0, 0.05), rng.range(0.35, 0.55), rng.range(0.28, 0.42));
     this.add(chunk, 'house', x, z, w / 2, d / 2, h * 1.55, rot, [
@@ -185,18 +216,80 @@ export class CityGenerator {
 
   // ------------------------------------------------------------- layout
 
-  private roads(chunk: ChunkSpec, x0: number, z0: number): void {
+  /**
+   * Streets as flats, split where they cross water; returns the bridge spans.
+   * Only every other street gets a bridge (real cities bridge a river every few
+   * blocks), and stretches that run along a river are dropped rather than bridged.
+   */
+  private roads(chunk: ChunkSpec, x0: number, z0: number): StructureSpec[] {
     const S = this.chunkSize;
     const W = this.c.streetWidth;
+    const piece = 32;
+    const n = S / piece;
+    const bridges: StructureSpec[] = [];
     for (const o of [0, this.pitch]) {
-      chunk.flats.push(flat(x0 + o, z0 + S / 2, W, S, COLORS.road, 0.03));
-      chunk.flats.push(flat(x0 + S / 2, z0 + o, S, W, COLORS.road, 0.03));
+      for (const alongX of [false, true]) {
+        let run = -1;
+        let wet: [number, number][] = [];
+        const flush = (end: number) => {
+          if (run < 0) return;
+          const mid = ((run + end) * piece) / 2;
+          const len = (end - run) * piece;
+          chunk.flats.push(alongX ? flat(x0 + mid, z0 + o, len, W, COLORS.road, 0.03) : flat(x0 + o, z0 + mid, W, len, COLORS.road, 0.03));
+          run = -1;
+        };
+        const flushWet = (open: boolean) => {
+          // A short wet stretch with dry street on the far side is a crossing.
+          if (wet.length && o === 0 && wet.length * piece <= 200 && open) {
+            for (const [x, z] of wet) bridges.push(this.roadBridge(x, z, alongX, piece, W));
+          }
+          wet = [];
+        };
+        for (let k = 0; k < n; k++) {
+          const t = (k + 0.5) * piece;
+          const x = alongX ? x0 + t : x0 + o;
+          const z = alongX ? z0 + o : z0 + t;
+          if (this.terrain.isWater(x, z, 1)) {
+            flush(k);
+            if (!this.terrain.isSea(x, z)) wet.push([x, z]);
+          } else {
+            flushWet(true);
+            if (run < 0) run = k;
+          }
+        }
+        flush(n);
+        // Stretches reaching the chunk edge: bridge them if the street continues dry beyond.
+        if (wet.length) {
+          const [lx, lz] = wet[wet.length - 1]!;
+          const beyond = alongX ? [lx + piece * 3, lz] : [lx, lz + piece * 3];
+          flushWet(!this.terrain.isWater(beyond[0]!, beyond[1]!, 1) || wet.length < 4);
+        }
+      }
     }
+    return bridges;
+  }
+
+  /** A street span over water: deck, parapets and a pier down to the bed (crushed on contact). */
+  private roadBridge(x: number, z: number, alongX: boolean, len: number, W: number): StructureSpec {
+    const rot = alongX ? Math.PI / 2 : 0;
+    const bed = this.terrain.heightAt(x, z);
+    const side = (k: number): [number, number] => (alongX ? [x, z + k] : [x + k, z]);
+    const parts: PartSpec[] = [
+      part('plain', x, -2.4, z, W, 2.5, len + 0.5, rot, COLORS.road),
+      part('plain', ...withY(side(-W / 2 + 0.6), 0.1), 1.2, 1.4, len + 0.5, rot, 0x9a9890),
+      part('plain', ...withY(side(W / 2 - 0.6), 0.1), 1.2, 1.4, len + 0.5, rot, 0x9a9890),
+      part('plain', x, bed, z, 6, -2.4 - bed, 6, rot, 0x8a8680),
+    ];
+    return { kind: 'bridge', size: SIZE_OF.bridge, x, z, y: -2.4, halfW: alongX ? len / 2 : W / 2, halfD: alongX ? W / 2 : len / 2, height: 4, rotY: 0, parts };
   }
 
   private block(chunk: ChunkSpec, d: UrbanDistrict, rng: Random, minX: number, minZ: number, B: number): void {
     const cx = minX + B / 2;
     const cz = minZ + B / 2;
+    if (this.sites.isReserved(cx, cz, B / 2)) {
+      chunk.flats.push(flat(cx, cz, B, B, COLORS.concrete, 0.015));
+      return;
+    }
     switch (d) {
       case 'downtown':
         chunk.flats.push(flat(cx, cz, B, B, COLORS.concrete, 0.015));
@@ -236,13 +329,17 @@ export class CityGenerator {
   }
 
   private downtownBlock(chunk: ChunkSpec, rng: Random, cx: number, cz: number, B: number): void {
-    const main = this.terrain.main;
-    const t = clamp(Math.hypot(cx - main.x, cz - main.z) / (main.radius * this.c.downtownFraction), 0, 1);
+    const town = this.place?.town ?? this.terrain.main;
+    // Skyline per region: the island is a wall of supertalls, the river metro stays low.
+    const limit = town.kind === 'island' ? 0.75 : town.kind === 'metro' ? 0.22 : this.c.downtownFraction;
+    const scale = town.kind === 'island' ? 1.5 : town.kind === 'metro' ? 0.6 : 1;
+    const t = clamp(this.terrain.townFraction(town, cx, cz) / limit, 0, 1);
     const hc = this.c.towerHeightCenter;
     const he = this.c.towerHeightEdge;
-    const height = () => rng.range(lerp(hc.min, he.min, t), lerp(hc.max, he.max, t));
-    // Mix of blue-teal glass towers and warm stone ones.
-    const color = () => rng.chance(0.6)
+    const height = () => rng.range(lerp(hc.min, he.min, t), lerp(hc.max, he.max, t)) * scale;
+    // Mix of blue-teal glass towers and warm stone ones (the island is mostly glass).
+    const glass = town.kind === 'island' ? 0.85 : town.kind === 'metro' ? 0.3 : 0.6;
+    const color = () => rng.chance(glass)
       ? hsl(rng.range(0.52, 0.6), rng.range(0.12, 0.3), rng.range(0.5, 0.72))
       : hsl(rng.range(0.07, 0.12), rng.range(0.15, 0.32), rng.range(0.6, 0.8));
     const roll = rng.next();
@@ -280,7 +377,11 @@ export class CityGenerator {
       const h = range(rng, this.c.midriseHeight);
       const x = cx + ox * q;
       const z = cz + oz * q;
-      const color = rng.chance(0.8)
+      // The river metro is brick and pale stone; elsewhere warm render with a few pastels.
+      const metro = this.place?.town?.kind === 'metro';
+      const color = metro
+        ? rng.chance(0.5) ? hsl(rng.range(0.02, 0.06), rng.range(0.3, 0.45), rng.range(0.4, 0.55)) : hsl(rng.range(0.1, 0.13), rng.range(0.15, 0.3), rng.range(0.72, 0.85))
+        : rng.chance(0.8)
         ? hsl(rng.range(0.03, 0.12), rng.range(0.2, 0.42), rng.range(0.55, 0.8))
         : hsl(rng.range(0.3, 0.55), rng.range(0.15, 0.3), rng.range(0.55, 0.75));
       const parts = [part('windowed', x, 0, z, w, h, d, 0, color)];
@@ -432,24 +533,10 @@ export class CityGenerator {
 
 // ------------------------------------------------------------- helpers
 
-function part(pool: PoolId, x: number, y: number, z: number, sx: number, sy: number, sz: number, rotY: number, color: number): PartSpec {
-  return { pool, x, y, z, sx, sy, sz, rotY, color };
-}
-
-function flat(x: number, z: number, sx: number, sz: number, color: number, y: number): PartSpec {
-  return part('flat', x, y, z, sx, 1, sz, 0, color);
+function withY([x, z]: [number, number], y: number): [number, number, number] {
+  return [x, y, z];
 }
 
 function range(rng: Random, r: Range): number {
   return rng.range(r.min, r.max);
-}
-
-/** HSL (0..1) to 0xRRGGBB, sRGB. */
-export function hsl(h: number, s: number, l: number): number {
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => {
-    const k = (n + h * 12) % 12;
-    return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
-  };
-  return (f(0) << 16) | (f(8) << 8) | f(4);
 }

@@ -242,7 +242,7 @@ export class ChunkManager {
       }
       if (s.state !== 'intact' || s.collider) continue;
       const st = s.spec;
-      const round = st.kind === 'chimney' || st.kind === 'tank' || st.kind === 'silo';
+      const round = st.kind === 'chimney' || st.kind === 'tank' || st.kind === 'silo' || st.kind === 'mast' || st.kind === 'reactor';
       const desc = round
         ? RAPIER.ColliderDesc.cylinder(st.height / 2, st.halfW)
         : RAPIER.ColliderDesc.cuboid(st.halfW, st.height / 2, st.halfD);

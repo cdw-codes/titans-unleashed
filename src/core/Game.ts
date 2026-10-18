@@ -413,6 +413,21 @@ export class Game {
     return Math.max(0, 1 - Math.hypot(c.x - x, c.z - z) / range);
   }
 
+  private region: string | null | undefined = undefined;
+  private regionTimer = 0;
+
+  /** Announce named regions (Tokyo Bay, Manhattan, ...) as the player walks into them. */
+  private updateRegion(dt: number): void {
+    this.regionTimer -= dt;
+    if (this.regionTimer > 0 || !this.started) return;
+    this.regionTimer = 0.5;
+    const p = this.player.position;
+    const name = terrain.regionAt(p.x, p.z);
+    if (name === this.region) return;
+    if (name) this.hud.toast(name.toUpperCase());
+    this.region = name;
+  }
+
   private updateMinimap(dt: number): void {
     const r = this.director.rival?.titan;
     const a = this.director.encounter.arena;
@@ -578,6 +593,7 @@ export class Game {
     this.cityPools.flush();
     this.updateHud();
     this.updateMinimap(visualDt);
+    this.updateRegion(visualDt);
     this.audioDirector.update();
 
     const info = this.frameInfo;

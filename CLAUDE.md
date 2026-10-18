@@ -5,8 +5,9 @@ Third-person 3D browser action game. The player is an ORIGINAL giant atomic liza
 (tail, claws, charged energy beam). Never use Godzilla or any trademarked names/designs.
 Naming: the giant creatures are always "titans" (code, UI, docs, commits) — matches the title.
 
-Core loop: roam a large streamed world (main city, satellite towns, hilly countryside, lakes,
-coast) → smash buildings/vehicles → grow stronger from destruction → get ambushed by rival
+Core loop: roam a large streamed world of real-world-inspired regions (Tokyo Bay main city
+with a river, Manhattan island + suspension bridge, London on its river, the Alps, an airport,
+a coastal power station) plus procedural towns and countryside → smash buildings/vehicles → grow stronger from destruction → get ambushed by rival
 titan (energy-barrier arena until one is defeated) → roam again. Military (tanks,
 helicopters) harasses and escalates with destruction. Look: stylized low-poly (flat shading,
 warm pastel palette, autumn trees, soft sky, lilac horizon mountains).
@@ -44,8 +45,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - `src/core` — Game (composition root + update order), GameLoop, FixedStepper, EventBus, events,
   StateMachine, math (damp/Spring/noise), Random (seeded), settings
 - `src/world` — Environment (sky, clouds, mountains, sun), Water; `terrain/` (Terrain: the one
-  height/biome/town function, TerrainRenderer); `city/` (CityGenerator → ChunkSpec data,
-  ChunkManager streaming, CityPools, DestructionState); `materials/` (window shader)
+  height/biome/town/region function, TerrainRenderer); `city/` (CityGenerator → ChunkSpec,
+  Sites = authored set pieces, ChunkManager streaming, CityPools, DestructionState)
 - `src/entities` — `titan/` (Titan, TitanSpec, TitanMotor, Gait, TitanCombat, TitanModel, designs,
   PlayerController); `rivals/` (RivalAI, rival specs)
 - `src/systems` — render, physics, camera, InstancePool, PhysicsInstances, Progress (score/energy),
@@ -76,8 +77,10 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   through GLOBAL instance pools shared by all chunks (never per-chunk meshes: draw calls would
   scale with chunk count). Destroyed state is persisted as (chunk, index), so generation must
   stay deterministic — changing generator code reshuffles indices (fine pre-save-games).
-- Towns (main city + jittered satellite grid) have street grids and city districts; other
-  chunks are countryside biomes (forest, farmland, meadow) with trees, farms, country roads.
+- Layout: `config/regions.ts` places the authored regions, rivers and landmarks; satellite
+  towns (jittered grid) fill the rest. Towns have street grids + districts; airport/plant are
+  flat sites; other chunks are countryside biomes. Set pieces come from `Sites` (built once,
+  handed out per chunk by center). Streets bridge rivers on every other street.
 - Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops/barns,
   crushed on contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
 - Every titan (player or rival) is the same `Titan` class built from a `TitanSpec` (body,
@@ -136,7 +139,7 @@ Known issues:
   (props + full-detail terrain), smallShadows, pixel ratio.
 - Not measured on an integrated GPU (AutoQuality steps down).
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
-- Chunk generation ~1.3 ms each (terrain sampling); 3 per frame while streaming.
+- Chunk generation ~1.5–2 ms each (terrain + rivers); 3 per frame while streaming.
 
 Decisions:
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
@@ -154,5 +157,7 @@ Decisions:
 - No third-party assets at all: every sound is a code-synthesized placeholder
   (`systems/audio/synth.ts`); real files in `public/audio` + `files` in config/audio.ts
   override them (docs/ASSETS.md).
+- Regions: real geography and names only; buildings/landmarks are original designs. Never
+  copy trademarked landmarks or re-create film scenes (user agreed).
 - Look reference: the user's "Quiet Ridge" screenshot (stylized autumn valley); Neutral tone
   mapping. Beam = hold to charge/fire, release cancels.

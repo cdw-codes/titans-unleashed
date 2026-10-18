@@ -6,6 +6,12 @@ export const clamp = (v: number, min: number, max: number): number => (v < min ?
 
 export const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
+/** Hermite step from 0 at `a` to 1 at `b` (works with a > b too). */
+export function smoothstep(a: number, b: number, v: number): number {
+  const t = clamp((v - a) / (b - a), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
 /** Wrap an angle to [-PI, PI). */
 export function wrapAngle(a: number): number {
   a = (a + Math.PI) % TAU;
