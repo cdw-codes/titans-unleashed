@@ -1,18 +1,22 @@
-import { BINDINGS, type Action } from '../config/input';
+import type { Action, Bindings } from '../config/input';
 import { InputState } from './InputState';
 
 type ActionListener = (action: Action) => void;
 
 /** Browser wiring for keyboard, mouse buttons, pointer-locked mouse movement. */
 export class Input {
-  readonly state = new InputState(BINDINGS);
+  readonly state: InputState;
   private mouseDX = 0;
   private mouseDY = 0;
   private locked = false;
   private readonly lockListeners = new Set<(locked: boolean) => void>();
   private readonly immediateListeners = new Set<ActionListener>();
 
-  constructor(private readonly element: HTMLElement) {
+  constructor(
+    private readonly element: HTMLElement,
+    bindings: Bindings,
+  ) {
+    this.state = new InputState(bindings);
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);

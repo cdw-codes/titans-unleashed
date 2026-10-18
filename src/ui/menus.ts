@@ -1,3 +1,7 @@
+import { ACTION_LABELS, type Bindings } from '../config/input';
+import { ACTIONS, codeLabel } from '../input/bindingsStore';
+import type { ControlsPanel } from './ControlsPanel';
+
 /** Shared run stats shown on the pause and game-over screens. */
 export interface RunStats {
   score: number;
@@ -9,16 +13,16 @@ export interface RunStats {
   threatPeak: number;
 }
 
-const CONTROLS = [
-  ['WASD', 'Move'], ['Shift', 'Sprint'], ['Mouse', 'Look / aim'], ['LMB', 'Claw'], ['RMB', 'Tail sweep'],
-  ['Space', 'Stomp'], ['Hold E', 'Charge & fire beam'], ['R', 'Roar'], ['F', 'Atomic Pulse (evolve)'], ['Q / MMB', 'Lock on'],
-];
-
 /** All third-party assets are CC0 (no attribution required); see docs/ASSETS.md. */
 const CREDITS = 'Assets: Kenney, Quaternius and OpenGameArt contributors (CC0)';
 
-function controlsHtml(): string {
-  return `<dl class="menu-controls">${CONTROLS.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>`;
+/** Read-only bindings summary (title screen). */
+function controlsHtml(b: Bindings): string {
+  const rows = ACTIONS.filter((a) => a !== 'debug').map((a) => {
+    const keys = b[a].map(codeLabel).join(' / ') || '—';
+    return `<dt>${keys}</dt><dd>${ACTION_LABELS[a]}</dd>`;
+  });
+  return `<dl class="menu-controls">${rows.join('')}</dl>`;
 }
 
 function statsHtml(s: RunStats): string {
@@ -55,19 +59,23 @@ abstract class Screen {
 
 /** First screen: title, controls, Start. */
 export class TitleScreen extends Screen {
-  constructor(parent: HTMLElement, onStart: () => void) {
+  constructor(parent: HTMLElement, bindings: Bindings, onStart: () => void) {
     super(parent, 'title-screen');
     this.el.innerHTML = `
       <div class="menu-card">
         <p class="menu-kicker">A city. A monster. No mercy.</p>
         <h1 class="menu-title">KAIJU RAMPAGE</h1>
         <button class="menu-primary" type="button">Begin the rampage</button>
-        ${controlsHtml()}
+        <div class="title-controls">${controlsHtml(bindings)}</div>
         <p class="pause-hint">Esc pauses · F1 debug</p>
         <p class="menu-credits">${CREDITS}</p>
       </div>`;
     this.el.querySelector('button')!.addEventListener('click', onStart);
     this.visible = true;
+  }
+
+  setBindings(b: Bindings): void {
+    this.el.querySelector('.title-controls')!.innerHTML = controlsHtml(b);
   }
 }
 
@@ -75,7 +83,7 @@ export class TitleScreen extends Screen {
 export class PauseMenu extends Screen {
   private readonly statsEl: HTMLDivElement;
 
-  constructor(parent: HTMLElement, onResume: () => void, onNewGame: () => void) {
+  constructor(parent: HTMLElement, controls: ControlsPanel, onResume: () => void, onNewGame: () => void) {
     super(parent, 'pause-screen');
     this.el.innerHTML = `
       <div class="menu-card">
@@ -84,10 +92,11 @@ export class PauseMenu extends Screen {
           <button class="menu-primary" data-act="resume" type="button">Resume</button>
           <button class="menu-secondary" data-act="new" type="button">New game</button>
         </div>
-        <div class="menu-cols"><div class="menu-stats-slot"></div>${controlsHtml()}</div>
+        <div class="menu-cols"><div class="menu-stats-slot"></div><div class="menu-controls-slot"></div></div>
         <p class="menu-credits">${CREDITS}</p>
       </div>`;
     this.statsEl = this.el.querySelector('.menu-stats-slot')!;
+    this.el.querySelector('.menu-controls-slot')!.appendChild(controls.el);
     this.el.querySelector('[data-act=resume]')!.addEventListener('click', onResume);
     this.el.querySelector('[data-act=new]')!.addEventListener('click', onNewGame);
   }

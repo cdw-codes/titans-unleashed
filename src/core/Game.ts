@@ -59,6 +59,8 @@ import { PlayerController } from '../entities/kaiju/PlayerController';
 import { DebugSystem } from '../debug/DebugSystem';
 import { TestCrates } from '../debug/TestCrates';
 import { GameOverScreen, PauseMenu, TitleScreen, type RunStats } from '../ui/menus';
+import { ControlsPanel } from '../ui/ControlsPanel';
+import { clearBindings, defaultBindings, loadBindings, rebind, saveBindings } from '../input/bindingsStore';
 import { Crosshair } from '../ui/Crosshair';
 
 /** Composition root: builds systems, owns the update order. */
@@ -156,7 +158,8 @@ export class Game {
     this.player = new Kaiju(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
     scene.add(this.player.model.object);
 
-    this.input = new Input(this.render.canvas);
+    let bindings = loadBindings();
+    this.input = new Input(this.render.canvas, bindings);
     this.camera = new CameraSystem(this.render.camera, physics);
     this.camera.setTarget(this.player.body, this.player.yaw);
     this.debug = new DebugSystem(scene, this.render.renderer, this.render.camera, physics, uiRoot);
@@ -167,9 +170,28 @@ export class Game {
       void this.input.requestLock();
     };
     const newGame = () => location.reload();
-    this.pauseMenu = new PauseMenu(uiRoot, resume, newGame);
+    const applyBindings = (b: typeof bindings) => {
+      bindings = b;
+      this.input.state.setBindings(b);
+      controls.setBindings(b);
+      this.title.setBindings(b);
+    };
+    const controls = new ControlsPanel(
+      bindings,
+      (action, slot, code) => {
+        const next = rebind(bindings, action, slot, code);
+        if (!next) return controls.setBindings(bindings);
+        saveBindings(next);
+        applyBindings(next);
+      },
+      () => {
+        clearBindings();
+        applyBindings(defaultBindings());
+      },
+    );
+    this.pauseMenu = new PauseMenu(uiRoot, controls, resume, newGame);
     this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
-    this.title = new TitleScreen(uiRoot, () => {
+    this.title = new TitleScreen(uiRoot, bindings, () => {
       this.started = true;
       this.title.visible = false;
       resume();

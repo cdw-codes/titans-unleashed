@@ -1,7 +1,7 @@
 /**
  * Action -> input codes. Keyboard codes are KeyboardEvent.code values;
  * mouse buttons are `Mouse0` (left), `Mouse1` (middle), `Mouse2` (right).
- * Remapping later = editing/persisting this table.
+ * These are the defaults; players can remap (input/bindingsStore.ts persists overrides).
  */
 export const BINDINGS = {
   moveForward: ['KeyW'],
@@ -20,6 +20,23 @@ export const BINDINGS = {
 } as const satisfies Record<string, readonly string[]>;
 
 export type Action = keyof typeof BINDINGS;
+
+/** Labels for the controls screen, in display order. */
+export const ACTION_LABELS: Readonly<Record<Action, string>> = {
+  moveForward: 'Move forward',
+  moveBack: 'Move back',
+  moveLeft: 'Move left',
+  moveRight: 'Move right',
+  sprint: 'Sprint',
+  claw: 'Claw',
+  tail: 'Tail sweep',
+  stomp: 'Stomp',
+  beam: 'Beam (hold)',
+  roar: 'Roar',
+  pulse: 'Atomic Pulse',
+  lockOn: 'Lock on',
+  debug: 'Debug view',
+};
 export type Bindings = Readonly<Record<Action, readonly string[]>>;
 
 export interface MouseConfig {
