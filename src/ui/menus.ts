@@ -14,7 +14,7 @@ export interface RunStats {
 }
 
 /** All third-party assets are CC0 (no attribution required); see docs/ASSETS.md. */
-const CREDITS = 'Assets: Kenney, Quaternius and OpenGameArt contributors (CC0)';
+const CREDITS = 'Sound: Kenney and OpenGameArt contributors (CC0)';
 
 /** Read-only bindings summary (title screen). */
 function controlsHtml(b: Bindings): string {

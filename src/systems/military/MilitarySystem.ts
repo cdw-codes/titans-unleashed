@@ -11,7 +11,6 @@ import type { PhysicsSystem } from '../PhysicsSystem';
 import type { DestructionSystem } from '../destruction/DestructionSystem';
 import type { DustSystem } from '../effects/DustSystem';
 import { inArc } from '../combat/rules';
-import type { BakedModel } from '../../assets/ModelLibrary';
 import {
   heliBodyGeometry, heliRotorGeometry, instanced, tankHullGeometry, tankTurretGeometry, tracerGeometry, unitMaterial,
 } from './militaryMeshes';
@@ -23,8 +22,6 @@ interface Tank {
   yaw: number; pyaw: number; turret: number; pturret: number;
   tx: number; tz: number; hasTarget: boolean; anchorX: number; anchorZ: number;
   reload: number; stun: number; leaving: boolean;
-  /** Which downloaded tank model (if any). */
-  variant: number;
 }
 
 interface Heli {
@@ -86,8 +83,6 @@ export class MilitarySystem {
   private readonly tracers: THREE.InstancedMesh;
   private readonly pitch = CITY.blockSize + CITY.streetWidth;
   private smokeTimer = 0;
-  /** Downloaded tank models (one InstancedMesh each); empty → code-built hull + turret. */
-  private readonly tankModels: THREE.InstancedMesh[];
 
   constructor(
     scene: THREE.Scene,
@@ -98,7 +93,6 @@ export class MilitarySystem {
     private readonly dust: DustSystem,
     private readonly smoke: DustSystem,
     private readonly cb: MilitaryCallbacks,
-    tankModels: readonly BakedModel[] = [],
     private readonly cfg: MilitaryConfig = MILITARY,
     readonly tankCapacity = 24,
     readonly heliCapacity = 8,
@@ -111,8 +105,6 @@ export class MilitarySystem {
     this.heliRotor = instanced(heliRotorGeometry(), mat, heliCapacity, false);
     this.tracers = instanced(tracerGeometry(), new THREE.MeshBasicMaterial({ color: 0xffd27a, fog: true }), shotCapacity, false);
     scene.add(this.hull, this.turret, this.heliBody, this.heliRotor, this.tracers);
-    this.tankModels = tankModels.map((m) => instanced(m.geometry, m.material, tankCapacity));
-    for (const m of this.tankModels) scene.add(m);
   }
 
   get tankCount(): number {
@@ -170,7 +162,6 @@ export class MilitarySystem {
         x, z, px: x, pz: z, yaw, pyaw: yaw, turret: yaw, pturret: yaw,
         tx: x, tz: z, hasTarget: false, anchorX: 0, anchorZ: 0,
         reload: c.reload * (0.5 + Math.random()), stun: 0, leaving: false,
-        variant: Math.floor(Math.random() * Math.max(1, this.tankModels.length)),
       });
       return;
     }
@@ -239,12 +230,11 @@ export class MilitarySystem {
       }
     }
 
-    // Turret tracks the kaiju; parked tanks also swing the hull round (models have no separate
-    // turret, so they aim with the whole tank). Fire when aligned and in range.
+    // Turret tracks the kaiju; parked tanks also swing the hull round. Fire when aligned and in range.
     const toKaiju = Math.atan2(p.x - t.x, p.z - t.z);
     t.turret = approachAngle(t.turret, toKaiju, c.turretTurnRate * dt);
     if (!mx && !mz) t.yaw = approachAngle(t.yaw, toKaiju, c.turretTurnRate * 0.6 * dt);
-    const aimYaw = this.tankModels.length ? t.yaw : t.turret;
+    const aimYaw = t.turret;
     if (t.stun > 0) {
       t.stun -= dt;
       return false;
@@ -492,20 +482,7 @@ export class MilitarySystem {
       _q.setFromAxisAngle(UP, t.pturret + wrapAngle(t.turret - t.pturret) * alpha);
       this.turret.setMatrixAt(i, _m.compose(_p, _q, _s));
     });
-    this.hull.count = this.turret.count = this.tankModels.length ? 0 : this.tanks.length;
-    if (this.tankModels.length) {
-      const counts = this.tankModels.map(() => 0);
-      for (const t of this.tanks) {
-        _p.set(t.px + (t.x - t.px) * alpha, 0, t.pz + (t.z - t.pz) * alpha);
-        _q.setFromAxisAngle(UP, t.pyaw + wrapAngle(t.yaw - t.pyaw) * alpha);
-        const v = t.variant % this.tankModels.length;
-        this.tankModels[v]!.setMatrixAt(counts[v]!++, _m.compose(_p, _q, _s.setScalar(tl)));
-      }
-      this.tankModels.forEach((m, i) => {
-        m.count = counts[i]!;
-        m.instanceMatrix.needsUpdate = true;
-      });
-    }
+    this.hull.count = this.turret.count = this.tanks.length;
 
     const hs = 16; // helicopter length (m)
     this.smokeTimer -= dt;

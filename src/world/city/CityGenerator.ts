@@ -247,7 +247,22 @@ export class CityGenerator {
     const W = this.c.streetWidth;
     const lane = W / 2 - 3.5;
     const isCrossing = (t: number) => t < W / 2 + 4 || Math.abs(t - this.pitch) < W / 2 + 4 || t > S - 6;
-    const colors = () => hsl(rng.next(), rng.range(0.2, 0.7), rng.range(0.25, 0.65));
+    const vehicle = (x: number, z: number, rot: number) => {
+      const r = rng.next();
+      let pool: PoolId = 'car';
+      let [w, h, l] = [1.9, 1.5, 4.5];
+      let color = hsl(rng.next(), rng.range(0.2, 0.7), rng.range(0.3, 0.7));
+      if (r < 0.1) {
+        // Box truck, or now and then a bus.
+        pool = 'truck';
+        [w, h, l] = r < 0.03 ? [2.5, 3.2, 12] : [2.3, 3, 7.5];
+      } else if (r < 0.3) {
+        [w, h, l] = [2, 1.8, 4.8]; // SUV / van
+      } else if (r < 0.36) {
+        color = 0xe8b923; // taxi
+      }
+      this.add(chunk, 'car', x, z, w / 2, l / 2, h, rot, [part(pool, x, 0, z, w, h, l, rot, color)]);
+    };
     for (const o of [0, this.pitch]) {
       for (const side of [-1, 1]) {
         for (let t = rng.range(0, 12); t < S; t += 100 / density * rng.range(0.4, 1.6)) {
@@ -255,10 +270,8 @@ export class CityGenerator {
           // Street along z (at x = x0 + o) and along x (at z = z0 + o).
           const ax = x0 + o + side * lane;
           const az = z0 + t;
-          this.add(chunk, 'car', ax, az, 0.95, 2.3, 1.6, 0, [part('car', ax, 0, az, 1.9, 1.6, 4.6, 0, colors())]);
-          const bx = x0 + t;
-          const bz = z0 + o + side * lane;
-          this.add(chunk, 'car', bx, bz, 0.95, 2.3, 1.6, Math.PI / 2, [part('car', bx, 0, bz, 1.9, 1.6, 4.6, Math.PI / 2, colors())]);
+          vehicle(ax, az, side > 0 ? 0 : Math.PI);
+          vehicle(x0 + t, z0 + o + side * lane, side > 0 ? -Math.PI / 2 : Math.PI / 2);
         }
       }
     }

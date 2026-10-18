@@ -1,4 +1,4 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import type { Plugin } from 'vite';
 import { patchConfigSource } from './configPatch.ts';
@@ -23,6 +23,22 @@ export function tuningPlugin(): Plugin {
     apply: 'serve',
     configureServer(server) {
       const configDir = resolve(server.config.root, 'src/config');
+      // Dev screenshots: the page posts a canvas data URL, saved to .dev-shots/<name>.jpg.
+      server.middlewares.use('/__dev/shot', (req, res) => {
+        const name = new URL(req.url ?? '', 'http://x').searchParams.get('name') ?? 'shot';
+        if (req.method !== 'POST' || req.headers['x-kaiju-tuning'] !== '1' || !/^[\w-]+$/.test(name)) {
+          res.statusCode = 403;
+          return res.end();
+        }
+        let body = '';
+        req.on('data', (chunk: Buffer) => (body += chunk.toString()));
+        req.on('end', async () => {
+          const dir = resolve(server.config.root, '.dev-shots');
+          await mkdir(dir, { recursive: true });
+          await writeFile(resolve(dir, `${name}.jpg`), Buffer.from(body.replace(/^data:image\/\w+;base64,/, ''), 'base64'));
+          res.end('ok');
+        });
+      });
       server.middlewares.use('/__tuning/save', (req, res) => {
         const reply = (status: number, body: unknown) => {
           res.statusCode = status;

@@ -1,43 +1,16 @@
 #!/usr/bin/env node
 /**
- * Process raw downloads in assets-src/ into game-ready files:
- *  - public/models/cars.glb    13 Kenney cars merged (one scene each), meshopt + WebP
- *  - public/models/tank-a|b.glb Quaternius tanks, meshopt
- *  - public/audio/*            selected sounds; big WAVs downmixed to mono 22.05 kHz
+ * Process raw audio downloads in assets-src/ into public/audio: selected sounds
+ * copied, big WAVs downmixed to mono. (All 3D models are code-built.)
  * Run: npm run assets   (re-run after changing the lists below)
  */
-import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const root = resolve(import.meta.dirname, '..');
 const SRC = join(root, 'assets-src');
-const MODELS = join(root, 'public/models');
 const AUDIO = join(root, 'public/audio');
-const TMP = join(root, 'node_modules/.cache/build-assets');
-for (const d of [MODELS, AUDIO, TMP]) mkdirSync(d, { recursive: true });
-
-const gt = (...args) => execFileSync(join(root, 'node_modules/.bin/gltf-transform'), args, { stdio: ['ignore', 'ignore', 'inherit'] });
-const need = (f) => {
-  if (!existsSync(join(SRC, f))) throw new Error(`Missing assets-src/${f}`);
-  return join(SRC, f);
-};
-
-// ------------------------------------------------------------ models
-export const CARS = ['sedan', 'sedan-sports', 'hatchback-sports', 'suv', 'suv-luxury', 'taxi', 'police', 'van', 'delivery', 'truck', 'ambulance', 'firetruck', 'garbage-truck'];
-const merged = join(TMP, 'cars-merged.glb');
-gt('merge', ...CARS.map((c) => need(`${c}.glb`)), merged);
-// Cars are a few meters long next to a 100 m kaiju and there are thousands of them:
-// simplify hard (~2000 → a few hundred triangles each).
-gt('optimize', merged, join(MODELS, 'cars.glb'), '--compress', 'meshopt', '--texture-compress', 'webp', '--simplify', 'true', '--simplify-ratio', '0.15', '--simplify-error', '0.08', '--join', 'false', '--instance', 'false', '--flatten', 'false', '--palette', 'false');
-console.log('models: cars.glb');
-
-// The second Poly Pizza "Tank" (j59k7ctnZM) turned out to be a walker/fuel-tank shape: not used.
-const TANKS = { 'tank-a.glb': 'Tank by Quaternius - Dc4k4CooN3.glb' };
-for (const [out, src] of Object.entries(TANKS)) {
-  gt('optimize', need(src), join(MODELS, out), '--compress', 'meshopt', '--simplify', 'false', '--palette', 'false');
-  console.log(`models: ${out}`);
-}
+mkdirSync(AUDIO, { recursive: true });
 
 // ------------------------------------------------------------ audio
 /** dest name → source file. Sources: see docs/ASSETS.md. */
@@ -114,7 +87,6 @@ for (const [dest, [src, rate]] of Object.entries(WAV)) {
   copied++;
 }
 console.log(`audio: ${copied} files${missing.length ? `, missing: ${missing.join(', ')}` : ''}`);
-rmSync(TMP, { recursive: true, force: true });
 
 /** PCM/float WAV → mono 16-bit at `rate` (box-filtered resample). */
 function downmixWav(buf, rate) {

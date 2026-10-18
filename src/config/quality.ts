@@ -20,8 +20,6 @@ export interface QualityPreset {
   readonly postProcessing: boolean;
   /** Small props (cars, trees, containers) exist within this radius (m). */
   readonly propRadius: number;
-  /** Model cars are drawn within this radius (m). */
-  readonly carDrawDistance: number;
   /** Trees, house roofs and code-built cars cast shadows (doubles their vertex cost). */
   readonly smallShadows: boolean;
 }
@@ -38,7 +36,6 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     debrisCap: 60,
     postProcessing: false,
     propRadius: 500,
-    carDrawDistance: 220,
     smallShadows: false,
   },
   medium: {
@@ -52,7 +49,6 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     debrisCap: 150,
     postProcessing: true,
     propRadius: 800,
-    carDrawDistance: 320,
     smallShadows: true,
   },
   high: {
@@ -66,7 +62,6 @@ export const QUALITY_PRESETS: Readonly<Record<QualityLevel, QualityPreset>> = {
     debrisCap: 300,
     postProcessing: true,
     propRadius: 1000,
-    carDrawDistance: 450,
     smallShadows: true,
   },
 };

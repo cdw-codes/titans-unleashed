@@ -10,7 +10,7 @@ export type StructureKind =
 export type SizeClass = 'large' | 'small' | 'prop';
 
 /** Which shared instanced pool renders a part. */
-export type PoolId = 'windowed' | 'plain' | 'roof' | 'cylinder' | 'tree' | 'car' | 'flat';
+export type PoolId = 'windowed' | 'plain' | 'roof' | 'cylinder' | 'tree' | 'car' | 'truck' | 'flat';
 
 /** One instance in a pool. Position is the base center; scale is the full size. */
 export interface PartSpec {

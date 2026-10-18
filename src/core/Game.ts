@@ -50,7 +50,6 @@ import { EvolutionOverlay } from '../ui/EvolutionOverlay';
 import { AudioSystem } from '../systems/audio/AudioSystem';
 import { AudioDirector } from '../systems/audio/AudioDirector';
 import { Minimap } from '../ui/Minimap';
-import { loadModels, type LoadedModels } from '../assets/ModelLibrary';
 import { yieldToBrowser } from './yieldToBrowser';
 
 const _camDir = new THREE.Vector3();
@@ -134,7 +133,7 @@ export class Game {
     ],
   };
 
-  private constructor(container: HTMLElement, private readonly physics: PhysicsSystem, models: LoadedModels) {
+  private constructor(container: HTMLElement, private readonly physics: PhysicsSystem) {
     this.qualityLevel = loadQualityLevel();
     const preset = QUALITY_PRESETS[this.qualityLevel];
 
@@ -148,7 +147,7 @@ export class Game {
     this.environment = new Environment(scene, preset);
     this.ground = new Ground(scene, physics, this.render.renderer.capabilities.getMaxAnisotropy(), preset.drawDistance);
     this.water = new Water(scene, preset.drawDistance);
-    this.cityPools = new CityPools(scene, models);
+    this.cityPools = new CityPools(scene);
     this.chunks = new ChunkManager(CITY, new CityGenerator(CITY), this.cityPools, physics, new DestructionState());
     this.chunks.propRadius = preset.propRadius;
     this.cityPools.setSmallShadows(preset.smallShadows);
@@ -258,7 +257,7 @@ export class Game {
         this.events.emit('fx:explosion', { x, y: 0, z, size });
       },
       fired: (kind, x, y, z) => this.events.emit('military:fire', { kind, x, y, z }),
-    }, models.tanks);
+    });
     this.audioDirector = new AudioDirector(this.audio, this.events, {
       player: this.player,
       camera: this.render.camera,
@@ -326,15 +325,15 @@ export class Game {
   }
 
   /**
-   * Boot with progress (0..1, label) for the loading screen: physics + models,
+   * Boot with progress (0..1, label) for the loading screen: physics,
    * audio decoding, then the city around the spawn, built in slices so the page
    * stays responsive.
    */
   static async create(container: HTMLElement, onProgress: (fraction: number, label: string) => void = () => {}): Promise<Game> {
     onProgress(0.02, 'Waking the beast');
-    const [physics, models] = await Promise.all([PhysicsSystem.create(1 / SIM.tickRate), loadModels()]);
+    const physics = await PhysicsSystem.create(1 / SIM.tickRate);
     onProgress(0.2, 'Tuning the roars');
-    const game = new Game(container, physics, models);
+    const game = new Game(container, physics);
     await game.audio.prepare((done, total) => onProgress(0.2 + 0.25 * (done / total), 'Tuning the roars'));
     await game.buildCity((f) => onProgress(0.45 + 0.55 * f, 'Raising the city'));
     onProgress(1, 'Ready');
@@ -385,7 +384,6 @@ export class Game {
   private applyLod(preset: (typeof QUALITY_PRESETS)[QualityLevel]): void {
     this.chunks.propRadius = preset.propRadius;
     this.cityPools.setSmallShadows(preset.smallShadows);
-    this.cityPools.cull(this.player.position.x, this.player.position.z, preset.carDrawDistance, 1);
   }
 
   /** Debug: encounters. */
@@ -571,7 +569,6 @@ export class Game {
     this.ground.follow(focus);
     this.water.follow(focus);
     this.chunks.update(focus.x, focus.z, QUALITY_PRESETS[this.qualityLevel].drawDistance);
-    this.cityPools.cull(focus.x, focus.z, QUALITY_PRESETS[this.qualityLevel].carDrawDistance, Math.max(visualDt, 1 / 60));
     this.cityPools.flush();
     this.updateHud();
     this.updateMinimap(visualDt);

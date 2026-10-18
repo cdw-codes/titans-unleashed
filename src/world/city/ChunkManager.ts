@@ -197,7 +197,7 @@ export class ChunkManager {
     for (const s of chunk.structures) {
       this.hideParts(s);
       if (s.rubbleSlot >= 0) {
-        this.pools.removePart(s.spec.size === 'prop' ? 'car' : 'rubble', s.rubbleSlot);
+        this.pools.removePart(s.spec.size === 'prop' ? s.spec.parts[0]!.pool : 'rubble', s.rubbleSlot);
         s.rubbleSlot = -1;
       }
     }
@@ -213,7 +213,7 @@ export class ChunkManager {
       } else {
         this.hideParts(s);
         if (s.rubbleSlot >= 0) {
-          this.pools.removePart('car', s.rubbleSlot);
+          this.pools.removePart(s.spec.parts[0]!.pool, s.rubbleSlot);
           s.rubbleSlot = -1;
         }
       }

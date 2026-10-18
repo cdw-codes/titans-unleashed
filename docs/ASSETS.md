@@ -1,29 +1,17 @@
-# Assets to download (Milestone 7)
+# Downloaded assets (audio only)
 
 Everything below was checked on the source page on 2026-10-16. Put each download into
 `assets-src/` (zips as-is). Raw files stay out of git; the processed, compressed versions go
 to `public/` and are committed.
 
-Decisions: kaiju, rivals, buildings and the helicopter stay code-built (original designs,
-true scale, ~25 draw calls for the city). Downloaded models replace cars and tanks.
+Decision: every 3D model is code-built (kaiju, city, terrain, trees, vehicles, military),
+so the look stays consistent and original. Only sounds are downloaded. If you supply
+model files later, they need a loader and pipeline again (removed on purpose).
 
 **Pipeline:** put downloads in `assets-src/`, run `npm run assets`. The script
-(`tools/build-assets.mjs`) holds the exact file lists: cars are merged into one meshopt +
-WebP `cars.glb` (simplified), tanks compressed, sounds copied, big WAVs downmixed to mono
-(no ffmpeg here — installing it would allow proper OGG encoding). Sound ids → files live
-in `src/config/audio.ts`; model files in `src/config/models.ts`.
-
-**Status (2026-10-16):** all items below are in use except the Attack Chopper (not
-downloaded; the code-built gunship stays, so no CC-BY credit is needed) and the second
-Poly Pizza "tank" (it is a walker/fuel-tank shape).
-
-## Models
-| ✔ | Asset | Download from | License | Used for |
-|---|---|---|---|---|
-| ☐ | Kenney **Car Kit** | https://kenney.nl/assets/car-kit ("Continue without donating" gives the zip) | CC0 | Parked cars to crush |
-| ☐ | Quaternius tank (glTF) | https://poly.pizza/m/Dc4k4CooN3 → Download → glTF/GLB | CC0 | Military tank |
-| ☐ | Quaternius tank 2 (glTF) | https://poly.pizza/m/j59k7ctnZM → Download → glTF/GLB | CC0 | Tank variant |
-| ☐ | **Attack Chopper** by Geibu3D | https://opengameart.org/content/attack-chopper | **CC-BY 4.0 — credit required** (shown in the pause menu) | Military helicopter |
+(`tools/build-assets.mjs`) holds the exact file lists: sounds copied, big WAVs downmixed
+to mono (no ffmpeg here — installing it would allow proper OGG encoding). Sound ids →
+files live in `src/config/audio.ts`.
 
 ## Audio
 | ✔ | Asset | Download from | License | Used for |

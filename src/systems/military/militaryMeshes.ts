@@ -25,19 +25,30 @@ const GREY_DARK = 0x35383a;
 
 /** Hull + tracks, length 1 along +Z (front). */
 export function tankHullGeometry(): THREE.BufferGeometry {
+  // Sloped front plate: a box sheared down toward the nose.
+  const glacis = new THREE.BoxGeometry(0.5, 0.1, 0.22).translate(0, 0.2, 0.46);
+  const pos = glacis.attributes['position']!;
+  for (let i = 0; i < pos.count; i++) if (pos.getZ(i) > 0.5 && pos.getY(i) > 0.2) pos.setY(i, 0.16);
+  glacis.computeVertexNormals();
   return mergeGeometries([
-    paint(new THREE.BoxGeometry(0.5, 0.18, 0.92).translate(0, 0.17, 0), OLIVE),
-    paint(new THREE.BoxGeometry(0.42, 0.08, 0.3).translate(0, 0.3, 0.3).rotateX(0), OLIVE_DARK),
-    paint(new THREE.BoxGeometry(0.13, 0.16, 1).translate(0.28, 0.08, 0), TRACK),
-    paint(new THREE.BoxGeometry(0.13, 0.16, 1).translate(-0.28, 0.08, 0), TRACK),
+    paint(new THREE.BoxGeometry(0.5, 0.16, 0.82).translate(0, 0.17, -0.04), OLIVE),
+    paint(glacis, OLIVE),
+    paint(new THREE.BoxGeometry(0.42, 0.08, 0.3).translate(0, 0.28, -0.28), OLIVE_DARK),
+    // Tracks with fenders over them.
+    paint(new THREE.BoxGeometry(0.13, 0.15, 1).translate(0.28, 0.075, 0), TRACK),
+    paint(new THREE.BoxGeometry(0.13, 0.15, 1).translate(-0.28, 0.075, 0), TRACK),
+    paint(new THREE.BoxGeometry(0.15, 0.02, 1.02).translate(0.28, 0.16, 0), OLIVE_DARK),
+    paint(new THREE.BoxGeometry(0.15, 0.02, 1.02).translate(-0.28, 0.16, 0), OLIVE_DARK),
   ]);
 }
 
 /** Turret + barrel, pivot at the hull top, barrel along +Z. */
 export function tankTurretGeometry(): THREE.BufferGeometry {
   return mergeGeometries([
-    paint(new THREE.BoxGeometry(0.36, 0.14, 0.4).translate(0, 0.33, -0.04), OLIVE),
-    paint(new THREE.CylinderGeometry(0.028, 0.032, 0.6, 6).rotateX(Math.PI / 2).translate(0, 0.34, 0.42), OLIVE_DARK),
+    paint(new THREE.CylinderGeometry(0.17, 0.2, 0.13, 7).translate(0, 0.32, -0.04), OLIVE),
+    paint(new THREE.BoxGeometry(0.14, 0.09, 0.08).translate(0, 0.33, 0.15), OLIVE_DARK),
+    paint(new THREE.CylinderGeometry(0.05, 0.05, 0.04, 6).translate(0.07, 0.4, -0.1), OLIVE_DARK),
+    paint(new THREE.CylinderGeometry(0.024, 0.03, 0.62, 6).rotateX(Math.PI / 2).translate(0, 0.335, 0.47), OLIVE_DARK),
   ]);
 }
 
