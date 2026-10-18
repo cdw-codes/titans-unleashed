@@ -168,7 +168,7 @@ export class ProjectileSystem {
     const byPlayer = p.owner.isPlayer;
     const { x, y, z } = at;
     if (direct) this.onTitanHit({ target: direct, owner: p.owner, damage: c.damage, poiseDamage: c.poiseDamage, x, z });
-    // Splash: half damage to other titan caught in the blast.
+    // Splash: half damage to other titans caught in the blast.
     for (const k of titans) {
       if (k === p.owner || k === direct || k.state === 'defeated') continue;
       if (Math.hypot(k.position.x - x, k.position.z - z) < c.blastRadius + k.spec.body.capsuleRadius && y < k.position.y + k.spec.body.height) {

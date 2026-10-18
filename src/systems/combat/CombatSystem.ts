@@ -23,7 +23,7 @@ export interface CombatFeedback {
 const _ray = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
 
 /**
- * Resolves titan attacks each fixed tick against structures AND other titan:
+ * Resolves titan attacks each fixed tick against structures AND other titans:
  * area moves (claw, tail, stomp, lunge) by arc, roars (stun), the beam as a
  * raycast with an impact blast, and volleys handed to ProjectileSystem.
  * Structure damage goes through DestructionSystem, attributed to the player or not.

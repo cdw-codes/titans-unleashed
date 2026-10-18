@@ -310,7 +310,7 @@ export class Game {
         this.camera.shake.addTrauma(e.sprinting ? TITAN_FEEDBACK.sprintStepTrauma : TITAN_FEEDBACK.walkStepTrauma);
         this.camera.shake.addKick(e.sprinting ? TITAN_FEEDBACK.sprintStepKick : TITAN_FEEDBACK.walkStepKick);
       } else {
-        // Other titan: felt through the ground, fading with distance.
+        // Other titans: felt through the ground, fading with distance.
         const k = this.proximity(e.x, e.z, 700);
         this.camera.shake.addTrauma(TITAN_FEEDBACK.walkStepTrauma * k * k);
       }

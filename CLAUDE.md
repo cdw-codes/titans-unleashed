@@ -62,15 +62,14 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
 
 ## Architecture rules
-- Units: meters, seconds. Titan ≈ 100 m tall (`TITAN_BODY.height`; model authored at 80 m and
-  scaled, so foot offsets/dust use `titan.scale`). Real gravity (looks slow at this scale — good).
-- Footsteps are `titan:footstep` events; shake/dust/crushing subscribe.
+- Units: m, s. Titan ≈ 100 m (`TITAN_BODY.height`; model authored at 80 m, scaled: offsets use
+  `titan.scale`). Real gravity. Footsteps are `titan:footstep` events (shake/dust/crush).
 - Rapier KCC gotchas: never push down while grounded (stalls horizontal motion; rely on
   snap-to-ground); keep static colliders a few km max (huge slabs break precision).
 - Terrain: `terrain.heightAt(x, z)` (world/terrain/Terrain.ts) is the single source of ground
   height. Never assume y = 0: towns are flat at 0, countryside is not. Structures carry a base
   `y`. Ground = per-chunk tiles in one BatchedMesh + per-chunk Rapier heightfields within the
-  physics radius; titan beyond it follow `heightAt` analytically (no colliders there).
+  physics radius; titans beyond it follow `heightAt` analytically (no colliders there).
   Feet plant on slopes via two-bone leg IK after the walk pose (`TitanModel.plantFeet`).
 - Titan = primitives rigidly skinned to bones, merged into ONE SkinnedMesh (1 draw call).
 - World = pure deterministic data (`CityGenerator.generate(cx, cz)`, seeded per chunk) rendered
@@ -87,25 +86,23 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   movement, gait, combat config, design). Controllers only produce MoveIntent + CombatInput:
   PlayerController from input, RivalAI from perception. Never special-case rivals in Titan.
 - `TitanCombat` (pure, tested) turns CombatInput into AttackEvents + a movement allowance;
-  `CombatSystem` resolves them against structures and all other titan. Structure damage goes
+  `CombatSystem` resolves them against structures and all other titans. Structure damage goes
   through `DestructionSystem.damage/crush` with `byPlayer` (only player kills score).
 - Rivals plow through buildings: their KCC ignores `GROUP.STRUCTURE` colliders and
   DestructionSystem wrecks what they overlap. No pathfinding — keep it that way.
-- Bloom runs only on frames that request it (beam glow); HDR (>1) colors are for FX only.
+- Bloom only on frames that request it (beam glow); HDR (>1) colors are for FX only.
 - Upgrades never mutate configs (the Tuning panel saves those): they produce `TitanModifiers`
   that systems read at the point of use (`combat.mods`, `motor.speedMultiplier`, ...).
-- Military units are kinematic pooled data (no physics bodies), rendered via InstancedMesh;
-  collateral from their shots is not credited to the player.
+- Military units: kinematic pooled data, InstancedMesh; their collateral isn't player-credited.
 - Gameplay settles destruction at collapse START (persist, remove collider); CollapseSystem is
   visual-only at render rate and tolerates chunks unloading mid-collapse.
 - Fixed 60 Hz sim (`GameLoop` → `Game.fixedUpdate`) for physics + gameplay; render at display
   rate with interpolation (`alpha`). Anything moved in the sim stores prev/curr state and
   lerps in `render(alpha)`. Camera/visual-only effects run at render rate.
-- Input presses are buffered until a sim tick consumes them; UI toggles use `onImmediateAction`.
-- Plain classes + systems, no ECS. Systems talk via typed `EventBus` (`core/events.ts`).
-- Titan states: idle, walk, sprint, attack, stomp, beamCharge, beamFire, roar, stagger,
-  knockdown, defeated. Rival AI: small readable decision system (aggression, reaction delay,
-  preferred range), no ML.
+- Input presses buffer until a sim tick consumes them (UI toggles: `onImmediateAction`). Plain
+  classes + systems, no ECS; systems talk via the typed `EventBus` (`core/events.ts`).
+- Titan states: idle/walk/sprint/attack/stomp/beamCharge/beamFire/roar/stagger/knockdown/
+  defeated. Rival AI: small readable decision system (no ML).
 - All gameplay values in typed `src/config` files; bindings only in `config/input.ts`.
 - Debug (F1): overlay stats, collider wireframes, chunk grid; gameplay code draws hitboxes
   via `debug.draw` and AI labels via `debug.label()` — both are no-ops when debug is off.
