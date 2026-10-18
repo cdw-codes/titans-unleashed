@@ -57,8 +57,7 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
 - `src/debug` — F1 debug system, DebugDraw, DebugLabels, dev GUI + tunables registry, test tools
 - `tools` — dev-only Node code: Vite plugin (tuning save + `/__dev/shot` screenshots into
-  `.dev-shots/`), config source patcher (tested), `build-assets.mjs` (audio only)
-- `public/audio` processed sounds; `assets-src/` raw downloads (git-ignored)
+  `.dev-shots/`), config source patcher (tested)
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
 
 ## Architecture rules
@@ -135,7 +134,7 @@ Known issues:
 - Camera can still clip into towers in dense downtown (occluder fading not built).
 - ~300k tris at medium; levers per preset in `config/quality.ts`: drawDistance, propRadius
   (props + full-detail terrain), smallShadows, pixel ratio.
-- Not measured on an integrated GPU (AutoQuality steps down). Safari may not decode OGG.
+- Not measured on an integrated GPU (AutoQuality steps down).
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
 - Chunk generation ~1.3 ms each (terrain sampling); 3 per frame while streaming.
 
@@ -151,6 +150,9 @@ Decisions:
 - Game name: **Titans Unleashed** (repo `titans-unleashed`).
 - Art: ALL 3D content is code-built (titan, buildings, terrain, trees, vehicles, military;
   titan anim = procedural skeletal with blended layers). No model files or glTF pipeline; if
-  the user supplies models later, add a loader then. Only sounds are downloaded (CC0).
+  the user supplies models later, add a loader then.
+- No third-party assets at all: every sound is a code-synthesized placeholder
+  (`systems/audio/synth.ts`); real files in `public/audio` + `files` in config/audio.ts
+  override them (docs/ASSETS.md).
 - Look reference: the user's "Quiet Ridge" screenshot (stylized autumn valley); Neutral tone
   mapping. Beam = hold to charge/fire, release cancels.

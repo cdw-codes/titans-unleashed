@@ -4,9 +4,5 @@ coverage
 .DS_Store
 *.local
 
-# Raw asset downloads (processed copies go to public/)
-assets-src/*
-!assets-src/README.md
-
 # Dev screenshots (tools/tuningPlugin.ts)
 .dev-shots

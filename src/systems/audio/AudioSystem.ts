@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { AUDIO, type AudioConfig, type Bus, type SoundId } from '../../config/audio';
+import { AUDIO, type AudioConfig, type Bus, type SoundDef, type SoundId } from '../../config/audio';
 import { VoiceLimiter } from './VoiceLimiter';
+import { synthesize } from './synth';
 
 export interface Voice {
   readonly id: number;
@@ -16,14 +17,17 @@ const _up = new THREE.Vector3();
 /**
  * Web Audio engine: buses (sfx / music / ambience) under a master gain,
  * positional voices via PannerNodes with the listener on the camera, per-sound
- * and global voice limits, random pitch variation. Sounds without files (or
- * whose files are missing) are skipped silently, so the game runs without audio.
+ * and global voice limits, random pitch variation. Sounds without loadable files
+ * fall back to code-synthesized placeholders (synth.ts), so no file is required.
  */
 export class AudioSystem {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
   private readonly buses = new Map<Bus, GainNode>();
   private readonly buffers = new Map<string, AudioBuffer>();
+  /** Synthesized placeholder per sound that has no loaded file. */
+  private readonly placeholders = new Map<SoundId, AudioBuffer>();
+  private readonly synthCache = new Map<string, AudioBuffer>();
   private readonly voices = new Map<number, Voice>();
   private readonly limiter: VoiceLimiter<SoundId>;
   private loading: Promise<void> | null = null;
@@ -88,7 +92,7 @@ export class AudioSystem {
 
   /** Has at least one file loaded for this sound? */
   has(id: SoundId): boolean {
-    return this.cfg.sounds[id].files.some((f) => this.buffers.has(f));
+    return this.placeholders.has(id) || this.cfg.sounds[id].files.some((f) => this.buffers.has(f));
   }
 
   play(id: SoundId, pos?: THREE.Vector3Like, opts: { volume?: number; pitch?: number } = {}): Voice | null {
@@ -96,8 +100,8 @@ export class AudioSystem {
     const def = this.cfg.sounds[id];
     if (!ctx || ctx.state !== 'running') return null;
     const files = def.files.filter((f) => this.buffers.has(f));
-    if (!files.length) return null;
-    const buffer = this.buffers.get(files[Math.floor(Math.random() * files.length)]!)!;
+    const buffer = files.length ? this.buffers.get(files[Math.floor(Math.random() * files.length)]!)! : this.placeholders.get(id);
+    if (!buffer) return null;
 
     const { id: vid, steal } = this.limiter.start(id, def.maxInstances, ctx.currentTime);
     for (const s of steal) this.stop(s, 0.05);
@@ -181,15 +185,32 @@ export class AudioSystem {
   }
 
   private async preload(busFilter: (bus: Bus) => boolean, onProgress?: (done: number, total: number) => void): Promise<void> {
-    const files = new Set(Object.values(this.cfg.sounds).filter((s) => busFilter(s.bus)).flatMap((s) => s.files));
+    const entries = (Object.entries(this.cfg.sounds) as [SoundId, SoundDef][]).filter(([, s]) => busFilter(s.bus));
+    const files = new Set(entries.flatMap(([, s]) => s.files));
     let done = 0;
+    const total = files.size + entries.length;
     await Promise.all(
       [...files].map(async (f) => {
         await this.loadFile(f);
-        onProgress?.(++done, files.size);
+        onProgress?.(++done, total);
       }),
     );
-    if (import.meta.env.DEV) console.info(`[audio] loaded ${this.buffers.size}/${files.size} files`);
+    for (const [id, s] of entries) {
+      if (!s.files.some((f) => this.buffers.has(f))) this.placeholders.set(id, this.synthBuffer(s.synth));
+      onProgress?.(++done, total);
+    }
+    if (import.meta.env.DEV) console.info(`[audio] ${this.buffers.size} files, ${this.placeholders.size} synthesized placeholders`);
+  }
+
+  private synthBuffer(id: SoundDef['synth']): AudioBuffer {
+    let b = this.synthCache.get(id);
+    if (!b) {
+      const { samples, sampleRate } = synthesize(id);
+      b = this.ctx!.createBuffer(1, samples.length, sampleRate);
+      b.getChannelData(0).set(samples);
+      this.synthCache.set(id, b);
+    }
+    return b;
   }
 
   private async loadFile(file: string): Promise<void> {

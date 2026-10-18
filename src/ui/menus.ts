@@ -13,9 +13,6 @@ export interface RunStats {
   threatPeak: number;
 }
 
-/** All third-party assets are CC0 (no attribution required); see docs/ASSETS.md. */
-const CREDITS = 'Sound: Kenney and OpenGameArt contributors (CC0)';
-
 /** Read-only bindings summary (title screen). */
 function controlsHtml(b: Bindings): string {
   const rows = ACTIONS.filter((a) => a !== 'debug').map((a) => {
@@ -68,7 +65,6 @@ export class TitleScreen extends Screen {
         <button class="menu-primary" type="button">Begin the rampage</button>
         <div class="title-controls">${controlsHtml(bindings)}</div>
         <p class="pause-hint">Esc pauses · F1 debug</p>
-        <p class="menu-credits">${CREDITS}</p>
       </div>`;
     this.el.querySelector('button')!.addEventListener('click', onStart);
     this.visible = true;
@@ -93,7 +89,6 @@ export class PauseMenu extends Screen {
           <button class="menu-secondary" data-act="new" type="button">New game</button>
         </div>
         <div class="menu-cols"><div class="menu-stats-slot"></div><div class="menu-controls-slot"></div></div>
-        <p class="menu-credits">${CREDITS}</p>
       </div>`;
     this.statsEl = this.el.querySelector('.menu-stats-slot')!;
     this.el.querySelector('.menu-controls-slot')!.appendChild(controls.el);

@@ -439,7 +439,6 @@ html, body {
   border-radius: 50%;
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
 }
-.menu-credits { margin: 0; font-size: 11px; opacity: 0.55; }
 
 .loading-screen {
   position: fixed;

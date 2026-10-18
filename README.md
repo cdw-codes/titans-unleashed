@@ -25,9 +25,8 @@ Esc pause (remap keys in the pause menu) · F1 debug.
 
 ## Assets
 
-All 3D content is generated in code. The only third-party assets are CC0 sounds (Kenney,
-OpenGameArt contributors). Raw downloads go in `assets-src/` (git-ignored); `npm run assets`
-builds `public/audio`. Details and sources: [docs/ASSETS.md](docs/ASSETS.md).
+None: all 3D content and all (placeholder) sounds are generated in code. See
+[docs/ASSETS.md](docs/ASSETS.md) to swap in real sound files.
 
 ## Deploy
 

@@ -9,8 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "assets": "node tools/build-assets.mjs"
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "0.21.0",
