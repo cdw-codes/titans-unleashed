@@ -2,8 +2,8 @@ import type { CombatConfig, MoveConfig } from '../../config/combat';
 import { clamp, wrapAngle } from '../../core/math';
 import { clampBeamAim, Cooldowns, moveLength, movePhase, type MovePhase } from '../../systems/combat/rules';
 import { Health, type HitReaction } from '../../systems/combat/Health';
-import type { KaijuState } from './locomotion';
-import { baseModifiers, type KaijuModifiers } from '../../systems/progression/Upgrades';
+import type { TitanState } from './locomotion';
+import { baseModifiers, type TitanModifiers } from '../../systems/progression/Upgrades';
 
 export type MoveId = 'claw' | 'tail' | 'stomp' | 'lunge' | 'volley' | 'pulse';
 export type CooldownId = MoveId | 'beam' | 'roar';
@@ -49,7 +49,7 @@ export interface MovementAllowance {
 
 /** Animation info for the model. */
 export interface CombatAction {
-  kind: KaijuState;
+  kind: TitanState;
   /** Seconds since the action started. */
   t: number;
   /** Which arm swipes (claw alternates). */
@@ -67,21 +67,21 @@ interface Body {
   readonly yaw: number;
   readonly mouthHeight: number;
   readonly mouthForward: number;
-  setState(s: KaijuState): void;
-  readonly state: KaijuState;
+  setState(s: TitanState): void;
+  readonly state: TitanState;
 }
 
-const LOCOMOTION: KaijuState[] = ['idle', 'walk', 'sprint'];
+const LOCOMOTION: TitanState[] = ['idle', 'walk', 'sprint'];
 const FREE: MovementAllowance = { moveMultiplier: 1, turnMultiplier: 1, faceYaw: null, faceRate: 0, lungeSpeed: 0 };
 const ROOTED: MovementAllowance = { moveMultiplier: 0, turnMultiplier: 0, faceYaw: null, faceRate: 0, lungeSpeed: 0 };
 const PRIORITY: (MoveId | 'roar')[] = ['pulse', 'stomp', 'tail', 'lunge', 'volley', 'claw', 'roar'];
 
 /**
- * Combat state for one kaiju (player or rival): move timelines, beam charge and
+ * Combat state for one titan (player or rival): move timelines, beam charge and
  * fire, roar, hit reactions. Fixed tick. Produces AttackEvents and tells the
- * body how much it may move. Each kaiju has its own CombatConfig.
+ * body how much it may move. Each titan has its own CombatConfig.
  */
-export class KaijuCombat {
+export class TitanCombat {
   readonly health: Health;
   readonly cooldowns = new Cooldowns<CooldownId>();
   readonly attacks: AttackEvent[] = [];
@@ -90,7 +90,7 @@ export class KaijuCombat {
   readonly beamEnd = { x: 0, y: 0, z: 0, hit: false };
   readonly beamDir = { x: 0, y: 0, z: 1 };
   /** Upgrade multipliers (player); rivals keep the base. */
-  mods: KaijuModifiers = baseModifiers();
+  mods: TitanModifiers = baseModifiers();
 
   private move: MoveId | null = null;
   private emitted = 0;
@@ -188,7 +188,7 @@ export class KaijuCombat {
     }
   }
 
-  /** Apply a hit to this kaiju. Returns the reaction (already applied to state). */
+  /** Apply a hit to this titan. Returns the reaction (already applied to state). */
   takeHit(damage: number, poiseDamage = damage): HitReaction {
     const r = this.health.hit(damage, poiseDamage);
     if (r === 'none') return r;
@@ -412,7 +412,7 @@ export class KaijuCombat {
     let faceYaw: number | null = null;
     if (input.aim) {
       const p = this.body.position;
-      // Don't spin when the aim point is basically under the kaiju.
+      // Don't spin when the aim point is basically under the titan.
       if (Math.hypot(input.aim.x - p.x, input.aim.z - p.z) >= 10) {
         faceYaw = wrapAngle(Math.atan2(input.aim.x - p.x, input.aim.z - p.z));
       }
@@ -420,7 +420,7 @@ export class KaijuCombat {
     return { moveMultiplier: 0, turnMultiplier: 0, faceYaw, faceRate: this.cfg.beam.turnRate, lungeSpeed: 0 };
   }
 
-  private enter(state: KaijuState): void {
+  private enter(state: TitanState): void {
     this.action.kind = state;
     this.action.t = 0;
     this.action.move = null;

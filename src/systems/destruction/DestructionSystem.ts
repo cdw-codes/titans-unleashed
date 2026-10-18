@@ -1,7 +1,7 @@
 import { DESTRUCTION as D } from '../../config/destruction';
 import { DUST } from '../../config/effects';
 import type { GameEventBus } from '../../core/events';
-import type { Kaiju } from '../../entities/kaiju/Kaiju';
+import type { Titan } from '../../entities/titan/Titan';
 import type { ChunkManager, Structure } from '../../world/city/ChunkManager';
 import type { DustSystem } from '../effects/DustSystem';
 import type { CollapseSystem } from './CollapseSystem';
@@ -17,7 +17,7 @@ export interface DestructionFeedback {
 
 /**
  * Gameplay side of destruction (fixed tick): body contact and footsteps damage
- * large structures; anything small the kaiju walks over or steps on is crushed.
+ * large structures; anything small the titan walks over or steps on is crushed.
  * Hands visuals to CollapseSystem / DebrisSystem / DustSystem.
  */
 export class DestructionSystem {
@@ -33,28 +33,28 @@ export class DestructionSystem {
     private readonly events: GameEventBus,
     private readonly feedback: DestructionFeedback,
   ) {
-    events.on('kaiju:footstep', (e) => this.onFootstep(e.x, e.z, e.scale, e.isPlayer));
+    events.on('titan:footstep', (e) => this.onFootstep(e.x, e.z, e.scale, e.isPlayer));
   }
 
-  /** Advance the shared clock once per tick (before per-kaiju updates). */
+  /** Advance the shared clock once per tick (before per-titan updates). */
   tick(dt: number): void {
     this.time += dt;
   }
 
-  /** Body contact and walk-through crushing for one kaiju. */
-  fixedUpdate(dt: number, kaiju: Kaiju): void {
-    const pos = kaiju.position;
-    const byPlayer = kaiju.isPlayer;
+  /** Body contact and walk-through crushing for one titan. */
+  fixedUpdate(dt: number, titan: Titan): void {
+    const pos = titan.position;
+    const byPlayer = titan.isPlayer;
 
     // Pushing into large structures.
-    for (const handle of kaiju.contacts) {
+    for (const handle of titan.contacts) {
       const s = this.chunks.structureForCollider(handle);
       if (!s || s.state !== 'intact') continue;
-      let dmg = pushDamage(dt, kaiju.motor.sprinting, D);
+      let dmg = pushDamage(dt, titan.motor.sprinting, D);
       if (this.time - s.lastContact > D.impactCooldown) {
-        dmg += impactDamage(kaiju.impactSpeed, D);
+        dmg += impactDamage(titan.impactSpeed, D);
         this.chip(s, pos.x, pos.z, 3);
-        if (byPlayer) this.feedback.addTrauma(0.12 + kaiju.impactSpeed * 0.01);
+        if (byPlayer) this.feedback.addTrauma(0.12 + titan.impactSpeed * 0.01);
       } else if (Math.random() < dt * 4) {
         this.chip(s, pos.x, pos.z, 1);
       }
@@ -63,10 +63,10 @@ export class DestructionSystem {
     }
 
     // Walking through small structures and props crushes them; rivals plow through big ones too.
-    const bodyR = kaiju.spec.body.capsuleRadius * D.bodyCrushRadiusScale;
+    const bodyR = titan.spec.body.capsuleRadius * D.bodyCrushRadiusScale;
     this.chunks.forEachNear(pos.x, pos.z, bodyR, (s) => {
       if (s.spec.size !== 'large') this.crush(s, byPlayer);
-      else if (kaiju.plowsThrough) {
+      else if (titan.plowsThrough) {
         if (Math.random() < dt * 5) this.chip(s, pos.x, pos.z, 1);
         this.damage(s, D.plowDps * dt, pos.x, pos.z, byPlayer);
       }
@@ -110,7 +110,7 @@ export class DestructionSystem {
     this.emitDestroyed(s, byPlayer);
   }
 
-  /** Small debris knocked off a structure's face toward the kaiju. */
+  /** Small debris knocked off a structure's face toward the titan. */
   chip(s: Structure, fromX: number, fromZ: number, count: number): void {
     const st = s.spec;
     const dx = fromX - st.x;

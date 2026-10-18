@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import { SIM } from '../config/sim';
 
 /** Collision group bits. Colliders without explicit groups interact with everything. */
-export const GROUP = { GROUND: 1 << 0, STRUCTURE: 1 << 1, KAIJU: 1 << 2, DEBRIS: 1 << 3 } as const;
+export const GROUP = { GROUND: 1 << 0, STRUCTURE: 1 << 1, TITAN: 1 << 2, DEBRIS: 1 << 3 } as const;
 export const ALL_GROUPS = 0xffff;
 /** Rapier InteractionGroups: membership bits in the high 16, filter bits in the low 16. */
 export const collisionGroups = (membership: number, filter: number): number => ((membership & 0xffff) << 16) | (filter & 0xffff);

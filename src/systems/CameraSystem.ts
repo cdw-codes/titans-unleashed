@@ -23,7 +23,7 @@ export class CameraSystem {
   yaw = 0;
   pitch = CAMERA.initialPitch;
   readonly shake = new CameraShake(SHAKE);
-  /** Smoothed follow point (kaiju feet). */
+  /** Smoothed follow point (titan feet). */
   readonly focus = new THREE.Vector3();
   private readonly pivot = new THREE.Vector3();
   private distance = CAMERA.distance;
@@ -79,7 +79,7 @@ export class CameraSystem {
     this.focus.z = damp(this.focus.z, target.z, C.followHalfLife, dt);
     this.focus.y = damp(this.focus.y, target.y, C.followHalfLifeY, dt);
 
-    // Pivot above the kaiju, nudged to the camera's right.
+    // Pivot above the titan, nudged to the camera's right.
     _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
     this.pivot.copy(this.focus).addScaledVector(_right, C.shoulderOffset);
     this.pivot.y += C.pivotHeight;

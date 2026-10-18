@@ -1,5 +1,5 @@
-/** Look of a kaiju built by KaijuModel: palette, proportions and silhouette features. Art, not tuning. */
-export interface KaijuDesign {
+/** Look of a titan built by TitanModel: palette, proportions and silhouette features. Art, not tuning. */
+export interface TitanDesign {
   palette: { skin: number; skinDark: number; belly: number; plate: number; claw: number; eye: number };
   glowColor: number;
   back: 'plates' | 'spikes' | 'crest';
@@ -19,7 +19,7 @@ export interface KaijuDesign {
 }
 
 /** The player: atomic lizard with glowing dorsal plates. */
-export const PLAYER_DESIGN: KaijuDesign = {
+export const PLAYER_DESIGN: TitanDesign = {
   palette: { skin: 0x4a5e4f, skinDark: 0x37463b, belly: 0x7d7660, plate: 0xa8bcc4, claw: 0xd9d2bd, eye: 0xffffff },
   glowColor: 0x58d8ff,
   back: 'plates',
@@ -36,7 +36,7 @@ export const PLAYER_DESIGN: KaijuDesign = {
 };
 
 /** Thornmaw: hunched, horned brawler with oversized arms and ember-lit spikes. */
-export const THORNMAW_DESIGN: KaijuDesign = {
+export const THORNMAW_DESIGN: TitanDesign = {
   palette: { skin: 0x6b3a2c, skinDark: 0x47261c, belly: 0x9c7a5a, plate: 0x2d221d, claw: 0xe8d9b8, eye: 0xffd27a },
   glowColor: 0xff6a1a,
   back: 'spikes',
@@ -53,7 +53,7 @@ export const THORNMAW_DESIGN: KaijuDesign = {
 };
 
 /** Vesperion: tall, long-necked ranged attacker with a fan crest and plasma orbs on its shoulders. */
-export const VESPERION_DESIGN: KaijuDesign = {
+export const VESPERION_DESIGN: TitanDesign = {
   palette: { skin: 0x3e3a55, skinDark: 0x2a2740, belly: 0x8a86a6, plate: 0xc9b8ff, claw: 0xd8d2f0, eye: 0xf2a6ff },
   glowColor: 0xb05cff,
   back: 'crest',

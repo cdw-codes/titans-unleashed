@@ -1,7 +1,7 @@
 import { EventBus } from './EventBus';
 import type { QualityLevel } from '../config/quality';
-import type { Foot } from '../entities/kaiju/Gait';
-import type { MoveId } from '../entities/kaiju/KaijuCombat';
+import type { Foot } from '../entities/titan/Gait';
+import type { MoveId } from '../entities/titan/TitanCombat';
 import type { SizeClass, StructureKind } from '../world/city/types';
 
 /** Global game events. Add entries here as systems need to talk to each other. */
@@ -9,18 +9,18 @@ export interface GameEvents {
   'game:pause': { paused: boolean };
   'debug:toggle': { enabled: boolean };
   'quality:change': { level: QualityLevel };
-  /** A kaiju foot hit the ground (sim tick). Drives camera shake, dust, crushing. */
-  'kaiju:footstep': {
+  /** A titan foot hit the ground (sim tick). Drives camera shake, dust, crushing. */
+  'titan:footstep': {
     x: number; y: number; z: number; foot: Foot; sprinting: boolean; isPlayer: boolean;
     /** Body size relative to the model's design height; scales dust and impact effects. */
     scale: number;
   };
-  /** An area attack landed (sim tick). `hits` = structures/kaiju affected. */
+  /** An area attack landed (sim tick). `hits` = structures/titan affected. */
   'combat:impact': { move: MoveId; x: number; z: number; yaw: number; radius: number; hits: number; isPlayer: boolean };
   /** A roar went off: stuns enemies in radius (M5+), drives shake and the shockwave visual. */
-  'kaiju:roar': { x: number; z: number; radius: number; stunSeconds: number; isPlayer: boolean };
-  /** A kaiju reacted to a hit. */
-  'kaiju:hurt': { reaction: 'stagger' | 'knockdown' | 'defeated'; isPlayer: boolean; x: number; z: number };
+  'titan:roar': { x: number; z: number; radius: number; stunSeconds: number; isPlayer: boolean };
+  /** A titan reacted to a hit. */
+  'titan:hurt': { reaction: 'stagger' | 'knockdown' | 'defeated'; isPlayer: boolean; x: number; z: number };
   /** Encounter beats (for audio and UI). Position is where it happens (or the player). */
   'encounter:event': { type: 'warn' | 'spawn' | 'barrier' | 'victory' | 'playerDefeated' | 'end'; x: number; z: number };
   /** A military unit fired. */

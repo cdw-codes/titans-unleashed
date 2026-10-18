@@ -32,7 +32,7 @@ export interface AudioConfig {
   readonly buses: Readonly<Record<Bus, number>>;
   /** Hard cap on simultaneous voices across all sounds. */
   readonly maxVoices: number;
-  /** Distance model for spatial sounds (m). Kaiju scale: big reference distance. */
+  /** Distance model for spatial sounds (m). Titan scale: big reference distance. */
   readonly refDistance: number;
   readonly maxDistance: number;
   readonly rolloff: number;

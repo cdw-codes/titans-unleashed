@@ -19,7 +19,7 @@ export interface EncounterConfig {
   readonly travelBoostUntil: number;
   /** On respawn the player is moved this far (m) beyond the fog end from the rival: out of its sight. */
   readonly respawnBeyondFog: number;
-  /** The barrier rises when the two kaiju get this close (m)... */
+  /** The barrier rises when the two titan get this close (m)... */
   readonly arenaTriggerDistance: number;
   /** ...or after this long approaching, wherever they are. */
   readonly maxApproachSeconds: number;

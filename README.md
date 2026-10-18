@@ -1,7 +1,7 @@
 # Titans Unleashed
 
 A third-person browser action game: you are a giant atomic lizard. Smash a streamed,
-procedurally generated city, fight escalating military, and survive ambushes by rival kaiju.
+procedurally generated city, fight escalating military, and survive ambushes by rival titan.
 Three.js + Rapier + TypeScript + Vite.
 
 ## Run

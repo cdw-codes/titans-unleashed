@@ -4,7 +4,7 @@ Everything below was checked on the source page on 2026-10-16. Put each download
 `assets-src/` (zips as-is). Raw files stay out of git; the processed, compressed versions go
 to `public/` and are committed.
 
-Decision: every 3D model is code-built (kaiju, city, terrain, trees, vehicles, military),
+Decision: every 3D model is code-built (titan, city, terrain, trees, vehicles, military),
 so the look stays consistent and original. Only sounds are downloaded. If you supply
 model files later, they need a loader and pipeline again (removed on purpose).
 

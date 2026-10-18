@@ -1,15 +1,15 @@
 export interface CameraConfig {
   readonly fov: number;
-  /** Extra FOV (deg) at full sprint: sells speed without making the kaiju feel smaller. */
+  /** Extra FOV (deg) at full sprint: sells speed without making the titan feel smaller. */
   readonly sprintFovBoost: number;
   readonly near: number;
   /** Orbit distance (m) from the pivot. */
   readonly distance: number;
   /** Closest the camera may be pulled in by collision (m). */
   readonly minDistance: number;
-  /** Pivot height above the kaiju's feet (m). */
+  /** Pivot height above the titan's feet (m). */
   readonly pivotHeight: number;
-  /** Pivot shift to the camera's right (m) so the kaiju doesn't cover the crosshair. */
+  /** Pivot shift to the camera's right (m) so the titan doesn't cover the crosshair. */
   readonly shoulderOffset: number;
   readonly minPitch: number;
   readonly maxPitch: number;

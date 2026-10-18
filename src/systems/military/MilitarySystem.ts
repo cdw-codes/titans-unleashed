@@ -6,7 +6,7 @@ import { CITY } from '../../config/city';
 import { DUST, FIRE, SMOKE } from '../../config/effects';
 import type { DustBurstConfig } from '../../config/effects';
 import { approachAngle, wrapAngle } from '../../core/math';
-import type { Kaiju } from '../../entities/kaiju/Kaiju';
+import type { Titan } from '../../entities/titan/Titan';
 import type { ChunkManager } from '../../world/city/ChunkManager';
 import type { PhysicsSystem } from '../PhysicsSystem';
 import type { DestructionSystem } from '../destruction/DestructionSystem';
@@ -68,7 +68,7 @@ const CRASH_SMOKE: DustBurstConfig = { ...ROCKET_SMOKE, sizeStart: 6, sizeEnd: 2
 
 /**
  * Military harassment: pooled tanks that drive the street grid and shell the
- * kaiju, helicopters that circle at head height and fire rockets, and their
+ * titan, helicopters that circle at head height and fire rockets, and their
  * shots. Kinematic (no physics bodies); shots raycast against buildings.
  * Escalates with the threat level; withdraws when suppressed (rival fights).
  */
@@ -118,7 +118,7 @@ export class MilitarySystem {
 
   // ------------------------------------------------------------ sim
 
-  fixedUpdate(dt: number, player: Kaiju, level: number, suppressed: boolean): void {
+  fixedUpdate(dt: number, player: Titan, level: number, suppressed: boolean): void {
     const L = this.cfg.levels;
     const li = Math.max(0, Math.min(4, level - 1));
     const accuracy = L.accuracy[li]!;
@@ -150,7 +150,7 @@ export class MilitarySystem {
     }
   }
 
-  private spawnTank(player: Kaiju): void {
+  private spawnTank(player: Titan): void {
     const c = this.cfg.tank;
     for (let tries = 0; tries < 8; tries++) {
       const a = Math.random() * Math.PI * 2;
@@ -168,7 +168,7 @@ export class MilitarySystem {
     }
   }
 
-  private spawnHeli(player: Kaiju): void {
+  private spawnHeli(player: Titan): void {
     const c = this.cfg.heli;
     const a = Math.random() * Math.PI * 2;
     const x = player.position.x + Math.sin(a) * c.spawnDistance;
@@ -182,7 +182,7 @@ export class MilitarySystem {
   }
 
   /** Returns true when the tank should be removed. */
-  private updateTank(t: Tank, dt: number, player: Kaiju, accuracy: number): boolean {
+  private updateTank(t: Tank, dt: number, player: Titan, accuracy: number): boolean {
     const c = this.cfg.tank;
     t.px = t.x;
     t.pz = t.z;
@@ -201,7 +201,7 @@ export class MilitarySystem {
       return dist > c.spawnMax + 150;
     }
 
-    // Pick a stop on the street grid at preferred range; re-plan when the kaiju moves on.
+    // Pick a stop on the street grid at preferred range; re-plan when the titan moves on.
     if (!t.hasTarget || Math.hypot(p.x - t.anchorX, p.z - t.anchorZ) > 200) {
       const ang = Math.atan2(t.x - p.x, t.z - p.z);
       t.tx = Math.round((p.x + Math.sin(ang) * c.preferredRange) / this.pitch) * this.pitch;
@@ -231,17 +231,17 @@ export class MilitarySystem {
       }
     }
 
-    // Turret tracks the kaiju; parked tanks also swing the hull round. Fire when aligned and in range.
-    const toKaiju = Math.atan2(p.x - t.x, p.z - t.z);
-    t.turret = approachAngle(t.turret, toKaiju, c.turretTurnRate * dt);
-    if (!mx && !mz) t.yaw = approachAngle(t.yaw, toKaiju, c.turretTurnRate * 0.6 * dt);
+    // Turret tracks the titan; parked tanks also swing the hull round. Fire when aligned and in range.
+    const toTitan = Math.atan2(p.x - t.x, p.z - t.z);
+    t.turret = approachAngle(t.turret, toTitan, c.turretTurnRate * dt);
+    if (!mx && !mz) t.yaw = approachAngle(t.yaw, toTitan, c.turretTurnRate * 0.6 * dt);
     const aimYaw = t.turret;
     if (t.stun > 0) {
       t.stun -= dt;
       return false;
     }
     t.reload -= dt;
-    if (t.reload <= 0 && dist < c.fireRange && Math.abs(wrapAngle(toKaiju - aimYaw)) < 0.1) {
+    if (t.reload <= 0 && dist < c.fireRange && Math.abs(wrapAngle(toTitan - aimYaw)) < 0.1) {
       t.reload = c.reload * (0.8 + Math.random() * 0.4);
       const len = c.length;
       const mx2 = t.x + Math.sin(aimYaw) * len * 0.75;
@@ -256,7 +256,7 @@ export class MilitarySystem {
   }
 
   /** Returns true when the helicopter should be removed. */
-  private updateHeli(h: Heli, dt: number, player: Kaiju, accuracy: number): boolean {
+  private updateHeli(h: Heli, dt: number, player: Titan, accuracy: number): boolean {
     const c = this.cfg.heli;
     h.px = h.x;
     h.py = h.y;
@@ -299,7 +299,7 @@ export class MilitarySystem {
     h.bob += dt;
     const tx = p.x + Math.sin(h.angle) * h.radius;
     const tz = p.z + Math.cos(h.angle) * h.radius;
-    // Altitude relative to the kaiju's feet, but never skimming a hill.
+    // Altitude relative to the titan's feet, but never skimming a hill.
     const ty = Math.max(
       p.y + c.altitudeMin + (c.altitudeMax - c.altitudeMin) * (0.5 + 0.5 * Math.sin(h.bob * 0.4)),
       terrain.heightAt(h.x, h.z) + c.altitudeMin * 0.6,
@@ -332,7 +332,7 @@ export class MilitarySystem {
     return false;
   }
 
-  private fireAt(kind: UnitKind, x: number, y: number, z: number, player: Kaiju, accuracy: number, spread: number, speed: number): void {
+  private fireAt(kind: UnitKind, x: number, y: number, z: number, player: Titan, accuracy: number, spread: number, speed: number): void {
     if (this.shots.length >= this.shotCapacity) return;
     const p = player.position;
     const err = spread * (1 - accuracy);
@@ -344,7 +344,7 @@ export class MilitarySystem {
   }
 
   /** Returns true when the shot is done. */
-  private updateShot(s: Shot, dt: number, player: Kaiju): boolean {
+  private updateShot(s: Shot, dt: number, player: Titan): boolean {
     s.px = s.x;
     s.py = s.y;
     s.pz = s.z;
@@ -398,7 +398,7 @@ export class MilitarySystem {
 
   // ------------------------------------------------------------ player attacks
 
-  /** Feet and body: tanks under the kaiju are crushed. */
+  /** Feet and body: tanks under the titan are crushed. */
   crushAt(x: number, z: number, radius: number): void {
     for (let i = this.tanks.length - 1; i >= 0; i--) {
       const t = this.tanks[i]!;

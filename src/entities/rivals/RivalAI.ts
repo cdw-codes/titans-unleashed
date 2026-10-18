@@ -1,8 +1,8 @@
 import type { AIAttack, RivalAIConfig } from '../../config/rivals';
 import { wrapAngle } from '../../core/math';
 import type { Random } from '../../core/random';
-import type { CombatInput, CooldownId } from '../kaiju/KaijuCombat';
-import type { MoveIntent } from '../kaiju/KaijuMotor';
+import type { CombatInput, CooldownId } from '../titan/TitanCombat';
+import type { MoveIntent } from '../titan/TitanMotor';
 
 export type AIState = 'idle' | 'approach' | 'circle' | 'retreat' | 'aim' | 'charging' | 'busy';
 

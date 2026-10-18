@@ -15,7 +15,7 @@ export interface RespawnInput {
 /**
  * A fair respawn spot: `minDistance` away from the threat (or the death spot),
  * heading inland if that would reach the sea, snapped to a street intersection
- * so the kaiju never respawns inside a building.
+ * so the titan never respawns inside a building.
  */
 export function respawnPoint(i: RespawnInput): { x: number; z: number; yaw: number } {
   let dx: number;

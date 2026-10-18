@@ -1,7 +1,7 @@
 import { UPGRADES, type UpgradeId } from '../../config/upgrades';
 
-/** Multipliers a kaiju's systems read at their point of use. Base configs are never mutated. */
-export interface KaijuModifiers {
+/** Multipliers a titan's systems read at their point of use. Base configs are never mutated. */
+export interface TitanModifiers {
   maxHealth: number;
   beamDamage: number;
   /** Multiplies beam charge time (< 1 = faster). */
@@ -12,12 +12,12 @@ export interface KaijuModifiers {
   pulse: boolean;
 }
 
-export const baseModifiers = (): KaijuModifiers => ({
+export const baseModifiers = (): TitanModifiers => ({
   maxHealth: 1, beamDamage: 1, chargeTime: 1, energyGain: 1, moveSpeed: 1, meleeDamage: 1, pulse: false,
 });
 
 /** Owned upgrades → modifiers. Pure. */
-export function modifiersFor(owned: Readonly<Partial<Record<UpgradeId, number>>>): KaijuModifiers {
+export function modifiersFor(owned: Readonly<Partial<Record<UpgradeId, number>>>): TitanModifiers {
   const m = baseModifiers();
   const n = (id: UpgradeId) => owned[id] ?? 0;
   m.maxHealth += UPGRADES.hide.amount * n('hide');

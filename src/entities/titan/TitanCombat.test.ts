@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { COMBAT } from '../../config/combat';
-import { KaijuCombat, type CombatInput } from './KaijuCombat';
-import type { KaijuState } from './locomotion';
+import { TitanCombat, type CombatInput } from './TitanCombat';
+import type { TitanState } from './locomotion';
 
 const DT = 1 / 60;
 const none: CombatInput = { claw: false, tail: false, stomp: false, roar: false, beamHeld: false, aim: null };
@@ -12,8 +12,8 @@ function setup(energy = 100) {
     yaw: 0,
     mouthHeight: 95,
     mouthForward: 38,
-    state: 'idle' as KaijuState,
-    setState(s: KaijuState) {
+    state: 'idle' as TitanState,
+    setState(s: TitanState) {
       this.state = s;
     },
   };
@@ -25,10 +25,10 @@ function setup(energy = 100) {
       return true;
     },
   };
-  return { body, pool, combat: new KaijuCombat(body, pool, COMBAT) };
+  return { body, pool, combat: new TitanCombat(body, pool, COMBAT) };
 }
 
-function run(c: KaijuCombat, seconds: number, input: CombatInput = none) {
+function run(c: TitanCombat, seconds: number, input: CombatInput = none) {
   const attacks = [];
   for (let i = 0; i < Math.round(seconds / DT); i++) {
     c.update(DT, input);
@@ -37,7 +37,7 @@ function run(c: KaijuCombat, seconds: number, input: CombatInput = none) {
   return attacks;
 }
 
-describe('KaijuCombat', () => {
+describe('TitanCombat', () => {
   it('claw emits exactly one front-arc attack during its active window, then returns to idle', () => {
     const { body, combat } = setup();
     combat.update(DT, { ...none, claw: true });

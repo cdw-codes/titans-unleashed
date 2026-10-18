@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import type { GameEventBus } from '../../core/events';
-import type { Kaiju } from '../../entities/kaiju/Kaiju';
+import type { Titan } from '../../entities/titan/Titan';
 import type { AudioSystem, Voice } from './AudioSystem';
 import { terrain } from '../../world/terrain/Terrain';
 
 export interface AudioDirectorDeps {
-  player: Kaiju;
+  player: Titan;
   camera: THREE.Camera;
   /** Encounter in progress (approach/fight) → combat music. */
   inEncounter(): boolean;
@@ -34,7 +34,7 @@ export class AudioDirector {
     private readonly d: AudioDirectorDeps,
   ) {
     const at = (x: number, y: number, z: number) => _p.set(x, y, z);
-    events.on('kaiju:footstep', (e) => {
+    events.on('titan:footstep', (e) => {
       if (e.isPlayer) this.audio.play(e.sprinting ? 'footstepSprint' : 'footstep');
       else this.audio.play('rivalFootstep', at(e.x, e.y, e.z));
     });
@@ -50,11 +50,11 @@ export class AudioDirector {
       }
       if (e.hits > 0) this.audio.play('impact', at(e.x, 20, e.z));
     });
-    events.on('kaiju:roar', (e) => {
+    events.on('titan:roar', (e) => {
       if (e.isPlayer) this.audio.play('roar');
       else this.audio.play('rivalRoar', at(e.x, 80, e.z));
     });
-    events.on('kaiju:hurt', (e) => {
+    events.on('titan:hurt', (e) => {
       if (e.isPlayer && e.reaction === 'knockdown') this.audio.play('knockdown');
     });
     events.on('player:damaged', () => this.audio.play('playerHit'));

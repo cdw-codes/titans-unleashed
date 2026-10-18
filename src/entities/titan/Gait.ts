@@ -1,4 +1,4 @@
-import type { KaijuGaitConfig } from '../../config/kaiju';
+import type { TitanGaitConfig } from '../../config/titan';
 
 export type Foot = 'left' | 'right';
 
@@ -12,7 +12,7 @@ export class Gait {
   /** Phase before the last update, for render interpolation. */
   prevPhase = 0;
 
-  constructor(private readonly cfg: KaijuGaitConfig) {}
+  constructor(private readonly cfg: TitanGaitConfig) {}
 
   /** Returns the foot that planted this tick, if any. */
   update(distance: number, turnAngle: number, sprinting: boolean, dt: number): Foot | null {

@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { clamp, damp, lerp, noise1D, TAU, wrapAngle } from '../../core/math';
 import type { CombatConfig } from '../../config/combat';
-import type { CombatAction } from './KaijuCombat';
-import type { KaijuDesign } from './designs';
+import type { CombatAction } from './TitanCombat';
+import type { TitanDesign } from './designs';
 
 /**
- * Placeholder kaiju built from low-poly primitives, rigidly skinned to a bone
+ * Placeholder titan built from low-poly primitives, rigidly skinned to a bone
  * hierarchy and merged into ONE SkinnedMesh (one draw call + one shadow call).
  * Animation is procedural for now; Milestone 7 can swap in authored clips on
  * the same kind of skeleton. Proportions here are art, not gameplay tuning.
@@ -18,7 +18,7 @@ type BoneName =
   | 'thighL' | 'shinL' | 'footL' | 'thighR' | 'shinR' | 'footR'
   | `tail${number}`;
 
-/** Height the primitives are authored at; the entity scales the model to KAIJU_BODY.height. */
+/** Height the primitives are authored at; the entity scales the model to TITAN_BODY.height. */
 export const MODEL_DESIGN_HEIGHT = 80;
 /** Approximate mouth position in the bind pose (design units), for sim-side beam origins. */
 export const MOUTH_DESIGN = { height: 77, forward: 33 };
@@ -27,7 +27,7 @@ const TAIL_SEGMENTS = 7;
 const BASE_TAIL_STEP = new THREE.Vector3(0, -3.8, -9.5);
 const BASE_TAIL_RADII = [9, 8, 6.8, 5.6, 4.4, 3.2, 2.0, 0.8];
 
-export interface KaijuPoseInput {
+export interface TitanPoseInput {
   /** Gait phase [0,1): left plant at 0, right at 0.5. */
   phase: number;
   /** Forward speed / walk speed (0 standing, 1 walking, ~2 sprinting). */
@@ -69,7 +69,7 @@ const _q = new THREE.Quaternion();
 const _up = new THREE.Vector3(0, 1, 0);
 const _dir = new THREE.Vector3();
 
-export class KaijuModel {
+export class TitanModel {
   readonly object = new THREE.Group();
   readonly mesh: THREE.SkinnedMesh;
   /** Hip-to-ankle length at design scale, used to derive stride angles. */
@@ -91,7 +91,7 @@ export class KaijuModel {
   private turnLean = 0;
 
   constructor(
-    readonly design: KaijuDesign,
+    readonly design: TitanDesign,
     private readonly cfg: CombatConfig,
   ) {
     this.glowUniforms.uGlowColor.value.setHex(design.glowColor);
@@ -119,7 +119,7 @@ export class KaijuModel {
   }
 
   /** Procedural pose from gait + motor state. Call every render frame. */
-  pose(p: KaijuPoseInput): void {
+  pose(p: TitanPoseInput): void {
     const b = (n: BoneName) => this.bone(n);
     this.moveBlend = damp(this.moveBlend, p.stepping ? 1 : 0, 0.12, p.dt);
     this.sprintBlend = damp(this.sprintBlend, p.sprinting ? 1 : 0, 0.4, p.dt);
@@ -174,7 +174,7 @@ export class KaijuModel {
   }
 
   /** Additive overlays for combat actions and hit reactions, applied after the locomotion pose. */
-  private poseAction(p: KaijuPoseInput): void {
+  private poseAction(p: TitanPoseInput): void {
     const a = p.action;
     const b = (n: BoneName) => this.bone(n);
     const t = a.t;
@@ -575,7 +575,7 @@ export class KaijuModel {
     this.buildBack();
   }
 
-  /** The back silhouette is the quickest way to tell kaiju apart at distance. */
+  /** The back silhouette is the quickest way to tell titan apart at distance. */
   private buildBack(): void {
     const d = this.design;
     const C = d.palette;

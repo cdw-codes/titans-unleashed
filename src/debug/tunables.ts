@@ -1,4 +1,4 @@
-import { KAIJU_BODY, KAIJU_CONTROLLER, KAIJU_FEEDBACK, KAIJU_GAIT, KAIJU_MOVEMENT } from '../config/kaiju';
+import { TITAN_BODY, TITAN_CONTROLLER, TITAN_FEEDBACK, TITAN_GAIT, TITAN_MOVEMENT } from '../config/titan';
 import { CAMERA, SHAKE } from '../config/camera';
 import { MOUSE } from '../config/input';
 import { BEAM_VISUAL, DUST, FIRE, SHOCKWAVE, SMOKE } from '../config/effects';
@@ -35,13 +35,13 @@ const fraction: Range = [0, 1, 0.01];
 
 export const TUNABLES: Tunable[] = [
   {
-    folder: 'Kaiju movement', file: 'kaiju.ts', exportName: 'KAIJU_MOVEMENT', obj: KAIJU_MOVEMENT,
+    folder: 'Titan movement', file: 'titan.ts', exportName: 'TITAN_MOVEMENT', obj: TITAN_MOVEMENT,
     ranges: { turnSlowdown: fraction, walkSpeed: [1, 40, 0.5], sprintSpeed: [1, 60, 0.5] },
   },
-  { folder: 'Kaiju gait', file: 'kaiju.ts', exportName: 'KAIJU_GAIT', obj: KAIJU_GAIT },
-  { folder: 'Footstep feedback', file: 'kaiju.ts', exportName: 'KAIJU_FEEDBACK', obj: KAIJU_FEEDBACK, ranges: { walkStepTrauma: fraction, sprintStepTrauma: fraction } },
-  { folder: 'Kaiju body', file: 'kaiju.ts', exportName: 'KAIJU_BODY', obj: KAIJU_BODY, reloadOnly: true },
-  { folder: 'Kaiju controller', file: 'kaiju.ts', exportName: 'KAIJU_CONTROLLER', obj: KAIJU_CONTROLLER, reloadOnly: true },
+  { folder: 'Titan gait', file: 'titan.ts', exportName: 'TITAN_GAIT', obj: TITAN_GAIT },
+  { folder: 'Footstep feedback', file: 'titan.ts', exportName: 'TITAN_FEEDBACK', obj: TITAN_FEEDBACK, ranges: { walkStepTrauma: fraction, sprintStepTrauma: fraction } },
+  { folder: 'Titan body', file: 'titan.ts', exportName: 'TITAN_BODY', obj: TITAN_BODY, reloadOnly: true },
+  { folder: 'Titan controller', file: 'titan.ts', exportName: 'TITAN_CONTROLLER', obj: TITAN_CONTROLLER, reloadOnly: true },
   {
     folder: 'Camera', file: 'camera.ts', exportName: 'CAMERA', obj: CAMERA,
     ranges: { minPitch: [-1.5, 0.5, 0.01], maxPitch: [0, 1.5, 0.01], initialPitch: [-0.5, 1.2, 0.01], shoulderOffset: [-80, 80, 1] },

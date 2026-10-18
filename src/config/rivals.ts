@@ -1,4 +1,4 @@
-import type { KaijuBodyConfig, KaijuGaitConfig, KaijuMovementConfig } from './kaiju';
+import type { TitanBodyConfig, TitanGaitConfig, TitanMovementConfig } from './titan';
 import type { BeamConfig, CombatConfig } from './combat';
 
 export type RivalId = 'thornmaw' | 'vesperion';
@@ -33,9 +33,9 @@ export interface RivalAIConfig {
 export interface RivalConfig {
   readonly name: string;
   readonly title: string;
-  readonly body: KaijuBodyConfig;
-  readonly movement: KaijuMovementConfig;
-  readonly gait: KaijuGaitConfig;
+  readonly body: TitanBodyConfig;
+  readonly movement: TitanMovementConfig;
+  readonly gait: TitanGaitConfig;
   readonly combat: CombatConfig;
   readonly ai: RivalAIConfig;
 }
@@ -59,7 +59,7 @@ const noBeam: BeamConfig = {
   traumaPerSecond: 0,
   cancelRecovery: 0,
   glowCharged: 1,
-  kaijuDamageFraction: 0,
+  titanDamageFraction: 0,
   poiseFraction: 0,
 };
 
@@ -91,7 +91,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         kick: 6,
         hitPause: 0.05,
         debrisPerHit: 3,
-        kaijuDamage: 55,
+        titanDamage: 55,
         poiseDamage: 30,
       },
       tail: {
@@ -110,7 +110,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         kick: 6,
         hitPause: 0.05,
         debrisPerHit: 3,
-        kaijuDamage: 90,
+        titanDamage: 90,
         poiseDamage: 60,
       },
       stomp: {
@@ -129,7 +129,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         kick: 6,
         hitPause: 0.05,
         debrisPerHit: 3,
-        kaijuDamage: 100,
+        titanDamage: 100,
         poiseDamage: 70,
       },
       lunge: {
@@ -148,7 +148,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         kick: 6,
         hitPause: 0.05,
         debrisPerHit: 3,
-        kaijuDamage: 200,
+        titanDamage: 200,
         poiseDamage: 120,
         lungeSpeed: 55,
         hitAt: 'end',
@@ -201,7 +201,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         kick: 6,
         hitPause: 0.05,
         debrisPerHit: 3,
-        kaijuDamage: 40,
+        titanDamage: 40,
         poiseDamage: 25,
       },
       tail: {
@@ -220,7 +220,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         kick: 6,
         hitPause: 0.05,
         debrisPerHit: 3,
-        kaijuDamage: 80,
+        titanDamage: 80,
         poiseDamage: 55,
       },
       stomp: {
@@ -239,7 +239,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         kick: 6,
         hitPause: 0.05,
         debrisPerHit: 3,
-        kaijuDamage: 90,
+        titanDamage: 90,
         poiseDamage: 70,
       },
       volley: {
@@ -258,7 +258,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         kick: 0,
         hitPause: 0,
         debrisPerHit: 0,
-        kaijuDamage: 0,
+        titanDamage: 0,
         poiseDamage: 0,
         projectile: {
           count: 5, interval: 0.22, speed: 140, gravity: 25, lifetime: 6, spreadDeg: 6, size: 6,
@@ -269,7 +269,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
         chargeTime: 1.6, minEnergyToCharge: 0, energyPerSecond: 0,
         maxDuration: 3, dps: 800, range: 520, impactRadius: 16, impactDpsFraction: 0.35,
         turnRate: 0.5, maxYawOffsetDeg: 30, minPitchDeg: -50, maxPitchDeg: 20, startup: 0.2, recovery: 0.8, cooldown: 7,
-        traumaPerSecond: 0, cancelRecovery: 0.3, glowCharged: 4, kaijuDamageFraction: 0.08, poiseFraction: 0.12,
+        traumaPerSecond: 0, cancelRecovery: 0.3, glowCharged: 4, titanDamageFraction: 0.08, poiseFraction: 0.12,
       },
       roar: { duration: 2, cooldown: 20, stunRadius: 0, stunSeconds: 0, trauma: 0.4 },
       health: { maxHealth: 1400, maxPoise: 100, poiseRegen: 18, staggerSeconds: 0.7, knockdownThreshold: 260, knockdownSeconds: 2.8, getUpInvulnerable: 1 },

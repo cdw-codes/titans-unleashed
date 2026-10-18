@@ -1,5 +1,5 @@
 /**
- * Player combat moves and health. Distances in m (at the 100 m kaiju), times in s,
+ * Player combat moves and health. Distances in m (at the 100 m titan), times in s,
  * angles in degrees. Arc offset 0 = in front, 180 = behind.
  */
 export interface MoveConfig {
@@ -23,8 +23,8 @@ export interface MoveConfig {
   readonly hitPause: number;
   /** Debris pieces thrown per structure hit. */
   readonly debrisPerHit: number;
-  /** Damage and poise damage dealt to another kaiju caught in the arc. */
-  readonly kaijuDamage: number;
+  /** Damage and poise damage dealt to another titan caught in the arc. */
+  readonly titanDamage: number;
   readonly poiseDamage: number;
   /** Lunge moves: forward dash speed (m/s) during the active window. */
   readonly lungeSpeed?: number;
@@ -41,13 +41,13 @@ export interface ProjectileConfig {
   /** Seconds between shots within the volley. */
   readonly interval: number;
   readonly speed: number;
-  /** Downward acceleration (m/s²): a little arc reads better at kaiju scale. */
+  /** Downward acceleration (m/s²): a little arc reads better at titan scale. */
   readonly gravity: number;
   readonly lifetime: number;
   readonly spreadDeg: number;
   /** Visual radius (m). */
   readonly size: number;
-  /** Damage to a kaiju hit directly, and to structures in the blast. */
+  /** Damage to a titan hit directly, and to structures in the blast. */
   readonly damage: number;
   readonly poiseDamage: number;
   readonly structureDamage: number;
@@ -87,8 +87,8 @@ export interface BeamConfig {
   readonly cancelRecovery: number;
   /** Plate glow intensity at full charge / while firing. */
   readonly glowCharged: number;
-  /** Fraction of the beam's structure DPS dealt to kaiju, and its poise damage fraction. */
-  readonly kaijuDamageFraction: number;
+  /** Fraction of the beam's structure DPS dealt to titan, and its poise damage fraction. */
+  readonly titanDamageFraction: number;
   readonly poiseFraction: number;
 }
 
@@ -103,11 +103,11 @@ export interface RoarConfig {
 
 export interface HealthConfig {
   readonly maxHealth: number;
-  /** Hits drain poise; at 0 the kaiju staggers. Regenerates per second. */
+  /** Hits drain poise; at 0 the titan staggers. Regenerates per second. */
   readonly maxPoise: number;
   readonly poiseRegen: number;
   readonly staggerSeconds: number;
-  /** A single hit at least this big knocks the kaiju down. */
+  /** A single hit at least this big knocks the titan down. */
   readonly knockdownThreshold: number;
   readonly knockdownSeconds: number;
   /** Invulnerability after getting back up. */
@@ -152,7 +152,7 @@ export const COMBAT: CombatConfig = {
     kick: 4,
     hitPause: 0.04,
     debrisPerHit: 3,
-    kaijuDamage: 60,
+    titanDamage: 60,
     poiseDamage: 25,
   },
   tail: {
@@ -171,7 +171,7 @@ export const COMBAT: CombatConfig = {
     kick: 8,
     hitPause: 0.08,
     debrisPerHit: 5,
-    kaijuDamage: 140,
+    titanDamage: 140,
     poiseDamage: 70,
   },
   stomp: {
@@ -190,7 +190,7 @@ export const COMBAT: CombatConfig = {
     kick: 26,
     hitPause: 0.1,
     debrisPerHit: 4,
-    kaijuDamage: 110,
+    titanDamage: 110,
     poiseDamage: 60,
   },
   pulse: {
@@ -209,7 +209,7 @@ export const COMBAT: CombatConfig = {
     kick: 30,
     hitPause: 0.15,
     debrisPerHit: 4,
-    kaijuDamage: 220,
+    titanDamage: 220,
     poiseDamage: 150,
     energyCost: 35,
   },
@@ -232,7 +232,7 @@ export const COMBAT: CombatConfig = {
     traumaPerSecond: 0.9,
     cancelRecovery: 0.25,
     glowCharged: 4,
-    kaijuDamageFraction: 0.12,
+    titanDamageFraction: 0.12,
     poiseFraction: 0.15,
   },
   roar: {

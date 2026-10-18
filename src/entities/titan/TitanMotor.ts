@@ -1,5 +1,5 @@
 import { approach, approachAngle, lerp, wrapAngle } from '../../core/math';
-import type { KaijuMovementConfig } from '../../config/kaiju';
+import type { TitanMovementConfig } from '../../config/titan';
 
 /** What a controller (player input or AI) asks the body to do this tick. */
 export interface MoveIntent {
@@ -20,7 +20,7 @@ export interface MoveIntent {
  * wished direction, so reversing means slowing, pivoting, then lumbering off.
  * In strafe mode it faces a target and side-steps/backpedals slowly instead.
  */
-export class KaijuMotor {
+export class TitanMotor {
   /** Facing yaw; 0 = +Z. */
   yaw = 0;
   /** Direction of travel; equals `yaw` except when strafing. */
@@ -35,7 +35,7 @@ export class KaijuMotor {
   /** Upgrade multiplier on all target speeds. */
   speedMultiplier = 1;
 
-  constructor(readonly cfg: KaijuMovementConfig) {}
+  constructor(readonly cfg: TitanMovementConfig) {}
 
   /** `turnScale` scales the turn rate (attacks that limit turning). */
   update(intent: MoveIntent, dt: number, turnScale = 1): void {

@@ -1,6 +1,6 @@
 import { BINDINGS, type Action, type Bindings } from '../config/input';
 
-const KEY = 'kaiju.bindings';
+const KEY = 'titan.bindings';
 /** Codes that can never be bound (they control the browser / pointer lock). */
 const RESERVED = new Set(['Escape']);
 /** Max codes per action. */

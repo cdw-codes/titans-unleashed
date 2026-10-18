@@ -4,19 +4,19 @@ export interface DestructionConfig {
   /** Large-structure HP = sqrt(volume m³) * this. sqrt keeps towers tough but not absurd. */
   readonly hpPerSqrtVolume: number;
   readonly minHp: number;
-  /** Damage/s while the kaiju pushes into a large structure (walk), and sprint multiplier. */
+  /** Damage/s while the titan pushes into a large structure (walk), and sprint multiplier. */
   readonly pushDps: number;
   readonly sprintPushMultiplier: number;
   /** One-off damage on first contact, per m/s of speed at impact. */
   readonly impactDamagePerMps: number;
   /** Seconds without contact before a new contact counts as a fresh impact. */
   readonly impactCooldown: number;
-  /** Footstep: radius (m, at kaiju scale 1) that crushes small structures/props, and damage to large ones in reach. */
+  /** Footstep: radius (m, at titan scale 1) that crushes small structures/props, and damage to large ones in reach. */
   readonly footCrushRadius: number;
   readonly footstepDamage: number;
   /** Damage/s to large structures a rival plows through (rivals don't collide with buildings). */
   readonly plowDps: number;
-  /** Body radius multiplier for crushing small things the kaiju walks through. */
+  /** Body radius multiplier for crushing small things the titan walks through. */
   readonly bodyCrushRadiusScale: number;
   /** Large structures darken toward this fraction of their color as HP drops. */
   readonly damagedDarken: number;

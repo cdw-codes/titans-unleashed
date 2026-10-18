@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { BEAM_VISUAL as V, FIRE } from '../../config/effects';
-import type { Kaiju } from '../../entities/kaiju/Kaiju';
+import type { Titan } from '../../entities/titan/Titan';
 import type { DustSystem } from './DustSystem';
 
 const _origin = new THREE.Vector3();
@@ -13,7 +13,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 export const PLAYER_BEAM_COLORS = { core: 0xd8fbff, glow: 0x3fc8ff };
 
 /**
- * Beam visuals for one kaiju: charge orb at the mouth, a two-layer energy
+ * Beam visuals for one titan: charge orb at the mouth, a two-layer energy
  * column (hot core + soft scrolling sheath) to the impact point, a flare at
  * the impact and fire bursts. Visual only; damage is resolved in CombatSystem.
  */
@@ -61,22 +61,22 @@ export class BeamFx {
     return this.group.visible;
   }
 
-  update(kaiju: Kaiju, dt: number): void {
+  update(titan: Titan, dt: number): void {
     this.time += dt;
-    const c = kaiju.combat;
-    const state = kaiju.state;
+    const c = titan.combat;
+    const state = titan.state;
     const charging = state === 'beamCharge';
     const firing = c.isBeamFiring;
-    this.group.visible = (charging || state === 'beamFire') && kaiju.model.object.visible;
+    this.group.visible = (charging || state === 'beamFire') && titan.model.object.visible;
     if (!this.group.visible) return;
 
-    kaiju.model.mouth.getWorldPosition(_origin);
+    titan.model.mouth.getWorldPosition(_origin);
     const pulse = 0.85 + 0.15 * Math.sin(this.time * 47) + 0.1 * Math.sin(this.time * 13);
 
     // Mouth glow grows with charge, peaks while firing.
     const charge = charging ? c.charge : c.action.charge;
     this.mouthFlare.position.copy(_origin);
-    this.mouthFlare.scale.setScalar((V.mouthFlareMin + (V.mouthFlareMax - V.mouthFlareMin) * charge) * pulse * kaiju.scale);
+    this.mouthFlare.scale.setScalar((V.mouthFlareMin + (V.mouthFlareMax - V.mouthFlareMin) * charge) * pulse * titan.scale);
 
     this.core.visible = this.sheath.visible = this.impactFlare.visible = firing;
     if (!firing) return;
@@ -86,7 +86,7 @@ export class BeamFx {
     _dir.subVectors(_end, _origin);
     const len = _dir.length();
     _q.setFromUnitVectors(UP, _dir.normalize());
-    const w = kaiju.scale * pulse;
+    const w = titan.scale * pulse;
     for (const [mesh, radius] of [[this.core, V.coreRadius], [this.sheath, V.glowRadius]] as const) {
       mesh.position.copy(_origin);
       mesh.quaternion.copy(_q);

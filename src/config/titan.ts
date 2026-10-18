@@ -1,5 +1,5 @@
-/** Player kaiju movement, gait and collision. Units: m, s, rad. */
-export interface KaijuMovementConfig {
+/** Player titan movement, gait and collision. Units: m, s, rad. */
+export interface TitanMovementConfig {
   readonly walkSpeed: number;
   readonly sprintSpeed: number;
   /** m/s² while speeding up. Low = ponderous start. */
@@ -12,14 +12,14 @@ export interface KaijuMovementConfig {
   readonly sprintTurnRate: number;
   /** 0..1: how much speed is withheld while the body faces away from the wished direction. */
   readonly turnSlowdown: number;
-  /** Below this speed (m/s) the kaiju counts as standing. */
+  /** Below this speed (m/s) the titan counts as standing. */
   readonly idleSpeed: number;
   /** Strafing (facing a locked target): speed factor when moving sideways / backwards. */
   readonly strafeSpeedFactor: number;
   readonly backpedalSpeedFactor: number;
 }
 
-export interface KaijuGaitConfig {
+export interface TitanGaitConfig {
   /** Distance (m) covered by one full gait cycle (= two footsteps). */
   readonly walkStride: number;
   readonly sprintStride: number;
@@ -29,7 +29,7 @@ export interface KaijuGaitConfig {
   readonly settleRate: number;
 }
 
-export interface KaijuBodyConfig {
+export interface TitanBodyConfig {
   /** Standing height to top of head (m). The model is scaled to match. */
   readonly height: number;
   readonly capsuleRadius: number;
@@ -39,7 +39,7 @@ export interface KaijuBodyConfig {
   readonly footSpread: number;
 }
 
-export interface KaijuControllerConfig {
+export interface TitanControllerConfig {
   /** Rapier KCC skin offset (m). */
   readonly offset: number;
   readonly maxSlopeClimbDeg: number;
@@ -50,7 +50,7 @@ export interface KaijuControllerConfig {
   readonly gravityScale: number;
 }
 
-export interface KaijuFeedbackConfig {
+export interface TitanFeedbackConfig {
   /** Camera trauma (0..1) added by the player's own footstep. */
   readonly walkStepTrauma: number;
   readonly sprintStepTrauma: number;
@@ -59,7 +59,7 @@ export interface KaijuFeedbackConfig {
   readonly sprintStepKick: number;
 }
 
-export const KAIJU_MOVEMENT: KaijuMovementConfig = {
+export const TITAN_MOVEMENT: TitanMovementConfig = {
   walkSpeed: 13,
   sprintSpeed: 40,
   acceleration: 15,
@@ -73,21 +73,21 @@ export const KAIJU_MOVEMENT: KaijuMovementConfig = {
   backpedalSpeedFactor: 0.5,
 };
 
-export const KAIJU_GAIT: KaijuGaitConfig = {
+export const TITAN_GAIT: TitanGaitConfig = {
   walkStride: 46,
   sprintStride: 64,
   pivotStride: 18,
   settleRate: 0.35,
 };
 
-export const KAIJU_BODY: KaijuBodyConfig = {
+export const TITAN_BODY: TitanBodyConfig = {
   height: 100,
   capsuleRadius: 16,
   capsuleHalfHeight: 30,
   footSpread: 11,
 };
 
-export const KAIJU_CONTROLLER: KaijuControllerConfig = {
+export const TITAN_CONTROLLER: TitanControllerConfig = {
   offset: 0.5,
   maxSlopeClimbDeg: 40,
   minSlopeSlideDeg: 50,
@@ -97,7 +97,7 @@ export const KAIJU_CONTROLLER: KaijuControllerConfig = {
   gravityScale: 2,
 };
 
-export const KAIJU_FEEDBACK: KaijuFeedbackConfig = {
+export const TITAN_FEEDBACK: TitanFeedbackConfig = {
   walkStepTrauma: 0.28,
   sprintStepTrauma: 0.4,
   walkStepKick: 9,

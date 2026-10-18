@@ -44,7 +44,7 @@ describe('EncounterSystem', () => {
     expect(e.update(0.1, world({ score: ENCOUNTERS.destructionThreshold }))[0]?.type).toBe('warn');
   });
 
-  it('raises the barrier when the kaiju close in, centered between them', () => {
+  it('raises the barrier when the titan close in, centered between them', () => {
     const e = new EncounterSystem(ENCOUNTERS);
     e.forceStart();
     run(e, ENCOUNTERS.warningSeconds + 0.5, world());

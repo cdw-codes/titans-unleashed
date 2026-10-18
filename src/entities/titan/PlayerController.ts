@@ -1,6 +1,6 @@
 import type { InputState } from '../../input/InputState';
-import type { CombatInput } from './KaijuCombat';
-import type { MoveIntent } from './KaijuMotor';
+import type { CombatInput } from './TitanCombat';
+import type { MoveIntent } from './TitanMotor';
 
 /** Turns WASD + camera yaw into a MoveIntent, and buttons + crosshair into CombatInput. */
 export class PlayerController {

@@ -130,7 +130,7 @@ export interface ShockwaveConfig {
 }
 
 export interface BeamVisualConfig {
-  /** Radii (m, at kaiju scale 1) of the hot core and the soft outer sheath. */
+  /** Radii (m, at titan scale 1) of the hot core and the soft outer sheath. */
   readonly coreRadius: number;
   readonly glowRadius: number;
   /** Mouth flare size (m) when idle-charged and at full charge. */

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { AUTO_QUALITY, QUALITY_LEVELS, QUALITY_PRESETS, type QualityLevel } from '../config/quality';
 import { SIM } from '../config/sim';
-import { KAIJU_FEEDBACK } from '../config/kaiju';
+import { TITAN_FEEDBACK } from '../config/titan';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { DUST, FIRE, PLASMA_TRAIL, SHOCKWAVE, SMOKE } from '../config/effects';
 import { ENCOUNTERS } from '../config/encounters';
@@ -37,7 +37,7 @@ import { CombatSystem } from '../systems/combat/CombatSystem';
 import { BeamFx } from '../systems/effects/BeamFx';
 import { ShockwaveFx } from '../systems/effects/ShockwaveFx';
 import type { PlayerAbility } from '../ui/Hud';
-import { PLAYER_SPEC } from '../entities/kaiju/KaijuSpec';
+import { PLAYER_SPEC } from '../entities/titan/TitanSpec';
 import { ProjectileSystem } from '../systems/combat/ProjectileSystem';
 import { BarrierFx } from '../systems/effects/BarrierFx';
 import { EncounterDirector } from '../systems/encounters/EncounterDirector';
@@ -57,8 +57,8 @@ import { yieldToBrowser } from './yieldToBrowser';
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
 const COOLDOWN_IDS: PlayerAbility[] = ['claw', 'tail', 'stomp', 'beam', 'roar', 'pulse'];
-import { Kaiju } from '../entities/kaiju/Kaiju';
-import { PlayerController } from '../entities/kaiju/PlayerController';
+import { Titan } from '../entities/titan/Titan';
+import { PlayerController } from '../entities/titan/PlayerController';
 import { DebugSystem } from '../debug/DebugSystem';
 import { TestCrates } from '../debug/TestCrates';
 import { GameOverScreen, PauseMenu, TitleScreen, type RunStats } from '../ui/menus';
@@ -73,7 +73,7 @@ export class Game {
   readonly render: RenderSystem;
   readonly environment: Environment;
   readonly debug: DebugSystem;
-  readonly player: Kaiju;
+  readonly player: Titan;
   readonly camera: CameraSystem;
   readonly chunks: ChunkManager;
   readonly progress = new ProgressSystem(DESTRUCTION);
@@ -162,7 +162,7 @@ export class Game {
     this.collapse = new CollapseSystem(this.chunks, this.cityPools, this.dust, this.smoke, this.debris);
 
     const spawn = new THREE.Vector3(CITY.spawnX, terrain.heightAt(CITY.spawnX, CITY.spawnZ), CITY.spawnZ);
-    this.player = new Kaiju(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
+    this.player = new Titan(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
     scene.add(this.player.model.object);
 
     let bindings = loadBindings();
@@ -245,7 +245,7 @@ export class Game {
       },
     });
     this.military = new MilitarySystem(scene, physics, this.chunks, this.destruction, this.fire, this.dust, this.smoke, {
-      hitPlayer: (damage, poise) => this.combatSystem.hitKaiju(this.player, null, damage, poise),
+      hitPlayer: (damage, poise) => this.combatSystem.hitTitan(this.player, null, damage, poise),
       unitDestroyed: (kind) => {
         const c = kind === 'tank' ? MILITARY.tank : MILITARY.heli;
         this.progress.score += c.points;
@@ -289,7 +289,7 @@ export class Game {
       } else if (e.move === 'stomp') {
         this.shockwaves.spawn(e.x, terrain.heightAt(e.x, e.z) + 1, e.z, e.radius * 1.15, SHOCKWAVE.duration, SHOCKWAVE.stompColor, SHOCKWAVE.stompOpacity);
       } else if (e.move === 'tail') {
-        // Dust kicked up along the sweep behind the kaiju.
+        // Dust kicked up along the sweep behind the titan.
         for (const off of [-1.1, -0.5, 0, 0.5, 1.1]) {
           const a = e.yaw + Math.PI + off;
           const dx = e.x + Math.sin(a) * e.radius * 0.7;
@@ -298,21 +298,21 @@ export class Game {
         }
       }
     });
-    this.events.on('kaiju:roar', (e) => {
+    this.events.on('titan:roar', (e) => {
       const gy = terrain.heightAt(e.x, e.z);
       this.shockwaves.spawn(e.x, gy + 2, e.z, SHOCKWAVE.roarRadius, SHOCKWAVE.duration * 1.8, SHOCKWAVE.roarColor, SHOCKWAVE.roarOpacity);
       this.dust.burst(e.x, gy, e.z, DUST.collapse, DUST.maxBurstScale);
     });
-    this.events.on('kaiju:footstep', (e) => {
+    this.events.on('titan:footstep', (e) => {
       this.dust.burst(e.x, e.y, e.z, e.sprinting ? DUST.sprintStep : DUST.walkStep, e.scale);
       if (e.isPlayer) {
         this.military.crushAt(e.x, e.z, DESTRUCTION.footCrushRadius * e.scale);
-        this.camera.shake.addTrauma(e.sprinting ? KAIJU_FEEDBACK.sprintStepTrauma : KAIJU_FEEDBACK.walkStepTrauma);
-        this.camera.shake.addKick(e.sprinting ? KAIJU_FEEDBACK.sprintStepKick : KAIJU_FEEDBACK.walkStepKick);
+        this.camera.shake.addTrauma(e.sprinting ? TITAN_FEEDBACK.sprintStepTrauma : TITAN_FEEDBACK.walkStepTrauma);
+        this.camera.shake.addKick(e.sprinting ? TITAN_FEEDBACK.sprintStepKick : TITAN_FEEDBACK.walkStepKick);
       } else {
-        // Other kaiju: felt through the ground, fading with distance.
+        // Other titan: felt through the ground, fading with distance.
         const k = this.proximity(e.x, e.z, 700);
-        this.camera.shake.addTrauma(KAIJU_FEEDBACK.walkStepTrauma * k * k);
+        this.camera.shake.addTrauma(TITAN_FEEDBACK.walkStepTrauma * k * k);
       }
     });
     this.input.onLockChange((locked) => this.setPaused(!locked));
@@ -384,7 +384,7 @@ export class Game {
     const r = this.player.combat.takeHit(damage);
     if (r === 'none') return;
     const p = this.player.position;
-    this.events.emit('kaiju:hurt', { reaction: r, isPlayer: true, x: p.x, z: p.z });
+    this.events.emit('titan:hurt', { reaction: r, isPlayer: true, x: p.x, z: p.z });
     this.camera.shake.addTrauma(r === 'stagger' ? 0.35 : 0.6);
   }
 
@@ -414,7 +414,7 @@ export class Game {
   }
 
   private updateMinimap(dt: number): void {
-    const r = this.director.rival?.kaiju;
+    const r = this.director.rival?.titan;
     const a = this.director.encounter.arena;
     this.minimap.update(dt, {
       playerX: this.player.renderPosition.x,
@@ -516,16 +516,16 @@ export class Game {
     this.director.fixedUpdateRival(dt);
     this.director.constrain();
 
-    const kaijus = this.director.kaijus;
-    this.combatSystem.fixedUpdate(dt, kaijus);
-    this.projectiles.fixedUpdate(dt, kaijus);
+    const titans = this.director.titans;
+    this.combatSystem.fixedUpdate(dt, titans);
+    this.projectiles.fixedUpdate(dt, titans);
     for (const ex of this.projectiles.explosions) {
       const k = this.proximity(ex.x, ex.z, 500);
       this.camera.shake.addTrauma(0.35 * k * k);
       this.events.emit('fx:explosion', { x: ex.x, y: ex.y, z: ex.z, size: 0.6 });
     }
     this.destruction.tick(dt);
-    for (const k of kaijus) this.destruction.fixedUpdate(dt, k);
+    for (const k of titans) this.destruction.fixedUpdate(dt, k);
     this.threat.update(dt);
     this.progress.time += dt;
     this.progress.threatPeak = Math.max(this.progress.threatPeak, this.threat.level);
@@ -600,10 +600,10 @@ export class Game {
       }
       const r = this.director.rival;
       if (r) {
-        const rp = r.kaiju.renderPosition;
+        const rp = r.titan.renderPosition;
         this.debug.label(
-          { x: rp.x, y: rp.y + r.kaiju.spec.body.height + 10, z: rp.z },
-          `${r.kaiju.spec.name} · AI ${r.ai.state} · ${r.kaiju.state} · hp ${r.kaiju.combat.health.health.toFixed(0)}`,
+          { x: rp.x, y: rp.y + r.titan.spec.body.height + 10, z: rp.z },
+          `${r.titan.spec.name} · AI ${r.ai.state} · ${r.titan.state} · hp ${r.titan.combat.health.health.toFixed(0)}`,
         );
       }
       const arena = this.director.encounter.arena;

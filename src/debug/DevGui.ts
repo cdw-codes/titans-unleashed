@@ -100,7 +100,7 @@ function createTuning(gui: GUI, game: Game): void {
       try {
         const res = await fetch('/__tuning/save', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Kaiju-Tuning': '1' },
+          headers: { 'Content-Type': 'application/json', 'X-Titan-Tuning': '1' },
           body: JSON.stringify(body),
         });
         const json = (await res.json()) as { applied?: string[]; skipped?: string[]; error?: string };

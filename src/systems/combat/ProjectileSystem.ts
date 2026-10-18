@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
 import type { MoveConfig, ProjectileConfig } from '../../config/combat';
 import { FIRE, PLASMA_TRAIL } from '../../config/effects';
-import type { Kaiju } from '../../entities/kaiju/Kaiju';
+import type { Titan } from '../../entities/titan/Titan';
 import type { ChunkManager } from '../../world/city/ChunkManager';
 import type { PhysicsSystem } from '../PhysicsSystem';
 import type { DestructionSystem } from '../destruction/DestructionSystem';
@@ -10,7 +10,7 @@ import type { DustSystem } from '../effects/DustSystem';
 import { terrain } from '../../world/terrain/Terrain';
 
 interface Projectile {
-  owner: Kaiju;
+  owner: Titan;
   cfg: ProjectileConfig;
   prev: THREE.Vector3;
   pos: THREE.Vector3;
@@ -19,8 +19,8 @@ interface Projectile {
 }
 
 export interface ProjectileHit {
-  target: Kaiju;
-  owner: Kaiju;
+  target: Titan;
+  owner: Titan;
   damage: number;
   poiseDamage: number;
   x: number;
@@ -36,7 +36,7 @@ const _c = new THREE.Color();
 
 /**
  * Pooled ballistic projectiles (plasma orbs). Fixed tick: integrate with a
- * little gravity, hit kaiju bodies directly, explode on structures or the
+ * little gravity, hit titan bodies directly, explode on structures or the
  * ground with a blast that crushes and damages. One draw call for all orbs.
  */
 export class ProjectileSystem {
@@ -54,7 +54,7 @@ export class ProjectileSystem {
     private readonly destruction: DestructionSystem,
     private readonly fire: DustSystem,
     private readonly trail: DustSystem,
-    private readonly onKaijuHit: (hit: ProjectileHit) => void,
+    private readonly onTitanHit: (hit: ProjectileHit) => void,
     readonly capacity = 64,
   ) {
     this.mesh = new THREE.InstancedMesh(
@@ -73,7 +73,7 @@ export class ProjectileSystem {
     return this.live.length;
   }
 
-  spawn(owner: Kaiju, move: MoveConfig, ox: number, oy: number, oz: number, tx: number, ty: number, tz: number): void {
+  spawn(owner: Titan, move: MoveConfig, ox: number, oy: number, oz: number, tx: number, ty: number, tz: number): void {
     const cfg = move.projectile;
     if (!cfg || this.live.length >= this.capacity) return;
     const p = this.pool.pop() ?? { owner, cfg, prev: new THREE.Vector3(), pos: new THREE.Vector3(), vel: new THREE.Vector3(), age: 0 };
@@ -97,7 +97,7 @@ export class ProjectileSystem {
     this.live.push(p);
   }
 
-  fixedUpdate(dt: number, kaijus: readonly Kaiju[]): void {
+  fixedUpdate(dt: number, titans: readonly Titan[]): void {
     this.explosions.length = 0;
     for (let i = this.live.length - 1; i >= 0; i--) {
       const p = this.live[i]!;
@@ -107,9 +107,9 @@ export class ProjectileSystem {
       p.pos.addScaledVector(p.vel, dt);
 
       let explodeAt: THREE.Vector3 | null = null;
-      let direct: Kaiju | null = null;
+      let direct: Titan | null = null;
 
-      for (const k of kaijus) {
+      for (const k of titans) {
         if (k === p.owner || k.state === 'defeated') continue;
         const r = k.spec.body.capsuleRadius + p.cfg.size;
         const top = k.position.y + (k.spec.body.capsuleHalfHeight + k.spec.body.capsuleRadius) * 2;
@@ -138,7 +138,7 @@ export class ProjectileSystem {
         }
       }
       if (explodeAt) {
-        this.explode(p, explodeAt, direct, kaijus);
+        this.explode(p, explodeAt, direct, titans);
         this.live.splice(i, 1);
         this.pool.push(p);
       }
@@ -163,16 +163,16 @@ export class ProjectileSystem {
     if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
   }
 
-  private explode(p: Projectile, at: THREE.Vector3, direct: Kaiju | null, kaijus: readonly Kaiju[]): void {
+  private explode(p: Projectile, at: THREE.Vector3, direct: Titan | null, titans: readonly Titan[]): void {
     const c = p.cfg;
     const byPlayer = p.owner.isPlayer;
     const { x, y, z } = at;
-    if (direct) this.onKaijuHit({ target: direct, owner: p.owner, damage: c.damage, poiseDamage: c.poiseDamage, x, z });
-    // Splash: half damage to other kaiju caught in the blast.
-    for (const k of kaijus) {
+    if (direct) this.onTitanHit({ target: direct, owner: p.owner, damage: c.damage, poiseDamage: c.poiseDamage, x, z });
+    // Splash: half damage to other titan caught in the blast.
+    for (const k of titans) {
       if (k === p.owner || k === direct || k.state === 'defeated') continue;
       if (Math.hypot(k.position.x - x, k.position.z - z) < c.blastRadius + k.spec.body.capsuleRadius && y < k.position.y + k.spec.body.height) {
-        this.onKaijuHit({ target: k, owner: p.owner, damage: c.damage * 0.5, poiseDamage: c.poiseDamage * 0.5, x, z });
+        this.onTitanHit({ target: k, owner: p.owner, damage: c.damage * 0.5, poiseDamage: c.poiseDamage * 0.5, x, z });
       }
     }
     this.chunks.forEachNear(x, z, c.blastRadius, (s) => {

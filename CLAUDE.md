@@ -1,12 +1,13 @@
 # Titans Unleashed — project memory
 
 ## Game
-Third-person 3D browser action game. The player is an ORIGINAL giant atomic lizard kaiju
+Third-person 3D browser action game. The player is an ORIGINAL giant atomic lizard titan
 (tail, claws, charged energy beam). Never use Godzilla or any trademarked names/designs.
+Naming: the giant creatures are always "titans" (code, UI, docs, commits) — matches the title.
 
 Core loop: roam a large streamed world (main city, satellite towns, hilly countryside, lakes,
 coast) → smash buildings/vehicles → grow stronger from destruction → get ambushed by rival
-kaiju (energy-barrier arena until one is defeated) → roam again. Military (tanks,
+titan (energy-barrier arena until one is defeated) → roam again. Military (tanks,
 helicopters) harasses and escalates with destruction. Look: stylized low-poly (flat shading,
 warm pastel palette, autumn trees, soft sky, lilac horizon mountains).
 
@@ -45,12 +46,12 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - `src/world` — Environment (sky, clouds, mountains, sun), Water; `terrain/` (Terrain: the one
   height/biome/town function, TerrainRenderer); `city/` (CityGenerator → ChunkSpec data,
   ChunkManager streaming, CityPools, DestructionState); `materials/` (window shader)
-- `src/entities` — `kaiju/` (Kaiju, KaijuSpec, KaijuMotor, Gait, KaijuCombat, KaijuModel, designs,
+- `src/entities` — `titan/` (Titan, TitanSpec, TitanMotor, Gait, TitanCombat, TitanModel, designs,
   PlayerController); `rivals/` (RivalAI, rival specs)
 - `src/systems` — render, physics, camera, InstancePool, PhysicsInstances, Progress (score/energy),
   `destruction/` (gameplay, Collapse visuals, Debris pool, rules), `combat/` (CombatSystem, rules,
   Health, Projectiles), `encounters/`, `military/` (Threat, MilitarySystem), `progression/`
-  (Upgrades → KaijuModifiers), `effects/`
+  (Upgrades → TitanModifiers), `effects/`
 - `src/input` — InputState (pure, tested) + Input (DOM, pointer lock)
 - `src/ui` — HUD, menus, overlays, styles.css
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
@@ -61,17 +62,17 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
 
 ## Architecture rules
-- Units: meters, seconds. Kaiju ≈ 100 m tall (`KAIJU_BODY.height`; model authored at 80 m and
-  scaled, so foot offsets/dust use `kaiju.scale`). Real gravity (looks slow at this scale — good).
-- Footsteps are `kaiju:footstep` events; shake/dust/crushing subscribe.
+- Units: meters, seconds. Titan ≈ 100 m tall (`TITAN_BODY.height`; model authored at 80 m and
+  scaled, so foot offsets/dust use `titan.scale`). Real gravity (looks slow at this scale — good).
+- Footsteps are `titan:footstep` events; shake/dust/crushing subscribe.
 - Rapier KCC gotchas: never push down while grounded (stalls horizontal motion; rely on
   snap-to-ground); keep static colliders a few km max (huge slabs break precision).
 - Terrain: `terrain.heightAt(x, z)` (world/terrain/Terrain.ts) is the single source of ground
   height. Never assume y = 0: towns are flat at 0, countryside is not. Structures carry a base
   `y`. Ground = per-chunk tiles in one BatchedMesh + per-chunk Rapier heightfields within the
-  physics radius; kaiju beyond it follow `heightAt` analytically (no colliders there).
-  Feet plant on slopes via two-bone leg IK after the walk pose (`KaijuModel.plantFeet`).
-- Kaiju = primitives rigidly skinned to bones, merged into ONE SkinnedMesh (1 draw call).
+  physics radius; titan beyond it follow `heightAt` analytically (no colliders there).
+  Feet plant on slopes via two-bone leg IK after the walk pose (`TitanModel.plantFeet`).
+- Titan = primitives rigidly skinned to bones, merged into ONE SkinnedMesh (1 draw call).
 - World = pure deterministic data (`CityGenerator.generate(cx, cz)`, seeded per chunk) rendered
   through GLOBAL instance pools shared by all chunks (never per-chunk meshes: draw calls would
   scale with chunk count). Destroyed state is persisted as (chunk, index), so generation must
@@ -80,16 +81,16 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   chunks are countryside biomes (forest, farmland, meadow) with trees, farms, country roads.
 - Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops/barns,
   crushed on contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
-- Every kaiju (player or rival) is the same `Kaiju` class built from a `KaijuSpec` (body,
+- Every titan (player or rival) is the same `Titan` class built from a `TitanSpec` (body,
   movement, gait, combat config, design). Controllers only produce MoveIntent + CombatInput:
-  PlayerController from input, RivalAI from perception. Never special-case rivals in Kaiju.
-- `KaijuCombat` (pure, tested) turns CombatInput into AttackEvents + a movement allowance;
-  `CombatSystem` resolves them against structures and all other kaiju. Structure damage goes
+  PlayerController from input, RivalAI from perception. Never special-case rivals in Titan.
+- `TitanCombat` (pure, tested) turns CombatInput into AttackEvents + a movement allowance;
+  `CombatSystem` resolves them against structures and all other titan. Structure damage goes
   through `DestructionSystem.damage/crush` with `byPlayer` (only player kills score).
 - Rivals plow through buildings: their KCC ignores `GROUP.STRUCTURE` colliders and
   DestructionSystem wrecks what they overlap. No pathfinding — keep it that way.
 - Bloom runs only on frames that request it (beam glow); HDR (>1) colors are for FX only.
-- Upgrades never mutate configs (the Tuning panel saves those): they produce `KaijuModifiers`
+- Upgrades never mutate configs (the Tuning panel saves those): they produce `TitanModifiers`
   that systems read at the point of use (`combat.mods`, `motor.speedMultiplier`, ...).
 - Military units are kinematic pooled data (no physics bodies), rendered via InstancedMesh;
   collateral from their shots is not credited to the player.
@@ -100,7 +101,7 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   lerps in `render(alpha)`. Camera/visual-only effects run at render rate.
 - Input presses are buffered until a sim tick consumes them; UI toggles use `onImmediateAction`.
 - Plain classes + systems, no ECS. Systems talk via typed `EventBus` (`core/events.ts`).
-- Kaiju states: idle, walk, sprint, attack, stomp, beamCharge, beamFire, roar, stagger,
+- Titan states: idle, walk, sprint, attack, stomp, beamCharge, beamFire, roar, stagger,
   knockdown, defeated. Rival AI: small readable decision system (aggression, reaction delay,
   preferred range), no ML.
 - All gameplay values in typed `src/config` files; bindings only in `config/input.ts`.
@@ -142,14 +143,14 @@ Decisions:
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
 - F1 debug ships in production builds (needed for M8 perf checks); lil-gui is dev-only.
 - No graphics settings UI: medium preset + AutoQuality step-down, 30 FPS cap. Only key
-  bindings persist (localStorage `kaiju.bindings`).
+  bindings persist (localStorage `titan.bindings`).
 - Movement is facing-based (turn-limited, heavy); lock-on switches to strafing.
 - Defeat: Respawn beyond the fog from the rival, on dry ground at a street-grid point, 5 s
   invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
 - Tuning: ship genre-typical defaults; the user tunes from player feedback later.
 - Game name: **Titans Unleashed** (repo `titans-unleashed`).
-- Art: ALL 3D content is code-built (kaiju, buildings, terrain, trees, vehicles, military;
-  kaiju anim = procedural skeletal with blended layers). No model files or glTF pipeline; if
+- Art: ALL 3D content is code-built (titan, buildings, terrain, trees, vehicles, military;
+  titan anim = procedural skeletal with blended layers). No model files or glTF pipeline; if
   the user supplies models later, add a loader then. Only sounds are downloaded (CC0).
 - Look reference: the user's "Quiet Ridge" screenshot (stylized autumn valley); Neutral tone
   mapping. Beam = hold to charge/fire, release cancels.

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import RAPIER from '@dimforge/rapier3d-compat';
-import { KAIJU_CONTROLLER } from '../../config/kaiju';
+import { TITAN_CONTROLLER } from '../../config/titan';
 import { SIM } from '../../config/sim';
 import { StateMachine } from '../../core/StateMachine';
 import { damp, wrapAngle } from '../../core/math';
@@ -8,12 +8,12 @@ import type { GameEventBus } from '../../core/events';
 import { ALL_GROUPS, collisionGroups, GROUP, type PhysicsSystem } from '../../systems/PhysicsSystem';
 import { constrainToCircle } from '../../systems/encounters/EncounterSystem';
 import { Gait } from './Gait';
-import { KaijuModel, MODEL_DESIGN_HEIGHT, MOUTH_DESIGN } from './KaijuModel';
-import { KaijuCombat, type CombatInput, type EnergyPool } from './KaijuCombat';
-import { KaijuMotor, type MoveIntent } from './KaijuMotor';
-import { locomotionState, type KaijuState } from './locomotion';
-import type { KaijuSpec } from './KaijuSpec';
-import type { KaijuModifiers } from '../../systems/progression/Upgrades';
+import { TitanModel, MODEL_DESIGN_HEIGHT, MOUTH_DESIGN } from './TitanModel';
+import { TitanCombat, type CombatInput, type EnergyPool } from './TitanCombat';
+import { TitanMotor, type MoveIntent } from './TitanMotor';
+import { locomotionState, type TitanState } from './locomotion';
+import type { TitanSpec } from './TitanSpec';
+import type { TitanModifiers } from '../../systems/progression/Upgrades';
 import { terrain } from '../../world/terrain/Terrain';
 
 const _desired = { x: 0, y: 0, z: 0 };
@@ -21,16 +21,16 @@ const _scaledIntent: MoveIntent = { x: 0, z: 0, sprint: false };
 const NO_COMBAT: CombatInput = { claw: false, tail: false, stomp: false, roar: false, beamHeld: false, aim: null };
 
 /**
- * A kaiju body: motor + gait + state machine in the fixed tick, Rapier
+ * A titan body: motor + gait + state machine in the fixed tick, Rapier
  * kinematic character controller for collision, procedural model at render rate.
  * Controlled through MoveIntent, so rivals can reuse it with an AI controller.
  */
-export class Kaiju {
-  readonly model: KaijuModel;
-  readonly motor: KaijuMotor;
+export class Titan {
+  readonly model: TitanModel;
+  readonly motor: TitanMotor;
   readonly gait: Gait;
-  readonly fsm: StateMachine<KaijuState, Kaiju>;
-  readonly combat: KaijuCombat;
+  readonly fsm: StateMachine<TitanState, Titan>;
+  readonly combat: TitanCombat;
   /** Feet position (sim). */
   readonly position = new THREE.Vector3();
   readonly renderPosition = new THREE.Vector3();
@@ -69,13 +69,13 @@ export class Kaiju {
     spawn: THREE.Vector3,
     readonly isPlayer: boolean,
     energy: EnergyPool,
-    readonly spec: KaijuSpec,
+    readonly spec: TitanSpec,
     opts: { plowsThrough?: boolean } = {},
   ) {
     this.plowsThrough = opts.plowsThrough ?? false;
-    this.kccGroups = this.plowsThrough ? collisionGroups(GROUP.KAIJU, ALL_GROUPS & ~GROUP.STRUCTURE) : undefined;
-    this.model = new KaijuModel(spec.design, spec.combat);
-    this.motor = new KaijuMotor(spec.movement);
+    this.kccGroups = this.plowsThrough ? collisionGroups(GROUP.TITAN, ALL_GROUPS & ~GROUP.STRUCTURE) : undefined;
+    this.model = new TitanModel(spec.design, spec.combat);
+    this.motor = new TitanMotor(spec.movement);
     this.gait = new Gait(spec.gait);
     this.scale = spec.body.height / MODEL_DESIGN_HEIGHT;
     const { capsuleHalfHeight: hh, capsuleRadius: r } = spec.body;
@@ -89,7 +89,7 @@ export class Kaiju {
     );
     this.collider = world.createCollider(RAPIER.ColliderDesc.capsule(hh, r), this.body);
 
-    const c = KAIJU_CONTROLLER;
+    const c = TITAN_CONTROLLER;
     this.controller = world.createCharacterController(c.offset);
     this.controller.setUp({ x: 0, y: 1, z: 0 });
     this.controller.setMaxSlopeClimbAngle(THREE.MathUtils.degToRad(c.maxSlopeClimbDeg));
@@ -98,18 +98,18 @@ export class Kaiju {
     this.controller.enableSnapToGround(c.snapToGround);
     
     this.model.object.scale.setScalar(this.scale);
-    this.fsm = new StateMachine<KaijuState, Kaiju>('idle', {}, this);
-    const kaiju = this;
-    this.combat = new KaijuCombat(
+    this.fsm = new StateMachine<TitanState, Titan>('idle', {}, this);
+    const titan = this;
+    this.combat = new TitanCombat(
       {
         position: this.position,
         get yaw() {
-          return kaiju.motor.yaw;
+          return titan.motor.yaw;
         },
         mouthHeight: MOUTH_DESIGN.height * this.scale,
         mouthForward: MOUTH_DESIGN.forward * this.scale,
         get state() {
-          return kaiju.fsm.state;
+          return titan.fsm.state;
         },
         setState: (s) => this.fsm.transition(s),
       },
@@ -118,7 +118,7 @@ export class Kaiju {
     );
   }
 
-  get state(): KaijuState {
+  get state(): TitanState {
     return this.fsm.state;
   }
 
@@ -143,12 +143,12 @@ export class Kaiju {
 
     // Gravity only while airborne. Pushing down while grounded makes Rapier's KCC
     // stall horizontally; snap-to-ground keeps us glued on the way down instead.
-    this.verticalVelocity = this.grounded ? 0 : this.verticalVelocity + SIM.gravity * KAIJU_CONTROLLER.gravityScale * dt;
+    this.verticalVelocity = this.grounded ? 0 : this.verticalVelocity + SIM.gravity * TITAN_CONTROLLER.gravityScale * dt;
     _desired.x = this.motor.velocityX * dt * this.travelMultiplier;
     _desired.y = this.verticalVelocity * dt;
     _desired.z = this.motor.velocityZ * dt * this.travelMultiplier;
 
-    // Debris (dynamic bodies) never blocks the kaiju; it walks through and kicks it via footsteps.
+    // Debris (dynamic bodies) never blocks the titan; it walks through and kicks it via footsteps.
     this.controller.computeColliderMovement(this.collider, _desired, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.kccGroups);
     const moved = this.controller.computedMovement();
     this.grounded = this.controller.computedGrounded();
@@ -205,7 +205,7 @@ export class Kaiju {
   }
 
   /** Apply upgrade multipliers (player progression). */
-  setModifiers(mods: KaijuModifiers): void {
+  setModifiers(mods: TitanModifiers): void {
     this.combat.mods = mods;
     this.motor.speedMultiplier = mods.moveSpeed;
     this.combat.health.setMaxMultiplier(mods.maxHealth);
@@ -275,7 +275,7 @@ export class Kaiju {
     const c = Math.cos(this.motor.yaw);
     const fx = this.position.x + lx * c + lz * s;
     const fz = this.position.z - lx * s + lz * c;
-    this.events.emit('kaiju:footstep', {
+    this.events.emit('titan:footstep', {
       x: fx,
       y: terrain.heightAt(fx, fz),
       z: fz,

@@ -16,7 +16,7 @@ export interface MilitaryLevelConfig {
   readonly maxHelis: readonly number[];
   /** Seconds between reinforcements while below the cap. */
   readonly spawnInterval: readonly number[];
-  /** 0..1: 1 = every shot lands on the kaiju's chest. */
+  /** 0..1: 1 = every shot lands on the titan's chest. */
   readonly accuracy: readonly number[];
 }
 

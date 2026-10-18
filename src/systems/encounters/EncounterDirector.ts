@@ -7,11 +7,11 @@ import { DESTRUCTION } from '../../config/destruction';
 import { RIVALS, type RivalId } from '../../config/rivals';
 import { Random } from '../../core/random';
 import type { GameEventBus } from '../../core/events';
-import { Kaiju } from '../../entities/kaiju/Kaiju';
-import type { PlayerController } from '../../entities/kaiju/PlayerController';
+import { Titan } from '../../entities/titan/Titan';
+import type { PlayerController } from '../../entities/titan/PlayerController';
 import { RivalAI } from '../../entities/rivals/RivalAI';
 import { rivalSpec, UNLIMITED_ENERGY } from '../../entities/rivals/rivalSpecs';
-import { THORNMAW_DESIGN, VESPERION_DESIGN } from '../../entities/kaiju/designs';
+import { THORNMAW_DESIGN, VESPERION_DESIGN } from '../../entities/titan/designs';
 import type { EncounterHud } from '../../ui/EncounterHud';
 import type { CameraSystem } from '../CameraSystem';
 import type { PhysicsSystem } from '../PhysicsSystem';
@@ -25,7 +25,7 @@ import { respawnPoint } from './respawn';
 
 interface ActiveRival {
   id: RivalId;
-  kaiju: Kaiju;
+  titan: Titan;
   ai: RivalAI;
   beam: BeamFx;
 }
@@ -34,7 +34,7 @@ export interface DirectorDeps {
   scene: THREE.Scene;
   physics: PhysicsSystem;
   events: GameEventBus;
-  player: Kaiju;
+  player: Titan;
   controller: PlayerController;
   camera: CameraSystem;
   hud: EncounterHud;
@@ -57,7 +57,7 @@ const BEAM_COLORS: Record<RivalId, { core: number; glow: number }> = {
 
 /**
  * Runs rival encounters: drives EncounterSystem, spawns and despawns rivals
- * with their AI, keeps both kaiju inside the barrier, handles lock-on, and
+ * with their AI, keeps both titan inside the barrier, handles lock-on, and
  * feeds the encounter HUD.
  */
 export class EncounterDirector {
@@ -73,12 +73,12 @@ export class EncounterDirector {
   constructor(private readonly d: DirectorDeps) {}
 
   /** Player + active rival, for combat resolution. */
-  get kaijus(): Kaiju[] {
-    return this.rival ? [this.d.player, this.rival.kaiju] : [this.d.player];
+  get titans(): Titan[] {
+    return this.rival ? [this.d.player, this.rival.titan] : [this.d.player];
   }
 
   get rivalAlive(): boolean {
-    return !!this.rival && this.rival.kaiju.state !== 'defeated';
+    return !!this.rival && this.rival.titan.state !== 'defeated';
   }
 
   toggleLock(): void {
@@ -87,7 +87,7 @@ export class EncounterDirector {
 
   /** Before the player's tick: lock-on target for strafing and auto-aim. */
   preparePlayer(): void {
-    const r = this.rival?.kaiju;
+    const r = this.rival?.titan;
     if (this.lockOn && r && this.rivalAlive) {
       this.lockTarget.x = r.position.x;
       this.lockTarget.y = r.position.y;
@@ -103,7 +103,7 @@ export class EncounterDirector {
   fixedUpdateRival(dt: number): void {
     const r = this.rival;
     if (!r) return;
-    const k = r.kaiju;
+    const k = r.titan;
     const p = this.d.player;
     const t = this.perceptionTarget;
     t.x = p.position.x;
@@ -131,18 +131,18 @@ export class EncounterDirector {
     k.fixedUpdate(dt, r.ai.intent, r.ai.combat);
   }
 
-  /** After both kaiju moved: keep them inside the barrier. */
+  /** After both titan moved: keep them inside the barrier. */
   constrain(): void {
     const a = this.encounter.arena;
     if (!a.active) return;
     let pushed = false;
-    for (const k of this.kaijus) pushed = k.constrain(a.x, a.z, a.radius) || pushed;
+    for (const k of this.titans) pushed = k.constrain(a.x, a.z, a.radius) || pushed;
     if (pushed) this.d.barrier.flash();
   }
 
   fixedUpdateEncounter(dt: number): void {
     const p = this.d.player;
-    const r = this.rival?.kaiju;
+    const r = this.rival?.titan;
     const actions = this.encounter.update(dt, {
       score: this.d.progress.score,
       playerX: p.position.x,
@@ -162,17 +162,17 @@ export class EncounterDirector {
     if (r) {
       // Defeated rivals sink away during the outro.
       if (this.encounter.phase === 'outro' && this.encounter.t > this.sinkAfter) {
-        r.kaiju.sink += dt * 22;
+        r.titan.sink += dt * 22;
         if (Math.random() < dt * 6) {
-          const pos = r.kaiju.position;
+          const pos = r.titan.position;
           this.d.dust.burst(pos.x + (Math.random() - 0.5) * 60, pos.y, pos.z + (Math.random() - 0.5) * 60, DUST.collapse, 1.6);
         }
       }
-      r.kaiju.render(alpha, dt);
-      r.beam.update(r.kaiju, dt);
+      r.titan.render(alpha, dt);
+      r.beam.update(r.titan, dt);
     }
     this.d.barrier.update(dt);
-    this.d.camera.lockYaw = this.lockOn && r ? Math.atan2(r.kaiju.renderPosition.x - this.d.player.renderPosition.x, r.kaiju.renderPosition.z - this.d.player.renderPosition.z) : null;
+    this.d.camera.lockYaw = this.lockOn && r ? Math.atan2(r.titan.renderPosition.x - this.d.player.renderPosition.x, r.titan.renderPosition.z - this.d.player.renderPosition.z) : null;
 
     const e = this.encounter;
     const p = this.d.player.renderPosition;
@@ -182,14 +182,14 @@ export class EncounterDirector {
       compass = { x: p.x + e.dir.x * 1000, z: p.z + e.dir.z * 1000 };
       compassText = '???';
     } else if (r && this.rivalAlive) {
-      compass = r.kaiju.renderPosition;
+      compass = r.titan.renderPosition;
       compassText = `${Math.round(Math.hypot(compass.x - p.x, compass.z - p.z))} m`;
     }
     this.d.hud.update(dt, {
-      bossHealth: r ? r.kaiju.combat.health.fraction : 0,
+      bossHealth: r ? r.titan.combat.health.fraction : 0,
       compassTarget: compass,
       compassText,
-      lockTarget: this.lockOn && r ? { x: r.kaiju.renderPosition.x, y: r.kaiju.renderPosition.y + r.kaiju.spec.body.height * 0.6, z: r.kaiju.renderPosition.z } : null,
+      lockTarget: this.lockOn && r ? { x: r.titan.renderPosition.x, y: r.titan.renderPosition.y + r.titan.spec.body.height * 0.6, z: r.titan.renderPosition.z } : null,
       camera: this.d.camera.renderCamera,
       cameraYaw: this.d.camera.yaw,
     });
@@ -207,7 +207,7 @@ export class EncounterDirector {
    */
   respawnSpot(): { x: number; z: number; yaw: number } {
     const p = this.d.player.position;
-    const r = this.rival?.kaiju.position;
+    const r = this.rival?.titan.position;
     const pitch = CITY.blockSize + CITY.streetWidth;
     const spot = respawnPoint({
       fromX: p.x,
@@ -245,7 +245,7 @@ export class EncounterDirector {
   }
 
   debugDefeatRival(): void {
-    this.rival?.kaiju.combat.takeHit(1e6);
+    this.rival?.titan.combat.takeHit(1e6);
   }
 
   // ------------------------------------------------------------ actions
@@ -312,14 +312,14 @@ export class EncounterDirector {
   }
 
   private spawn(id: RivalId, x: number, z: number): void {
-    const k = new Kaiju(this.d.physics, this.d.events, new THREE.Vector3(x, terrain.heightAt(x, z), z), false, UNLIMITED_ENERGY, rivalSpec(id), { plowsThrough: true });
+    const k = new Titan(this.d.physics, this.d.events, new THREE.Vector3(x, terrain.heightAt(x, z), z), false, UNLIMITED_ENERGY, rivalSpec(id), { plowsThrough: true });
     // Face the player.
     const p = this.d.player.position;
     k.motor.yaw = k.motor.moveYaw = Math.atan2(p.x - x, p.z - z);
     this.d.scene.add(k.model.object);
     this.rival = {
       id,
-      kaiju: k,
+      titan: k,
       ai: new RivalAI(RIVALS[id].ai, new Random(this.rng.int(1, 1e9))),
       beam: new BeamFx(this.d.scene, this.d.fire, BEAM_COLORS[id]),
     };
@@ -330,9 +330,9 @@ export class EncounterDirector {
   private despawn(): void {
     const r = this.rival;
     if (!r) return;
-    this.d.scene.remove(r.kaiju.model.object);
+    this.d.scene.remove(r.titan.model.object);
     r.beam.dispose();
-    r.kaiju.dispose();
+    r.titan.dispose();
     this.rival = null;
     this.lockOn = false;
     this.d.hud.setBoss(null);
