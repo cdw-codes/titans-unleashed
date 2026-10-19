@@ -564,6 +564,9 @@ export class Game {
       await yieldToBrowser();
     }
     this.cityPools.flush();
+    // The sim is paused on the title screen: one step registers the new colliders, so the
+    // showcase camera's line-of-sight checks see the buildings around the spawn.
+    this.physics.step();
   }
 
   start(): void {

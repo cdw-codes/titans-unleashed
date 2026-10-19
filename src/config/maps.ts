@@ -98,7 +98,8 @@ export const CITY_MAPS: readonly CityMapDef[] = [
     bbox: [22.245, 114.11, 22.345, 114.25],
     compress: 2.5,
     cell: 16,
-    seaSeeds: [[22.29, 114.17], [22.3, 114.2], [22.28, 114.13]],
+    // Victoria Harbour and Kowloon Bay (a third seed at 22.28, 114.13 sat on Kennedy Town and flooded the island).
+    seaSeeds: [[22.29, 114.17], [22.3, 114.2]],
     // Tsim Sha Tsui, facing the harbour.
     spawn: [22.2988, 114.1722],
     majorPlaces: ['suburb', 'quarter', 'town'],

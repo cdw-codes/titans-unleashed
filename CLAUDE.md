@@ -5,7 +5,7 @@ Third-person 3D browser action game. The player is an ORIGINAL giant atomic liza
 (tail, claws, charged energy beam). Never use Godzilla or any trademarked names/designs.
 Naming: the giant creatures are always "titans" (code, UI, docs, commits) — matches the title.
 
-Core loop: roam a real city baked from OpenStreetMap (Tokyo first; title-screen picker,
+Core loop: roam a real city baked from OpenStreetMap (Tokyo, New York, London, Paris, Hong Kong; picker,
 `?map=`) or the procedural "Open world" → smash buildings/vehicles → grow stronger → get
 ambushed by rival titans (energy-barrier arena) → roam again. Military escalates with
 destruction. Look: stylized low-poly (flat shading, warm pastels, autumn trees, soft sky).

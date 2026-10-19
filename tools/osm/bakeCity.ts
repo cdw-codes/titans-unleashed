@@ -117,7 +117,8 @@ async function bake(def: CityMapDef): Promise<void> {
   for (const el of await layer(def.id, 'roads')) {
     const t = el.tags ?? {};
     const kind: RoadKind | undefined = t['aeroway'] === 'runway' ? 'runway' : kinds[t['highway'] ?? ''];
-    if (!kind || !el.geometry) continue;
+    // Tunnels run underground (under rivers and harbours): drawn, they'd float on the water.
+    if (!kind || !el.geometry || (t['tunnel'] && t['tunnel'] !== 'no')) continue;
     const pts = simplify(el.geometry.flatMap((q) => project(p, q.lat, q.lon)), 3);
     roads.push({ kind, pts: pts.map((v) => Math.round(v * 10) / 10) });
   }
