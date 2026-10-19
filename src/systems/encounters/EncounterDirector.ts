@@ -244,6 +244,16 @@ export class EncounterDirector {
     this.encounter.t = 0;
   }
 
+  /** Versus starts: any rival leaves, the barrier drops, no more ambushes are run. */
+  endForVersus(): void {
+    this.despawn();
+    this.d.barrier.drop();
+    this.encounter.phase = 'roaming';
+    this.encounter.t = 0;
+    this.encounter.arena.active = false;
+    this.d.hud.update(0, { bossHealth: 0, compassTarget: null, compassText: '', lockTarget: null, camera: this.d.camera.renderCamera, cameraYaw: 0 });
+  }
+
   debugDefeatRival(): void {
     this.rival?.titan.combat.takeHit(1e6);
   }

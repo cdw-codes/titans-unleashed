@@ -26,6 +26,17 @@ WASD move · Shift sprint · mouse look/aim · LMB claw · RMB tail sweep · Spa
 hold E charge & fire beam · R roar · F Atomic Pulse (after an evolution) · Q / MMB lock on ·
 Esc pause (remap keys in the pause menu) · F1 debug.
 
+## Versus (multiplayer)
+
+Up to 4 players, peer to peer. On the title screen pick a location and **Host a room**,
+then share the 5-character code or the invite link (`?room=CODE`); joiners load the
+host's world. Rivals and the military sit out while in a room; KOs are scored.
+
+Runs on [PeerJS](https://peerjs.com) 1.5.5 (pinned, ~30 kB gzip): WebRTC data channels
+with the free public PeerJS signaling server, so there is no game server to host. The
+host's browser relays messages; when the host leaves, the room ends. No TURN relay is
+configured, so very strict networks (some corporate / mobile carriers) may fail to connect.
+
 ## Assets
 
 All 3D content and all (placeholder) sounds are generated in code. See

@@ -4,6 +4,7 @@ import { randomSeed, reloadWith, type CityMapDef } from '../config/maps';
 import { ROSTER, rosterTitan, type TitanChoice } from '../entities/titan/roster';
 import { openWorldPreview } from './openWorldPreview';
 import logoSvg from './logo.svg?raw';
+import { parseRoomCode } from '../net/protocol';
 
 /** Shared run stats shown on the pause and game-over screens. */
 export interface RunStats {
@@ -70,6 +71,28 @@ export interface TitleOptions {
   onStart: () => void;
   /** Titan or colorway changed: applies live to the titan on the right. */
   onTitan: (choice: TitanChoice) => void;
+  versus: VersusOptions;
+}
+
+export interface VersusOptions {
+  /** Joined at boot through an invite (?room=): the world is the host's. */
+  joined: boolean;
+  name: string;
+  onName(name: string): void;
+  /** Open a room for this world (resolves when it is open, throws a readable error). */
+  onHost(): Promise<void>;
+  /** Join by code (reloads into the host's world). */
+  onJoin(code: string): void;
+  onLeave(): void;
+}
+
+/** What the title screen shows about the current room. */
+export interface RoomView {
+  code: string;
+  link: string;
+  isHost: boolean;
+  myId: number;
+  players: { id: number; name: string; titan: string; kos: number }[];
 }
 
 interface Location {
@@ -150,8 +173,29 @@ export class TitleScreen extends Screen {
           <p class="swatch-name" data-role="color-name"></p>
         </section>
 
+        <section class="title-pick title-versus" aria-label="Versus">
+          <h2>Versus <small>up to 4 titans, peer to peer</small></h2>
+          <div data-role="vs-lobby">
+            <label class="vs-field"><span>Your name</span><input data-role="vs-name" maxlength="20" autocomplete="nickname" spellcheck="false"></label>
+            <div class="vs-row">
+              <button type="button" class="title-btn" data-act="host">Host a room</button>
+              <input class="vs-code-input" data-role="vs-code" maxlength="7" placeholder="CODE" aria-label="Room code" autocomplete="off" spellcheck="false">
+              <button type="button" class="title-btn" data-act="join">Join</button>
+            </div>
+          </div>
+          <div data-role="vs-room" hidden>
+            <div class="vs-row">
+              <p class="vs-room-code">Room <strong data-role="vs-code-show"></strong></p>
+              <button type="button" class="pick-link" data-act="copy">Copy invite link</button>
+              <button type="button" class="pick-link" data-act="leave">Leave</button>
+            </div>
+            <ul class="vs-players" data-role="vs-players"></ul>
+          </div>
+          <p class="vs-status" data-role="vs-status" role="status"></p>
+        </section>
+
         <footer class="title-foot">
-          <p>Single player · no account · nothing is saved</p>
+          <p>No account · nothing is saved</p>
           ${o.credits ? `<p>Map data ${o.credits}</p>` : ''}
           <p class="pause-hint">Esc pauses · F1 debug</p>
         </footer>
@@ -182,9 +226,76 @@ export class TitleScreen extends Screen {
         this.setChoice({ titan: next.id, color: 0 });
       });
     }
+    this.bindVersus();
     this.renderLocation();
     this.renderTitan();
     this.visible = true;
+  }
+
+  private room: RoomView | null = null;
+
+  private bindVersus(): void {
+    const v = this.o.versus;
+    const q = <T extends Element>(sel: string) => this.el.querySelector<T>(sel)!;
+    const name = q<HTMLInputElement>('[data-role=vs-name]');
+    name.value = v.name;
+    name.addEventListener('change', () => v.onName(name.value.trim().slice(0, 20) || v.name));
+    const code = q<HTMLInputElement>('[data-role=vs-code]');
+    const host = q<HTMLButtonElement>('[data-act=host]');
+    host.addEventListener('click', () => {
+      host.disabled = true;
+      this.setVersusStatus('Opening a room…');
+      v.onHost().then(
+        () => this.setVersusStatus('Share the code or the invite link. Begin whenever you like; others can join any time.'),
+        (err: Error) => {
+          host.disabled = false;
+          this.setVersusStatus(err.message);
+        },
+      );
+    });
+    const join = () => {
+      const c = parseRoomCode(code.value);
+      if (!c) return this.setVersusStatus('A room code is 5 letters and digits.');
+      this.setVersusStatus('Joining…');
+      v.onJoin(c);
+    };
+    q<HTMLButtonElement>('[data-act=join]').addEventListener('click', join);
+    code.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') join();
+    });
+    q<HTMLButtonElement>('[data-act=copy]').addEventListener('click', () => {
+      if (!this.room) return;
+      navigator.clipboard.writeText(this.room.link).then(
+        () => this.setVersusStatus('Invite link copied.'),
+        () => this.setVersusStatus(this.room?.link ?? ''),
+      );
+    });
+    q<HTMLButtonElement>('[data-act=leave]').addEventListener('click', () => v.onLeave());
+  }
+
+  setVersusStatus(text: string): void {
+    this.el.querySelector('[data-role=vs-status]')!.textContent = text;
+  }
+
+  /** Show the room (or the lobby when null). In a room the location is fixed. */
+  setRoom(room: RoomView | null): void {
+    this.room = room;
+    const q = <T extends HTMLElement>(sel: string) => this.el.querySelector<T>(sel)!;
+    q('[data-role=vs-lobby]').hidden = !!room;
+    q('[data-role=vs-room]').hidden = !room;
+    for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-loc], [data-act=reroll]')) b.disabled = !!room;
+    if (room) {
+      q('[data-role=vs-code-show]').textContent = room.code;
+      const list = q('[data-role=vs-players]');
+      list.replaceChildren(
+        ...room.players.map((p) => {
+          const li = document.createElement('li');
+          li.textContent = `${p.name}${p.id === room.myId ? ' (you)' : ''}${p.id === 0 ? ' · host' : ''}`;
+          return li;
+        }),
+      );
+    }
+    this.renderLocation();
   }
 
   private get location(): Location {
@@ -198,7 +309,7 @@ export class TitleScreen extends Screen {
   }
 
   private start(): void {
-    if (this.isLoaded) return this.o.onStart();
+    if (this.isLoaded || this.room) return this.o.onStart();
     const l = this.location;
     reloadWith(l.id === 'open' ? { map: 'open', seed: String(this.pendingSeed) } : { map: l.id });
   }
@@ -221,7 +332,7 @@ export class TitleScreen extends Screen {
     }
     this.el.querySelector<HTMLButtonElement>('[data-act=reroll]')!.hidden = l.id !== 'open';
     const start = this.el.querySelector<HTMLButtonElement>('[data-act=start]')!;
-    start.textContent = this.isLoaded ? 'Begin the rampage' : `Travel to ${l.id === 'open' ? 'a new world' : l.name}`;
+    start.textContent = this.room ? 'Enter the fight' : this.isLoaded ? 'Begin the rampage' : `Travel to ${l.id === 'open' ? 'a new world' : l.name}`;
   }
 
   private setChoice(choice: TitanChoice): void {

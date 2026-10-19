@@ -9,7 +9,7 @@ import { ALL_GROUPS, collisionGroups, GROUP, type PhysicsSystem } from '../../sy
 import { constrainToCircle } from '../../systems/encounters/EncounterSystem';
 import { Gait } from './Gait';
 import { TitanModel, MODEL_DESIGN_HEIGHT, MOUTH_DESIGN } from './TitanModel';
-import { TitanCombat, type CombatInput, type EnergyPool } from './TitanCombat';
+import { TitanCombat, type CombatInput, type EnergyPool, type MoveId } from './TitanCombat';
 import { TitanMotor, type MoveIntent } from './TitanMotor';
 import { locomotionState, type TitanState } from './locomotion';
 import type { TitanSpec } from './TitanSpec';
@@ -19,6 +19,26 @@ import type { TitanDesign } from './designs';
 
 const _desired = { x: 0, y: 0, z: 0 };
 const _scaledIntent: MoveIntent = { x: 0, z: 0, sprint: false };
+/** Where a network player's titan is and what it is doing (interpolated from the wire). */
+export interface RemotePose {
+  x: number;
+  y: number;
+  z: number;
+  yaw: number;
+  speed: number;
+  sprinting: boolean;
+  state: TitanState;
+  /** Action time, claw side, beam charge, move. */
+  t: number;
+  side: 1 | -1;
+  charge: number;
+  move: MoveId | null;
+  /** Beam direction while firing, else null. */
+  beam: { x: number; y: number; z: number } | null;
+  /** Health fraction. */
+  hp: number;
+}
+
 const NO_COMBAT: CombatInput = { claw: false, tail: false, stomp: false, roar: false, beamHeld: false, aim: null };
 
 /**
@@ -63,6 +83,8 @@ export class Titan {
   /** Multiplies ground covered per tick (rivals crossing the fogged distance faster). */
   travelMultiplier = 1;
   private readonly kccGroups: number | undefined;
+  /** Driven over the network by another player (a puppet: no controller, no attacks). */
+  readonly remote: boolean;
 
   constructor(
     private readonly physics: PhysicsSystem,
@@ -71,9 +93,10 @@ export class Titan {
     readonly isPlayer: boolean,
     energy: EnergyPool,
     readonly spec: TitanSpec,
-    opts: { plowsThrough?: boolean } = {},
+    opts: { plowsThrough?: boolean; remote?: boolean } = {},
   ) {
     this.plowsThrough = opts.plowsThrough ?? false;
+    this.remote = opts.remote ?? false;
     this.kccGroups = this.plowsThrough ? collisionGroups(GROUP.TITAN, ALL_GROUPS & ~GROUP.STRUCTURE) : undefined;
     this.model = new TitanModel(spec.design, spec.combat);
     this.motor = new TitanMotor(spec.movement);
@@ -189,6 +212,37 @@ export class Titan {
       this.fsm.transition(locomotionState(this.motor.speed, this.motor.sprinting, this.spec.movement));
     }
     this.fsm.update(dt);
+  }
+
+  /**
+   * Puppet tick for a network player's titan: pose from the wire instead of the
+   * controller and the character controller. Gait (and footsteps) still run here.
+   */
+  applyRemote(dt: number, r: RemotePose): void {
+    this.prevPosition.copy(this.position);
+    this.prevYaw = this.motor.yaw;
+    this.time += dt;
+    const travelled = Math.hypot(r.x - this.position.x, r.z - this.position.z);
+    // A jump (respawn): no interpolation, no strides.
+    if (travelled > 300) this.prevPosition.set(r.x, r.y, r.z);
+    this.position.set(r.x, r.y, r.z);
+    this.motor.yaw = this.motor.moveYaw = r.yaw;
+    this.motor.speed = r.speed;
+    this.motor.sprinting = r.sprinting;
+    this.body.setNextKinematicTranslation({ x: r.x, y: r.y + this.centerOffset, z: r.z });
+    if (travelled <= 300) {
+      const foot = this.gait.update(travelled, wrapAngle(r.yaw - this.prevYaw), r.sprinting, dt);
+      if (foot) this.emitFootstep(foot);
+    }
+    this.fsm.transition(r.state);
+    this.fsm.update(dt);
+    if (r.beam) {
+      const d = this.combat.beamDir;
+      d.x = r.beam.x;
+      d.y = r.beam.y;
+      d.z = r.beam.z;
+    }
+    this.combat.applyRemote(r.state, r.t, r.side, r.charge, r.move, r.beam !== null && r.state === 'beamFire', r.hp);
   }
 
   /** Move instantly (respawn). Clears momentum and interpolation. */
@@ -314,6 +368,7 @@ export class Titan {
       foot,
       sprinting: this.motor.sprinting,
       isPlayer: this.isPlayer,
+      remote: this.remote,
       scale: this.scale,
     });
   }

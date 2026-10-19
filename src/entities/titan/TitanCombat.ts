@@ -209,6 +209,22 @@ export class TitanCombat {
     return true;
   }
 
+  /** A network player's titan: its action comes from the wire, not from input. */
+  private remoteFiring: boolean | null = null;
+
+  applyRemote(kind: TitanState, t: number, side: 1 | -1, charge: number, move: MoveId | null, firing: boolean, health: number): void {
+    const a = this.action;
+    a.kind = kind;
+    a.t = t;
+    a.side = side;
+    a.charge = charge;
+    a.move = move;
+    this.move = move;
+    this.beamCharge = charge;
+    this.remoteFiring = firing;
+    this.health.health = health * this.health.max;
+  }
+
   respawn(): void {
     this.health.reset();
     this.health.makeInvulnerable(this.cfg.health.respawnInvulnerable ?? this.cfg.health.getUpInvulnerable);
@@ -217,6 +233,7 @@ export class TitanCombat {
 
   /** Beam firing right now (after startup, still held)? */
   get isBeamFiring(): boolean {
+    if (this.remoteFiring !== null) return this.remoteFiring;
     return this.body.state === 'beamFire' && this.fireEnd === Number.POSITIVE_INFINITY && this.action.t >= this.cfg.beam.startup;
   }
 

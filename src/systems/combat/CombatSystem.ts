@@ -32,6 +32,11 @@ export class CombatSystem {
   /** Last area attack, for debug hitbox drawing. */
   lastArea: { x: number; z: number; yaw: number; radius: number; arcDeg: number; arcOffsetDeg: number; age: number } | null = null;
   projectiles: ProjectileSystem | null = null;
+  /**
+   * Hits on a network player's titan are not applied here: its owner applies them
+   * (attacker-resolved, sent over the wire). Damage 0 with stun > 0 = a roar stun.
+   */
+  remoteHit: ((target: Titan, damage: number, poiseDamage: number, stunSeconds: number) => void) | null = null;
   /** Player attacks also hit military units. */
   military: MilitarySystem | null = null;
 
@@ -56,6 +61,10 @@ export class CombatSystem {
   /** Apply a hit from `owner` to `target` with reactions, events and feedback. */
   hitTitan(target: Titan, owner: Titan | null, damage: number, poiseDamage: number): void {
     if (target.state === 'defeated') return;
+    if (target.remote) {
+      if (owner?.isPlayer) this.remoteHit?.(target, damage, poiseDamage, 0);
+      return;
+    }
     const before = target.combat.health.health;
     const reaction = target.combat.takeHit(damage, poiseDamage);
     const dealt = before - target.combat.health.health;
@@ -144,7 +153,10 @@ export class CombatSystem {
     if (r.stunRadius > 0) {
       for (const t of titans) {
         if (t === attacker) continue;
-        if (Math.hypot(t.position.x - a.x, t.position.z - a.z) <= r.stunRadius) t.combat.stun(r.stunSeconds);
+        if (Math.hypot(t.position.x - a.x, t.position.z - a.z) > r.stunRadius) continue;
+        if (t.remote) {
+          if (attacker.isPlayer) this.remoteHit?.(t, 0, 0, r.stunSeconds);
+        } else t.combat.stun(r.stunSeconds);
       }
     }
     this.events.emit('titan:roar', { x: a.x, z: a.z, radius: r.stunRadius, stunSeconds: r.stunSeconds, isPlayer: attacker.isPlayer });

@@ -599,3 +599,66 @@ html, body {
   .title-screen { background: linear-gradient(180deg, rgba(var(--ui-navy), 0.55), rgba(var(--ui-navy), 0.92) 55%); }
   .title-panel { justify-content: flex-end; width: 100%; padding: 24px 16px; }
 }
+
+/* ---------------------------------------------------------------- versus */
+.title-pick h2 small { margin-left: 6px; font-size: 10px; letter-spacing: 0.08em; text-transform: none; opacity: 0.8; }
+.vs-field { display: grid; gap: 4px; font-size: 12px; }
+.vs-field span { opacity: 0.7; }
+.vs-field input, .vs-code-input {
+  padding: 9px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ui-fg);
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+}
+.vs-field input:focus-visible, .vs-code-input:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 1px; }
+.vs-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.vs-row .title-btn { padding: 9px 12px; font-size: 14px; }
+.vs-code-input { width: 6.5em; min-width: 0; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; }
+.vs-room-code { margin: 0; font-size: 14px; }
+.vs-room-code strong { margin-left: 4px; font-size: 18px; letter-spacing: 0.18em; color: var(--ui-accent-bright); }
+.vs-row .pick-link { margin-top: 0; }
+.vs-players { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.vs-status { margin: 0; min-height: 1em; font-size: 12px; opacity: 0.8; }
+.pick-arrow:disabled, .pick-link:disabled { opacity: 0.3; cursor: default; }
+
+.scoreboard {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  min-width: 150px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ui-fg);
+  background: rgba(var(--ui-navy), 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.scoreboard-head { margin: 0 0 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.65; }
+.scoreboard ol { margin: 0; padding: 0; list-style: none; }
+.scoreboard li { display: flex; justify-content: space-between; gap: 12px; }
+.scoreboard li.me { color: var(--ui-accent-bright); }
+
+.versus-tag {
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 2px 8px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.versus-tag::after {
+  content: '';
+  display: block;
+  height: 3px;
+  margin-top: 3px;
+  background: linear-gradient(90deg, #ff5a3c calc(var(--hp, 1) * 100%), rgba(0, 0, 0, 0.45) 0);
+  border-radius: 2px;
+}

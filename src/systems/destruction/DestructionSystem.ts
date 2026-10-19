@@ -33,7 +33,9 @@ export class DestructionSystem {
     private readonly events: GameEventBus,
     private readonly feedback: DestructionFeedback,
   ) {
-    events.on('titan:footstep', (e) => this.onFootstep(e.x, e.z, e.scale, e.isPlayer));
+    events.on('titan:footstep', (e) => {
+      if (!e.remote) this.onFootstep(e.x, e.z, e.scale, e.isPlayer);
+    });
   }
 
   /** Advance the shared clock once per tick (before per-titan updates). */
@@ -110,6 +112,18 @@ export class DestructionSystem {
     this.emitDestroyed(s, byPlayer);
   }
 
+  /**
+   * Another player destroyed structure `index` of chunk (cx, cz): wreck it here too
+   * (not credited), or just remember it if that chunk isn't loaded.
+   */
+  destroyRemote(cx: number, cz: number, index: number, fromX: number, fromZ: number): void {
+    const s = this.chunks.structureAt(cx, cz, index);
+    if (!s) return this.chunks.markDestroyed(cx, cz, index);
+    if (s.state !== 'intact') return;
+    if (s.spec.size === 'large') this.damage(s, Infinity, fromX, fromZ, false);
+    else this.crush(s, false);
+  }
+
   /** Small debris knocked off a structure's face toward the titan. */
   chip(s: Structure, fromX: number, fromZ: number, count: number): void {
     const st = s.spec;
@@ -145,6 +159,9 @@ export class DestructionSystem {
       height: st.height,
       points: pointsFor(st, D),
       byPlayer,
+      cx: s.chunk.cx,
+      cz: s.chunk.cz,
+      index: s.index,
     });
   }
 }

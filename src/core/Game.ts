@@ -58,6 +58,11 @@ import { AudioSystem } from '../systems/audio/AudioSystem';
 import { AudioDirector } from '../systems/audio/AudioDirector';
 import { Minimap } from '../ui/Minimap';
 import { yieldToBrowser } from './yieldToBrowser';
+import { Room, type Hello } from '../net/Room';
+import { Versus } from '../net/Versus';
+import { parseRoomCode, type WorldInfo } from '../net/protocol';
+import { Scoreboard } from '../ui/Scoreboard';
+import type { RoomView } from '../ui/menus';
 
 const _camDir = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
@@ -69,10 +74,25 @@ import { TestCrates } from '../debug/TestCrates';
 import { GameOverScreen, PauseMenu, TitleScreen, type RunStats } from '../ui/menus';
 import { Crosshair } from '../ui/Crosshair';
 
-/** Composition root: builds systems, owns the update order. */
 /** How far inside a city map's data edge the player is held (m). */
 const MAP_EDGE = 250;
+const NO_INTENT = { x: 0, z: 0, sprint: false };
+const _titans: Titan[] = [];
 
+/** How this page booted: the world it shows, and a room joined through an invite. */
+interface Boot {
+  world: WorldInfo;
+  joined: { room: Room; destroyed: [number, number, number][] } | null;
+  joinError: string | null;
+}
+
+/** Versus display name: kept in the URL (?name=) like the titan choice, never stored. */
+function loadName(): string {
+  const n = new URLSearchParams(location.search).get('name')?.trim().slice(0, 20);
+  return n || `Titan ${100 + Math.floor(Math.random() * 900)}`;
+}
+
+/** Composition root: builds systems, owns the update order. */
 export class Game {
   readonly events: GameEventBus = createEventBus();
   readonly loop: GameLoop;
@@ -127,6 +147,12 @@ export class Game {
   private readonly pauseMenu: PauseMenu;
   private readonly crosshair: Crosshair;
   private readonly hud: Hud;
+  private readonly scoreboard: Scoreboard;
+  private readonly uiRoot: HTMLElement;
+  /** Versus session while in a room (rivals and the military sit out). */
+  versus: Versus | null = null;
+  private playerName = loadName();
+  private choice: TitanChoice;
   private readonly frameInfo = {
     frameMs: 0, steps: 0, quality: '', focus: new THREE.Vector3(),
     extra: (): string[] => [
@@ -141,13 +167,15 @@ export class Game {
     ],
   };
 
-  private constructor(container: HTMLElement, private readonly physics: PhysicsSystem, maps: readonly CityMapDef[]) {
+  private constructor(container: HTMLElement, private readonly physics: PhysicsSystem, maps: readonly CityMapDef[], private readonly boot: Boot) {
     const choice = parseChoice(location.search);
+    this.choice = choice;
     this.qualityLevel = loadQualityLevel();
     const preset = QUALITY_PRESETS[this.qualityLevel];
 
     const uiRoot = document.createElement('div');
     uiRoot.className = 'ui-root';
+    this.uiRoot = uiRoot;
 
     this.render = new RenderSystem(container, preset);
     container.appendChild(uiRoot);
@@ -179,12 +207,18 @@ export class Game {
     this.debug = new DebugSystem(scene, this.render.renderer, this.render.camera, physics, uiRoot);
     this.crosshair = new Crosshair(uiRoot);
     this.hud = new Hud(uiRoot);
+    this.scoreboard = new Scoreboard(uiRoot);
     const resume = () => {
       this.audio.unlock();
       void this.input.requestLock();
     };
     // A new game in the open world is a new world; a city map just starts over.
-    const newGame = () => (terrain.map ? location.reload() : reloadWith({ seed: String(randomSeed()) }));
+    // In a room, "new game" leaves it (and stays in that world).
+    const newGame = () => {
+      if (this.versus) return this.leaveRoom();
+      if (terrain.map) location.reload();
+      else reloadWith({ seed: String(randomSeed()) });
+    };
     this.pauseMenu = new PauseMenu(uiRoot, terrain.map?.meta.attribution ?? null, resume, newGame);
     this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
     this.title = new TitleScreen(uiRoot, {
@@ -199,7 +233,19 @@ export class Game {
         resume();
       },
       onTitan: (c) => this.applyTitan(c),
+      versus: {
+        joined: !!boot.joined,
+        name: this.playerName,
+        onName: (name) => {
+          this.playerName = name;
+          updateUrl({ name });
+        },
+        onHost: () => this.hostRoom(),
+        onJoin: (code) => reloadWith({ room: code, map: '', seed: '' }),
+        onLeave: () => this.leaveRoom(),
+      },
     });
+    if (boot.joinError) this.title.setVersusStatus(boot.joinError);
 
     this.loop = new GameLoop({
       fixedUpdate: (dt) => this.fixedUpdate(dt),
@@ -338,7 +384,21 @@ export class Game {
    */
   static async create(container: HTMLElement, onProgress: (fraction: number, label: string) => void = () => {}): Promise<Game> {
     onProgress(0.02, 'Waking the beast');
-    const mapId = selectedMapId();
+    const boot: Boot = { world: { map: null, seed: null }, joined: null, joinError: null };
+    const code = parseRoomCode(new URLSearchParams(location.search).get('room') ?? '');
+    if (code) {
+      onProgress(0.03, `Joining room ${code}`);
+      const choice = parseChoice(location.search);
+      try {
+        boot.joined = await Room.join(code, { name: loadName(), titan: choice.titan, color: choice.color });
+      } catch (err) {
+        boot.joinError = `Could not join ${code}: ${(err as Error).message}.`;
+        updateUrl({ room: '' });
+      }
+    }
+    // A joined room's world is the host's.
+    const hostWorld = boot.joined?.room.world;
+    const mapId = hostWorld ? hostWorld.map : selectedMapId();
     if (mapId) {
       onProgress(0.05, 'Mapping the city');
       try {
@@ -348,16 +408,99 @@ export class Game {
       }
     }
     if (!terrain.map) {
-      const seed = selectedSeed();
+      const seed = hostWorld ? hostWorld.seed : selectedSeed();
       if (seed !== null) terrain.reseed(seed);
-    }
+      boot.world = { map: null, seed };
+    } else boot.world = { map: terrain.map.meta.id, seed: null };
     const physics = await PhysicsSystem.create(1 / SIM.tickRate);
     onProgress(0.2, 'Tuning the roars');
-    const game = new Game(container, physics, await availableMaps(import.meta.env.BASE_URL));
+    const game = new Game(container, physics, await availableMaps(import.meta.env.BASE_URL), boot);
+    if (boot.joined) {
+      for (const [cx, cz, i] of boot.joined.destroyed) game.chunks.markDestroyed(cx, cz, i);
+      game.startVersus(boot.joined.room);
+    }
     await game.audio.prepare((done, total) => onProgress(0.2 + 0.25 * (done / total), 'Tuning the roars'));
     await game.buildCity((f) => onProgress(0.45 + 0.55 * f, 'Raising the city'));
     onProgress(1, 'Ready');
     return game;
+  }
+
+  // ------------------------------------------------------------------ versus
+
+  /** Open a room for the loaded world (title screen). */
+  private async hostRoom(): Promise<void> {
+    const room = await Room.host(this.boot.world, this.hello(), () => this.chunks.destroyedEntries());
+    this.startVersus(room);
+  }
+
+  private hello(): Hello {
+    return { name: this.playerName, titan: this.choice.titan, color: this.choice.color };
+  }
+
+  /** Enter versus: rivals and the military sit out, other players' titans appear. */
+  startVersus(room: Room): void {
+    this.director.endForVersus();
+    this.threatHud.visible = false;
+    this.versus = new Versus(room, {
+      scene: this.render.scene,
+      camera: this.render.camera,
+      uiRoot: this.uiRoot,
+      physics: this.physics,
+      events: this.events,
+      player: this.player,
+      combat: this.combatSystem,
+      destruction: this.destruction,
+      dust: this.dust,
+      fire: this.fire,
+      teleport: (x, z, yaw) => this.teleportTo(x, z, yaw),
+      toast: (t) => this.hud.toast(t),
+      onPlayers: () => this.refreshRoom(),
+    });
+    room.onClosed = (reason) => {
+      this.hud.toast(reason);
+      this.versus?.dispose();
+      this.versus = null;
+      updateUrl({ room: '', ...this.worldParams() });
+      this.refreshRoom();
+    };
+    const start = this.versus.startPoint();
+    if (start) {
+      this.player.teleport(start.x, start.z, start.yaw);
+      this.camera.snap(start.yaw);
+    }
+    this.loop.paused = false;
+    this.refreshRoom();
+  }
+
+  /** Leave the room: back to playing alone in the same world. */
+  private leaveRoom(): void {
+    this.versus?.dispose();
+    this.versus = null;
+    reloadWith({ room: '', ...this.worldParams() });
+  }
+
+  /** URL parameters that reload this same world. */
+  private worldParams(): Record<string, string> {
+    const w = this.boot.world;
+    return { map: w.map ?? 'open', seed: w.seed === null ? (w.map ? '' : 'classic') : String(w.seed) };
+  }
+
+  private roomView(): RoomView | null {
+    const room = this.versus?.room;
+    if (!room) return null;
+    return {
+      code: room.code,
+      link: room.link,
+      isHost: room.isHost,
+      myId: room.myId,
+      players: [...room.players.values()].map((p) => ({ id: p.id, name: p.name, titan: p.titan, kos: p.kos })),
+    };
+  }
+
+  private refreshRoom(): void {
+    const view = this.roomView();
+    this.title.setRoom(view);
+    this.scoreboard.update(view);
   }
 
   /** Stream in every chunk around the spawn, a slice per frame. */
@@ -442,7 +585,7 @@ export class Game {
   }
 
   private updateMinimap(dt: number): void {
-    const r = this.director.rival?.titan;
+    const r = this.versus ? this.versus.nearest() : this.director.rival?.titan;
     const a = this.director.encounter.arena;
     this.minimap.update(dt, {
       playerX: this.player.renderPosition.x,
@@ -549,6 +692,8 @@ export class Game {
     this.beamFx.setColors(colorwayFor(c).beam);
     this.director.encounter.excludeRival(rosterTitan(c.titan).rival);
     updateUrl({ titan: c.titan, color: String(c.color) });
+    this.choice = c;
+    this.versus?.setLook(c);
   }
 
   /** Debug: fill beam energy. */
@@ -601,19 +746,23 @@ export class Game {
 
   private setPaused(paused: boolean): void {
     // Pause = pointer not locked. Rendering continues so the dev GUI stays live.
-    this.loop.paused = paused;
+    // Versus never pauses the world: the others keep playing (your titan just stands).
+    this.loop.paused = paused && !this.versus;
     const showPause = paused && this.started && !this.gameOver.isVisible && !this.evolution.isVisible;
     if (showPause) this.pauseMenu.show(this.runStats());
     else this.pauseMenu.visible = false;
     this.crosshair.visible = !paused;
     this.hud.visible = !paused;
-    this.threatHud.visible = !paused;
+    this.threatHud.visible = !paused && !this.versus;
+    this.scoreboard.visible = !paused;
     this.minimap.visible = !paused;
     this.audio.setPaused(paused);
     this.events.emit('game:pause', { paused });
   }
 
   private fixedUpdate(dt: number): void {
+    const versus = this.versus;
+    if (versus) return this.fixedUpdateVersus(dt, versus);
     if (this.input.state.wasPressed('lockOn')) this.director.toggleLock();
     this.director.preparePlayer();
     const p = this.player.position;
@@ -647,6 +796,29 @@ export class Game {
     this.input.state.endTick();
   }
 
+  /**
+   * Versus tick: no rivals, no military. Puppets move before combat so this tick's
+   * attacks hit them where they are; the world keeps running while a menu is open.
+   */
+  private fixedUpdateVersus(dt: number, versus: Versus): void {
+    const p = this.player.position;
+    const playing = this.started && this.input.isLocked;
+    const intent = this.playerController.update(this.input.state, this.camera.yaw, p.x, p.z);
+    this.player.fixedUpdate(dt, playing ? intent : NO_INTENT, playing ? this.playerController.combat : undefined);
+    const map = terrain.map;
+    if (map) this.player.constrainBox(map.meta.minX + MAP_EDGE, map.meta.minZ + MAP_EDGE, map.maxX - MAP_EDGE, map.maxZ - MAP_EDGE);
+    versus.fixedUpdate(dt);
+    const titans = versus.titans(_titans);
+    this.combatSystem.fixedUpdate(dt, titans);
+    this.destruction.tick(dt);
+    this.destruction.fixedUpdate(dt, this.player);
+    this.progress.time += dt;
+    this.physics.step();
+    this.debris.fixedUpdate(dt);
+    this.crates.instances.snapshot();
+    this.input.state.endTick();
+  }
+
   private renderFrame(alpha: number, frameDelta: number, step: StepResult): void {
     // Visual-only systems use scaled time and freeze while paused.
     const visualDt = this.loop.paused ? 0 : Math.min(frameDelta, SIM.maxFrameDelta) * this.loop.timeScale;
@@ -660,6 +832,7 @@ export class Game {
 
     this.player.render(alpha, visualDt);
     this.director.render(alpha, visualDt);
+    this.versus?.render(alpha, visualDt);
     this.crates.instances.render(alpha);
     this.debris.render(alpha);
     // Visual effects crawl during hit-pause instead of freezing outright.
@@ -723,7 +896,7 @@ export class Game {
     }
     this.debug.preRender(info);
     const pulsing = this.player.combat.currentMove === 'pulse';
-    this.render.render(this.beamFx.glowing || this.director.glowing || this.projectiles.count > 0 || pulsing);
+    this.render.render(this.beamFx.glowing || this.director.glowing || !!this.versus?.glowing || this.projectiles.count > 0 || pulsing);
     this.debug.postRender(info);
   }
 
@@ -764,7 +937,8 @@ export class Game {
       this.camera.shake.addKick(20);
     }
     this.lastReactionT = down ? a.t : 0;
-    if (a.kind === 'defeated' && a.t > 1.5 && !this.gameOver.isVisible) {
+    // In versus you get back up on your own (Versus respawns you away from the others).
+    if (a.kind === 'defeated' && a.t > 1.5 && !this.gameOver.isVisible && !this.versus) {
       this.gameOver.show(this.runStats());
       document.exitPointerLock();
     }

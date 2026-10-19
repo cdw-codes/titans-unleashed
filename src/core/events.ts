@@ -12,6 +12,8 @@ export interface GameEvents {
   /** A titan foot hit the ground (sim tick). Drives camera shake, dust, crushing. */
   'titan:footstep': {
     x: number; y: number; z: number; foot: Foot; sprinting: boolean; isPlayer: boolean;
+    /** A network player's titan: felt and seen, but its owner settles what it crushes. */
+    remote: boolean;
     /** Body size relative to the model's design height; scales dust and impact effects. */
     scale: number;
   };
@@ -30,7 +32,9 @@ export interface GameEvents {
   /** The player lost health. */
   'player:damaged': { amount: number };
   /** A structure was destroyed (crushed instantly or started collapsing). */
-  'structure:destroyed': { kind: StructureKind; size: SizeClass; x: number; z: number; height: number; points: number; byPlayer: boolean };
+  'structure:destroyed': { kind: StructureKind; size: SizeClass; x: number; z: number; height: number; points: number; byPlayer: boolean;
+    /** Chunk + index in the deterministic world (multiplayer sync). */
+    cx: number; cz: number; index: number };
 }
 
 export type GameEventBus = EventBus<GameEvents>;

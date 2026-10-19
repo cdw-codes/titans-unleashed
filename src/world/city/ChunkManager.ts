@@ -117,6 +117,21 @@ export class ChunkManager {
     return this.byCollider.get(handle);
   }
 
+  /** Structure `index` of a loaded chunk (undefined if that chunk isn't loaded). */
+  structureAt(cx: number, cz: number, index: number): Structure | undefined {
+    return this.chunks.get(chunkKey(cx, cz))?.structures[index];
+  }
+
+  /** Persist a structure as destroyed without it being loaded (applied when it streams in). */
+  markDestroyed(cx: number, cz: number, index: number): void {
+    this.destroyed.markDestroyed(cx, cz, index);
+  }
+
+  /** Every destroyed structure, loaded or not (multiplayer late joiners). */
+  destroyedEntries(): [number, number, number][] {
+    return this.destroyed.entries();
+  }
+
   /** Visit intact structures whose footprint circle overlaps (x, z, radius). */
   forEachNear(x: number, z: number, radius: number, cb: (s: Structure) => void): void {
     for (const [cx, cz] of chunksOverlappingCircle(x, z, radius + 60, this.size)) {

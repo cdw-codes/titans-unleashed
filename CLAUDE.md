@@ -51,6 +51,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   `destruction/` (gameplay, Collapse visuals, Debris pool, rules), `combat/` (CombatSystem, rules,
   Health, Projectiles), `encounters/`, `military/` (Threat, MilitarySystem), `progression/`
   (Upgrades → TitanModifiers), `effects/`
+- `src/net` — versus multiplayer: protocol (messages, validation), Room (PeerJS host relay),
+  Versus (puppets, hits, destruction sync, KOs), SnapshotBuffer (interpolation)
 - `src/input` — InputState (pure, tested) + Input (DOM, pointer lock)
 - `src/ui` — HUD, menus, overlays, styles.css
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
@@ -116,6 +118,11 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - Titan states: idle/walk/sprint/attack/stomp/beamCharge/beamFire/roar/stagger/knockdown/
   defeated. Rival AI: small readable decision system (no ML).
 - All gameplay values in typed `src/config` files; bindings only in `config/input.ts`.
+- Versus: each client simulates only its own titan and sends state at 20 Hz; others are
+  puppet Titans (`remote`, `applyRemote`, shown 120 ms in the past). The attacker resolves
+  hits (CombatSystem → `remoteHit` → `hit` message), the victim applies them. Destruction
+  syncs by (chunk, index) — another reason generation must stay deterministic. Only
+  player-credited destruction is sent. In a room the sim never pauses.
 - Debug (F1): overlay stats, collider wireframes, chunk grid; gameplay code draws hitboxes
   via `debug.draw` and AI labels via `debug.label()` — both are no-ops when debug is off.
 
@@ -137,8 +144,9 @@ hold E charge beam / release fire · R roar · F Atomic Pulse (unlock) · Q or M
 
 ## Current status
 All 8 milestones published (`cdw-codes/titans-unleashed`; pushing `main` deploys Pages).
-Since then: terrain world, real-city maps (Tokyo). **Waiting for the user to playtest Tokyo.**
-Still to do: playtest on an integrated-GPU laptop; more cities (New York, London).
+Since then: terrain world, real-city maps, start screen, versus multiplayer (phase 1).
+**Waiting for the user to playtest versus across two machines.** Still to do: playtest on an
+integrated-GPU laptop; bake the remaining cities; host-run military in versus (phase 2).
 
 Known issues:
 - Rapier compat bundle ~1.7 MB gzip (base64 wasm); a non-compat build needs a plugin (ask).
@@ -147,6 +155,7 @@ Known issues:
   (props + full-detail terrain), smallShadows, pixel ratio.
 - Not measured on an integrated GPU (AutoQuality steps down).
 - Camera pivot doesn't follow the body down during knockdown (camera stays high).
+- Versus: no lock-on to other players yet; peers are trusted for their own titan's pose.
 - Chunk generation ~1.5–2 ms each (terrain + rivers); 3 per frame while streaming.
 
 Decisions:
@@ -157,6 +166,8 @@ Decisions:
 - Movement is facing-based (turn-limited, heavy); lock-on switches to strafing.
 - Defeat: Respawn beyond the fog from the rival, on dry ground at a street-grid point, 5 s
   invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
+- Multiplayer: PeerJS P2P (public signaling, host relays, no TURN, max 4), versus only;
+  rivals + military sit out in rooms. Player name rides in the URL (`?name=`).
 - Tuning: ship genre-typical defaults; the user tunes from player feedback later.
 - Art: ALL 3D content is code-built (no model files/glTF pipeline; add a loader only if the
   user supplies models). Every sound is a synthesized placeholder (`systems/audio/synth.ts`);

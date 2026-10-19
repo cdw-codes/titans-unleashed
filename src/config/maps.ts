@@ -148,7 +148,10 @@ export function selectedSeed(): number | null {
 /** Change URL parameters without reloading (choices that apply live, e.g. the titan). */
 export function updateUrl(params: Record<string, string>): void {
   const q = new URLSearchParams(location.search);
-  for (const [k, v] of Object.entries(params)) q.set(k, v);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === '') q.delete(k);
+    else q.set(k, v);
+  }
   history.replaceState(null, '', `${location.pathname}?${q}`);
 }
 
@@ -167,6 +170,9 @@ export async function availableMaps(base: string): Promise<CityMapDef[]> {
 /** Reload into a URL with these parameters changed (map / seed). */
 export function reloadWith(params: Record<string, string>): void {
   const q = new URLSearchParams(location.search);
-  for (const [k, v] of Object.entries(params)) q.set(k, v);
+  for (const [k, v] of Object.entries(params)) {
+    if (v === '') q.delete(k);
+    else q.set(k, v);
+  }
   location.search = q.toString();
 }

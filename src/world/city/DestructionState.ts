@@ -18,6 +18,16 @@ export class DestructionState {
     return this.destroyed.get(chunkKey(cx, cz))?.has(index) ?? false;
   }
 
+  /** Every destroyed structure as [cx, cz, index] (multiplayer late joiners). */
+  entries(): [number, number, number][] {
+    const out: [number, number, number][] = [];
+    for (const [key, set] of this.destroyed) {
+      const [cx, cz] = key.split(',').map(Number) as [number, number];
+      for (const i of set) out.push([cx, cz, i]);
+    }
+    return out;
+  }
+
   countIn(cx: number, cz: number): number {
     return this.destroyed.get(chunkKey(cx, cz))?.size ?? 0;
   }
