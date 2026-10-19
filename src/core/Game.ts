@@ -5,6 +5,7 @@ import { TITAN_FEEDBACK } from '../config/titan';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { DUST, FIRE, PLASMA_TRAIL, SHOCKWAVE, SMOKE } from '../config/effects';
 import { WaterFx } from '../systems/effects/WaterFx';
+import { PerimeterFx } from '../systems/effects/PerimeterFx';
 import { ENCOUNTERS } from '../config/encounters';
 import type { RivalId } from '../config/rivals';
 import { COMBAT } from '../config/combat';
@@ -137,6 +138,9 @@ export class Game {
   private readonly fire = new DustSystem(FIRE);
   private readonly shockwaves: ShockwaveFx;
   private readonly waterFx: WaterFx;
+  /** City maps: the visible edge of the playable area (null in the open world, which has none). */
+  private readonly perimeter: PerimeterFx | null;
+  private edgeWarned = false;
   private readonly beamFx: BeamFx;
   private readonly combatSystem: CombatSystem;
   private readonly projectiles: ProjectileSystem;
@@ -218,6 +222,10 @@ export class Game {
     scene.add(this.dust.mesh, this.smoke.mesh, this.fire.mesh, this.plasmaTrail.mesh);
     this.shockwaves = new ShockwaveFx(scene);
     this.waterFx = new WaterFx(scene);
+    const m = terrain.map;
+    // Just outside the line the body is held to, so the titan meets the wall, not passes into it.
+    const e = MAP_EDGE - 25;
+    this.perimeter = m ? new PerimeterFx(scene, m.meta.minX + e, m.meta.minZ + e, m.maxX - e, m.maxZ - e) : null;
     this.beamFx = new BeamFx(scene, this.fire);
     this.collapse = new CollapseSystem(this.chunks, this.cityPools, this.dust, this.smoke, this.debris);
 
@@ -635,6 +643,7 @@ export class Game {
       chunkSize: this.chunks.chunkSize,
       rival: r && r.state !== 'defeated' ? { x: r.renderPosition.x, z: r.renderPosition.z, yaw: r.yaw } : null,
       arena: a.active ? a : null,
+      bounds: this.perimeter?.bounds ?? null,
       units: (cb) => this.military.forEachUnit(cb),
     });
   }
@@ -893,6 +902,7 @@ export class Game {
     this.shockwaves.update(fxDt);
     // The title showcase is paused but its water stays alive.
     this.updateWater(this.started ? fxDt : Math.min(frameDelta, 0.1));
+    this.updatePerimeter(visualDt);
     this.beamFx.update(this.player, fxDt);
     this.projectiles.render(alpha, fxDt);
     this.military.render(alpha, fxDt);
@@ -949,6 +959,19 @@ export class Game {
     const pulsing = this.player.combat.currentMove === 'pulse';
     this.render.render(this.beamFx.glowing || this.director.glowing || !!this.versus?.glowing || this.projectiles.count > 0 || pulsing);
     this.debug.postRender(info);
+  }
+
+  /** Show the city map's edge as you near it, and say what it is once per approach. */
+  private updatePerimeter(dt: number): void {
+    const per = this.perimeter;
+    if (!per) return;
+    const p = this.player.renderPosition;
+    per.update(p, dt);
+    const d = per.distanceToEdge(p.x, p.z);
+    if (this.started && d < 260 && !this.edgeWarned) {
+      this.edgeWarned = true;
+      this.hud.toast(`EDGE OF THE MAPPED ZONE · ${terrain.map?.meta.name.toUpperCase() ?? 'CITY'} ENDS HERE`);
+    } else if (d > 600) this.edgeWarned = false;
   }
 
   /** Wading foam and wakes for every titan, steam where beams cut the water. */

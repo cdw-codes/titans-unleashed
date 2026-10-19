@@ -200,9 +200,11 @@ export class Titan {
     // Gravity only while airborne. Pushing down while grounded makes Rapier's KCC
     // stall horizontally; snap-to-ground keeps us glued on the way down instead.
     this.verticalVelocity = this.grounded ? 0 : this.verticalVelocity + SIM.gravity * TITAN_CONTROLLER.gravityScale * dt;
-    _desired.x = this.motor.velocityX * dt * this.travelMultiplier;
+    // Heavy climbing: steep ground ahead slows the stride (down to a crawl near the climb limit).
+    const climb = this.climbFactor();
+    _desired.x = this.motor.velocityX * dt * this.travelMultiplier * climb;
     _desired.y = this.verticalVelocity * dt;
-    _desired.z = this.motor.velocityZ * dt * this.travelMultiplier;
+    _desired.z = this.motor.velocityZ * dt * this.travelMultiplier * climb;
 
     // Debris (dynamic bodies) never blocks the titan; it walks through and kicks it via footsteps.
     this.controller.computeColliderMovement(this.collider, _desired, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, this.kccGroups);
@@ -275,6 +277,19 @@ export class Titan {
       d.z = r.beam.z;
     }
     this.combat.applyRemote(r.state, r.t, r.side, r.charge, r.move, r.beam !== null && r.state === 'beamFire', r.hp);
+  }
+
+  /** 1 on level ground or downhill; less going up steep slopes (rise over 20 m ahead). */
+  private climbFactor(): number {
+    const vx = this.motor.velocityX;
+    const vz = this.motor.velocityZ;
+    const v = Math.hypot(vx, vz);
+    if (v < 0.5) return 1;
+    const p = this.position;
+    const ahead = 20;
+    const rise = (terrain.heightAt(p.x + (vx / v) * ahead, p.z + (vz / v) * ahead) - terrain.heightAt(p.x, p.z)) / ahead;
+    // Free up to ~17 degrees, then down to 30% speed at ~55.
+    return 1 - 0.7 * Math.min(1, Math.max(0, (rise - 0.3) / 1.1));
   }
 
   /** Move instantly (respawn). Clears momentum and interpolation. */

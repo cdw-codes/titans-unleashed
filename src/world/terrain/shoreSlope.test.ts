@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
-import { TITAN_CONTROLLER } from '../../config/titan';
 import { Terrain } from './Terrain';
 import { CityMap } from '../maps/CityMap';
 
@@ -22,7 +21,8 @@ function steepestShore(t: Terrain, x0: number, z0: number, x1: number, z1: numbe
   return (worst * 180) / Math.PI;
 }
 
-const limit = TITAN_CONTROLLER.maxSlopeClimbDeg - 2;
+/** Shores stay an easy walk (well under the controller's climb limit), not a scramble. */
+const limit = 38;
 
 describe('titans can climb out of any water', () => {
   it('open worlds: sea shelves, lake basins, river banks', () => {

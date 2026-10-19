@@ -89,8 +89,8 @@ export const TITAN_BODY: TitanBodyConfig = {
 
 export const TITAN_CONTROLLER: TitanControllerConfig = {
   offset: 0.5,
-  maxSlopeClimbDeg: 40,
-  minSlopeSlideDeg: 50,
+  maxSlopeClimbDeg: 58,
+  minSlopeSlideDeg: 65,
   autostepHeight: 5,
   autostepMinWidth: 2,
   snapToGround: 4,

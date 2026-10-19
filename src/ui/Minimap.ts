@@ -11,6 +11,8 @@ export interface MinimapState {
   chunkSize: number;
   rival: { x: number; z: number; yaw: number } | null;
   arena: { x: number; z: number; radius: number } | null;
+  /** City maps: the playable rectangle. */
+  bounds: { minX: number; minZ: number; maxX: number; maxZ: number } | null;
   units: (cb: (kind: 'tank' | 'heli', x: number, z: number) => void) => void;
 }
 
@@ -114,6 +116,19 @@ export class Minimap {
           : 'rgba(110, 70, 50, 0.6)';
         g.fillRect(dx - hw, dz - hd, hw * 2, hd * 2);
       }
+    }
+
+    if (s.bounds) {
+      // Beyond the edge: shaded, with a bright border line.
+      const b = s.bounds;
+      g.fillStyle = 'rgba(4, 10, 22, 0.55)';
+      g.beginPath();
+      g.rect(-R * 2, -R * 2, R * 4, R * 4);
+      g.rect(b.minX - ox, b.minZ - oz, b.maxX - b.minX, b.maxZ - b.minZ);
+      g.fill('evenodd');
+      g.strokeStyle = 'rgba(111, 214, 255, 0.9)';
+      g.lineWidth = 6;
+      g.strokeRect(b.minX - ox, b.minZ - oz, b.maxX - b.minX, b.maxZ - b.minZ);
     }
 
     if (s.arena) {
