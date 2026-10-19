@@ -5,6 +5,8 @@ import { ROSTER, rosterTitan, type TitanChoice } from '../entities/titan/roster'
 import { openWorldPreview } from './openWorldPreview';
 import logoSvg from './logo.svg?raw';
 import { parseRoomCode } from '../net/protocol';
+import { CITY } from '../config/city';
+import { bboxLatLon, bboxUv, formatDrop, openUv, openWorld, type Uv } from '../world/dropPoint';
 
 /** Shared run stats shown on the pause and game-over screens. */
 export interface RunStats {
@@ -72,6 +74,14 @@ export interface TitleOptions {
   /** Titan or colorway changed: applies live to the titan on the right. */
   onTitan: (choice: TitanChoice) => void;
   versus: VersusOptions;
+  drop: DropOptions;
+}
+
+export interface DropOptions {
+  /** The loaded world's drop point on its preview. */
+  current: Uv;
+  /** Move the drop point in the loaded world; returns where it actually landed (dry ground). */
+  onDrop(uv: Uv): Uv;
 }
 
 export interface VersusOptions {
@@ -100,8 +110,9 @@ interface Location {
   name: string;
   blurb: string;
   img: string | null;
-  /** Spawn coordinates as text (cities), null for the open world. */
-  coords: string | null;
+  /** City bbox (the preview's extent) and default spawn; null for the open world. */
+  bbox: readonly [number, number, number, number] | null;
+  spawn: Uv;
 }
 
 /** Logo mark: the titan dorsal plates artwork (src/ui/logo.svg), cropped to the plates. */
@@ -149,11 +160,12 @@ export class TitleScreen extends Screen {
   constructor(parent: HTMLElement, private readonly o: TitleOptions) {
     super(parent, 'title-screen');
     this.choice = { ...o.choice };
+    this.loadedDrop = o.drop.current;
     this.pendingSeed = o.openSeed ?? randomSeed();
     const base = import.meta.env.BASE_URL;
     this.locations = [
-      ...o.maps.map((m) => ({ id: m.id, name: m.name, blurb: m.blurb, img: `${base}maps/${m.id}.png`, coords: latLon(m.spawn[0], m.spawn[1]) })),
-      { id: 'open', name: 'Open world', blurb: 'An invented world of towns, rivers and mountains, new every game.', img: null, coords: null },
+      ...o.maps.map((m) => ({ id: m.id, name: m.name, blurb: m.blurb, img: `${base}maps/${m.id}.png`, bbox: m.bbox, spawn: bboxUv(m.bbox, m.spawn[0], m.spawn[1]) })),
+      { id: 'open', name: 'Open world', blurb: 'An invented world of towns, rivers and mountains, new every game.', img: null, bbox: null, spawn: openUv(CITY.spawnX, CITY.spawnZ) },
     ];
     this.loc = Math.max(0, this.locations.findIndex((l) => (l.id === 'open' ? o.currentMap === null : l.id === o.currentMap)));
 
@@ -195,9 +207,13 @@ export class TitleScreen extends Screen {
           <div class="tt-zone">
             <button type="button" class="pick-arrow" data-loc="-1" aria-label="Previous location">‹</button>
             <figure class="tt-scope">
-              <img data-role="loc-img" alt="">
-              <span class="tt-scope-grid"></span><span class="tt-sweep"></span><span class="tt-cross"></span>
+              <span class="tt-scope-grid"></span><span class="tt-sweep"></span>
+              <div class="tt-map" data-role="drop-map" title="Click or drag to set the drop point">
+                <img data-role="loc-img" alt="" draggable="false">
+                <span class="tt-pin" data-role="drop-pin"></span>
+              </div>
               <figcaption data-role="loc-coords"></figcaption>
+              <span class="tt-scope-hint" data-role="drop-hint">SET DROP POINT</span>
             </figure>
             <button type="button" class="pick-arrow" data-loc="1" aria-label="Next location">›</button>
           </div>
@@ -269,11 +285,13 @@ export class TitleScreen extends Screen {
     for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-loc]')) {
       b.addEventListener('click', () => {
         this.loc = (this.loc + Number(b.dataset['loc']) + this.locations.length) % this.locations.length;
+        this.pendingDrop = null;
         this.renderLocation();
       });
     }
     q<HTMLButtonElement>('[data-act=reroll]').addEventListener('click', () => {
       this.pendingSeed = randomSeed();
+      this.pendingDrop = null;
       this.renderLocation();
     });
     for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-titan]')) {
@@ -284,6 +302,7 @@ export class TitleScreen extends Screen {
       });
     }
     this.bindVersus();
+    this.bindDrop();
     this.renderLocation();
     this.renderTitan();
     this.visible = true;
@@ -311,6 +330,64 @@ export class TitleScreen extends Screen {
   }
 
   private room: RoomView | null = null;
+  /** Drop point picked for a location that isn't loaded yet (applied on travel). */
+  private pendingDrop: Uv | null = null;
+  private loadedDrop: Uv;
+
+  /** Drop point shown for the selected location. */
+  private get drop(): Uv {
+    if (this.isLoaded) return this.loadedDrop;
+    return this.pendingDrop ?? this.location.spawn;
+  }
+
+  private bindDrop(): void {
+    const map = this.el.querySelector<HTMLDivElement>('[data-role=drop-map]')!;
+    const img = map.querySelector('img')!;
+    // The map frame takes the image's aspect so fractions are fractions of the map.
+    img.addEventListener('load', () => map.style.setProperty('--ar', String(img.naturalWidth / img.naturalHeight)));
+    const at = (e: PointerEvent): Uv => {
+      const r = map.getBoundingClientRect();
+      return [Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), Math.min(1, Math.max(0, (e.clientY - r.top) / r.height))];
+    };
+    let dragging = false;
+    map.addEventListener('pointerdown', (e) => {
+      if (this.room) return;
+      dragging = true;
+      map.setPointerCapture(e.pointerId);
+      this.showDrop(at(e));
+    });
+    map.addEventListener('pointermove', (e) => {
+      if (dragging) this.showDrop(at(e));
+    });
+    const commit = (e: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      const uv = at(e);
+      if (this.isLoaded) this.loadedDrop = this.o.drop.onDrop(uv);
+      else this.pendingDrop = uv;
+      this.showDrop(this.drop);
+    };
+    map.addEventListener('pointerup', commit);
+    map.addEventListener('pointercancel', commit);
+  }
+
+  /** Pin and coordinates for a drop point on the selected location. */
+  private showDrop(uv: Uv): void {
+    const pin = this.el.querySelector<HTMLSpanElement>('[data-role=drop-pin]')!;
+    pin.style.left = `${uv[0] * 100}%`;
+    pin.style.top = `${uv[1] * 100}%`;
+    const coords = this.coordsText(uv);
+    this.el.querySelector('[data-role=loc-coords]')!.textContent = coords;
+    if (this.isLoaded) this.el.querySelector('[data-role=coords]')!.textContent = coords;
+  }
+
+  private coordsText(uv: Uv): string {
+    const bbox = this.location.bbox;
+    if (bbox) return latLon(...bboxLatLon(bbox, uv));
+    const [x, z] = openWorld(uv);
+    const km = (n: number) => `${n >= 0 ? '+' : '−'}${Math.abs(n / 1000).toFixed(1)}`;
+    return `GRID ${km(x)} / ${km(-z)} KM · SEED ${String(this.pendingSeed).padStart(5, '0')}`;
+  }
 
   private bindVersus(): void {
     const v = this.o.versus;
@@ -389,7 +466,8 @@ export class TitleScreen extends Screen {
   private start(): void {
     if (this.isLoaded || this.room) return this.o.onStart();
     const l = this.location;
-    reloadWith(l.id === 'open' ? { map: 'open', seed: String(this.pendingSeed) } : { map: l.id });
+    const spawn = this.pendingDrop ? formatDrop(this.pendingDrop) : '';
+    reloadWith(l.id === 'open' ? { map: 'open', seed: String(this.pendingSeed), spawn } : { map: l.id, spawn });
   }
 
   private renderLocation(): void {
@@ -398,10 +476,8 @@ export class TitleScreen extends Screen {
     set('loc-name', l.id === 'open' ? `Open world #${this.pendingSeed}` : l.name);
     set('loc-count', `${this.loc + 1}/${this.locations.length}`);
     set('loc-blurb', l.blurb);
-    const coords = l.coords ?? `GRID SEED ${String(this.pendingSeed).padStart(5, '0')} · UNCHARTED`;
-    set('loc-coords', coords);
-    // The feed's own coordinates stay on the loaded world.
-    if (this.isLoaded) set('coords', coords);
+    this.showDrop(this.drop);
+    this.el.querySelector<HTMLElement>('[data-role=drop-hint]')!.hidden = !!this.room;
     const img = this.el.querySelector<HTMLImageElement>('[data-role=loc-img]')!;
     img.alt = `Top view of ${l.name}`;
     if (l.img) img.src = l.img;

@@ -63,6 +63,7 @@ import { Versus } from '../net/Versus';
 import { parseRoomCode, type WorldInfo } from '../net/protocol';
 import { Scoreboard } from '../ui/Scoreboard';
 import type { RoomView } from '../ui/menus';
+import { formatDrop, openUv, openWorld, parseDrop, rectUv, rectWorld, type Uv } from '../world/dropPoint';
 
 const _camDir = new THREE.Vector3();
 const _trackTop = new THREE.Vector3();
@@ -79,6 +80,25 @@ import { Crosshair } from '../ui/Crosshair';
 /** How far inside a city map's data edge the player is held (m). */
 const MAP_EDGE = 250;
 const NO_INTENT = { x: 0, z: 0, sprint: false };
+
+/** A drop point picked on the title map → a dry street corner in the loaded world (inside a city's edge). */
+function dropToWorld(uv: Uv): { x: number; z: number } {
+  const map = terrain.map;
+  if (!map) {
+    const [x, z] = openWorld(uv);
+    return terrain.dryStreetNear(x, z);
+  }
+  const inset = MAP_EDGE + 150;
+  const [x, z] = rectWorld(map.meta.minX, map.meta.minZ, map.maxX, map.maxZ, uv);
+  const cx = Math.min(map.maxX - inset, Math.max(map.meta.minX + inset, x));
+  const cz = Math.min(map.maxZ - inset, Math.max(map.meta.minZ + inset, z));
+  return terrain.dryStreetNear(cx, cz);
+}
+
+function worldToDrop(x: number, z: number): Uv {
+  const map = terrain.map;
+  return map ? rectUv(map.meta.minX, map.meta.minZ, map.maxX, map.maxZ, x, z) : openUv(x, z);
+}
 const _titans: Titan[] = [];
 
 /** How this page booted: the world it shows, and a room joined through an invite. */
@@ -219,7 +239,7 @@ export class Game {
     const newGame = () => {
       if (this.versus) return this.leaveRoom();
       if (terrain.map) location.reload();
-      else reloadWith({ seed: String(randomSeed()) });
+      else reloadWith({ seed: String(randomSeed()), spawn: '' });
     };
     this.pauseMenu = new PauseMenu(uiRoot, terrain.map?.meta.attribution ?? null, resume, newGame);
     this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
@@ -235,6 +255,10 @@ export class Game {
         resume();
       },
       onTitan: (c) => this.applyTitan(c),
+      drop: {
+        current: worldToDrop(terrain.spawn.x, terrain.spawn.z),
+        onDrop: (uv) => this.dropAt(uv),
+      },
       versus: {
         joined: !!boot.joined,
         name: this.playerName,
@@ -414,6 +438,9 @@ export class Game {
       if (seed !== null) terrain.reseed(seed);
       boot.world = { map: null, seed };
     } else boot.world = { map: terrain.map.meta.id, seed: null };
+    // A drop point picked on the title map (not in a joined room: joiners ring the host's spawn).
+    const drop = boot.joined ? null : parseDrop(location.search);
+    if (drop) terrain.spawn = dropToWorld(drop);
     const physics = await PhysicsSystem.create(1 / SIM.tickRate);
     onProgress(0.2, 'Tuning the roars');
     const game = new Game(container, physics, await availableMaps(import.meta.env.BASE_URL), boot);
@@ -706,6 +733,19 @@ export class Game {
     this.versus?.setLook(c);
   }
 
+  /** Title screen: move the drop point in the loaded world; returns where it actually landed. */
+  private dropAt(uv: Uv): Uv {
+    const p = dropToWorld(uv);
+    terrain.spawn = p;
+    const yaw = this.player.yaw;
+    this.teleportTo(p.x, p.z, yaw);
+    // The sim is paused here: one step registers the new colliders for the showcase camera's sight checks.
+    this.physics.step();
+    const snapped = worldToDrop(p.x, p.z);
+    updateUrl({ spawn: formatDrop(snapped) });
+    return snapped;
+  }
+
   /** Debug: fill beam energy. */
   fillEnergy(): void {
     this.progress.energy = DESTRUCTION.maxEnergy;
@@ -716,20 +756,7 @@ export class Game {
    * building), facing `yaw`. The world around is streamed in at once (a short hitch).
    */
   teleportTo(x: number, z: number, yaw = 0): void {
-    const pitch = CITY.blockSize + CITY.streetWidth;
-    let tx = Math.round(x / pitch) * pitch;
-    let tz = Math.round(z / pitch) * pitch;
-    search: for (let ring = 1; ring <= 8 && terrain.isWater(tx, tz, 3); ring++) {
-      for (let i = -ring; i <= ring; i++) {
-        for (const [dx, dz] of [[i, -ring], [i, ring], [-ring, i], [ring, i]] as const) {
-          if (!terrain.isWater(tx + dx * pitch, tz + dz * pitch, 3)) {
-            tx += dx * pitch;
-            tz += dz * pitch;
-            break search;
-          }
-        }
-      }
-    }
+    const { x: tx, z: tz } = terrain.dryStreetNear(x, z);
     this.player.teleport(tx, tz, yaw);
     this.camera.snap(yaw);
     this.chunks.update(tx, tz, QUALITY_PRESETS[this.qualityLevel].drawDistance, Infinity);

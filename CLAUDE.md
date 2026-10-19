@@ -96,6 +96,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   pickers), live scene right (showcase camera, sim paused). Titan + colorway (`roster.ts`)
   swap live via `Titan.setDesign`; choice is cosmetic (same moves), kept in `?titan=&color=`;
   rivals exclude the player's look-alike. A different location loads on "Travel to …".
+  Drop point: click/drag on the location map (`?spawn=u,v`, preview fractions, world/dropPoint.ts),
+  snapped to the nearest dry street (`terrain.dryStreetNear`).
 - Every titan (player or rival) is the same `Titan` class built from a `TitanSpec` (body,
   movement, gait, combat config, design). Controllers only produce MoveIntent + CombatInput:
   PlayerController from input, RivalAI from perception. Never special-case rivals in Titan.

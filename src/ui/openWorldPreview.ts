@@ -1,10 +1,11 @@
 import { Terrain } from '../world/terrain/Terrain';
+import { OPEN_PREVIEW_RANGE } from '../world/dropPoint';
 
 /**
  * Top view of the procedural open world for a seed (null = classic layout) as a
  * data URL, drawn from a fresh Terrain so it works while a city map is loaded.
  */
-export function openWorldPreview(size: number, seed: number | null, range = 11000): string {
+export function openWorldPreview(size: number, seed: number | null, range = OPEN_PREVIEW_RANGE): string {
   const t = new Terrain();
   if (seed !== null) t.reseed(seed);
   const canvas = document.createElement('canvas');

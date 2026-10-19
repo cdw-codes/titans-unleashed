@@ -380,6 +380,33 @@ export class Terrain {
     return h;
   }
 
+  /**
+   * Nearest dry street intersection to (x, z), searched in growing rings (spawns,
+   * drop points, teleports): never in water, never inside a building.
+   */
+  dryStreetNear(x: number, z: number, maxRing = 40): { x: number; z: number } {
+    const pitch = CITY.blockSize + CITY.streetWidth;
+    const cx = Math.round(x / pitch) * pitch;
+    const cz = Math.round(z / pitch) * pitch;
+    if (!this.isWater(cx, cz, 3)) return { x: cx, z: cz };
+    let best: { x: number; z: number } | null = null;
+    for (let ring = 1; ring <= maxRing && !best; ring++) {
+      let bestD = Infinity;
+      for (let i = -ring; i <= ring; i++) {
+        for (const [dx, dz] of [[i, -ring], [i, ring], [-ring, i], [ring, i]] as const) {
+          const px = cx + dx * pitch;
+          const pz = cz + dz * pitch;
+          const d = Math.hypot(px - x, pz - z);
+          if (d < bestD && !this.isWater(px, pz, 3)) {
+            bestD = d;
+            best = { x: px, z: pz };
+          }
+        }
+      }
+    }
+    return best ?? { x: cx, z: cz };
+  }
+
   /** Is this point under the sea, a lake or a river? */
   isWater(x: number, z: number, margin = 0): boolean {
     return this.heightAt(x, z) < this.c.waterLevel + margin;
