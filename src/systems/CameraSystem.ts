@@ -50,10 +50,18 @@ export class CameraSystem {
   }
 
   /** Jump straight to the target on the next update (after a teleport), facing `yaw`. */
+  /** Frame a titan of this height (m): pivot height, distance and shoulder offset scale with it. */
+  setSize(height: number): void {
+    this.size = height / 100;
+    this.distance = CAMERA.distance * this.size;
+  }
+
+  private size = 1;
+
   snap(facingYaw: number): void {
     this.initialized = false;
     this.yaw = facingYaw + Math.PI;
-    this.distance = CAMERA.distance;
+    this.distance = CAMERA.distance * this.size;
   }
 
   applyMouse(dx: number, dy: number): void {
@@ -81,14 +89,14 @@ export class CameraSystem {
 
     // Pivot above the titan, nudged to the camera's right.
     _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-    this.pivot.copy(this.focus).addScaledVector(_right, C.shoulderOffset);
-    this.pivot.y += C.pivotHeight;
+    this.pivot.copy(this.focus).addScaledVector(_right, C.shoulderOffset * this.size);
+    this.pivot.y += C.pivotHeight * this.size;
 
     const cp = Math.cos(this.pitch);
     _dir.set(Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
 
     // Collision: snap in immediately-ish, ease back out slowly.
-    const allowed = this.probeDistance(C.distance);
+    const allowed = this.probeDistance(C.distance * this.size);
     const halfLife = allowed < this.distance ? C.pullInHalfLife : C.easeOutHalfLife;
     this.distance = damp(this.distance, allowed, halfLife, dt);
 

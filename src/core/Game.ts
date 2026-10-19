@@ -29,7 +29,7 @@ import { WORLD } from '../config/world';
 import { BINDINGS } from '../config/input';
 import { damp } from './math';
 import { availableMaps, randomSeed, reloadWith, selectedMapId, selectedSeed, updateUrl, type CityMapDef } from '../config/maps';
-import { colorwayFor, designFor, parseChoice, rosterTitan, type TitanChoice } from '../entities/titan/roster';
+import { colorwayFor, parseChoice, rosterTitan, specFor, type TitanChoice } from '../entities/titan/roster';
 import { CityMap } from '../world/maps/CityMap';
 import { CityPools } from '../world/city/CityPools';
 import { ChunkManager } from '../world/city/ChunkManager';
@@ -43,7 +43,6 @@ import { CombatSystem } from '../systems/combat/CombatSystem';
 import { BeamFx } from '../systems/effects/BeamFx';
 import { ShockwaveFx } from '../systems/effects/ShockwaveFx';
 import type { PlayerAbility } from '../ui/Hud';
-import { PLAYER_SPEC } from '../entities/titan/TitanSpec';
 import { ProjectileSystem } from '../systems/combat/ProjectileSystem';
 import { BarrierFx } from '../systems/effects/BarrierFx';
 import { EncounterDirector } from '../systems/encounters/EncounterDirector';
@@ -224,11 +223,12 @@ export class Game {
 
     const { x: sx, z: sz } = terrain.spawn;
     const spawn = new THREE.Vector3(sx, terrain.heightAt(sx, sz), sz);
-    this.player = new Titan(physics, this.events, spawn, true, this.progress, { ...PLAYER_SPEC, design: designFor(choice) });
+    this.player = new Titan(physics, this.events, spawn, true, this.progress, specFor(choice));
     scene.add(this.player.model.object);
 
     this.input = new Input(this.render.canvas, BINDINGS);
     this.camera = new CameraSystem(this.render.camera, physics);
+    this.camera.setSize(this.player.spec.body.height);
     this.camera.setTarget(this.player.body, this.player.yaw);
     this.debug = new DebugSystem(scene, this.render.renderer, this.render.camera, physics, uiRoot);
     this.crosshair = new Crosshair(uiRoot);
@@ -385,8 +385,10 @@ export class Game {
       else this.dust.burst(e.x, e.y, e.z, e.sprinting ? DUST.sprintStep : DUST.walkStep, e.scale);
       if (e.isPlayer) {
         this.military.crushAt(e.x, e.z, DESTRUCTION.footCrushRadius * e.scale);
-        this.camera.shake.addTrauma(e.sprinting ? TITAN_FEEDBACK.sprintStepTrauma : TITAN_FEEDBACK.walkStepTrauma);
-        this.camera.shake.addKick(e.sprinting ? TITAN_FEEDBACK.sprintStepKick : TITAN_FEEDBACK.walkStepKick);
+        // Heavier titans land harder.
+        const heft = Math.min(1.4, Math.max(0.75, Math.sqrt((this.player.spec.weight ?? 90000) / 90000)));
+        this.camera.shake.addTrauma((e.sprinting ? TITAN_FEEDBACK.sprintStepTrauma : TITAN_FEEDBACK.walkStepTrauma) * heft);
+        this.camera.shake.addKick((e.sprinting ? TITAN_FEEDBACK.sprintStepKick : TITAN_FEEDBACK.walkStepKick) * heft);
       } else {
         // Other titans: felt through the ground, fading with distance.
         const k = this.proximity(e.x, e.z, 700);
@@ -734,7 +736,8 @@ export class Game {
 
   /** Title-screen titan / colorway choice: live model swap, beam color, rival rotation, URL. */
   private applyTitan(c: TitanChoice): void {
-    this.player.setDesign(designFor(c));
+    this.player.applySpec(specFor(c));
+    this.camera.setSize(this.player.spec.body.height);
     this.beamFx.setColors(colorwayFor(c).beam);
     this.director.encounter.excludeRival(rosterTitan(c.titan).rival);
     updateUrl({ titan: c.titan, color: String(c.color) });

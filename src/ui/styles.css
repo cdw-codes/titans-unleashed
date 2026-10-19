@@ -659,6 +659,22 @@ html, body {
 @keyframes tt-scroll-quarter { to { transform: translateX(-25%); } }
 @keyframes tt-scroll-half { to { transform: translateX(-50%); } }
 
+/* Specimen file: measurements, class/origin, rating bars, traits. */
+.tt-measure { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 0; }
+.tt-measure div { padding: 5px 6px; background: rgba(2, 7, 15, 0.45); border-left: 2px solid var(--sig); }
+.tt-measure dt, .tt-file dt { font-family: var(--tt-mono); font-size: 9px; letter-spacing: 0.16em; text-transform: uppercase; opacity: 0.55; }
+.tt-measure dd { margin: 1px 0 0; font-family: var(--tt-mono); font-size: 12px; font-weight: 700; color: #fff; }
+.tt-file { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 0; font-size: 11px; align-items: baseline; }
+.tt-file dd { margin: 0; opacity: 0.85; }
+.tt-ratings { display: grid; gap: 3px; }
+.tt-rating { display: grid; grid-template-columns: 64px 1fr; align-items: center; font-family: var(--tt-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; }
+.tt-rating > span:first-child { opacity: 0.7; }
+.tt-bar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
+.tt-bar i { height: 7px; background: rgba(255, 255, 255, 0.1); }
+.tt-bar i.on { background: var(--sig); box-shadow: 0 0 6px var(--sig); }
+.tt-traits { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.tt-traits li { padding: 2px 6px; font-size: 10px; border: 1px solid var(--tt-line); background: rgba(63, 182, 255, 0.06); }
+
 /* Spectrum variants: square chips, glow strip below. */
 .swatches { display: flex; gap: 8px; }
 .swatch {

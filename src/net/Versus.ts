@@ -4,10 +4,9 @@ import { DUST } from '../config/effects';
 import { CITY } from '../config/city';
 import type { GameEventBus } from '../core/events';
 import { Titan, type RemotePose } from '../entities/titan/Titan';
-import { PLAYER_SPEC } from '../entities/titan/TitanSpec';
 import type { MoveId } from '../entities/titan/TitanCombat';
 import type { TitanState as TitanAction } from '../entities/titan/locomotion';
-import { colorwayFor, designFor, type TitanChoice } from '../entities/titan/roster';
+import { colorwayFor, specFor, type TitanChoice } from '../entities/titan/roster';
 import type { PhysicsSystem } from '../systems/PhysicsSystem';
 import type { CombatSystem } from '../systems/combat/CombatSystem';
 import type { DestructionSystem } from '../systems/destruction/DestructionSystem';
@@ -402,7 +401,7 @@ export class Versus {
     const d = this.d;
     const { x, z } = terrain.spawn;
     const choice = { titan: info.titan, color: info.color };
-    const titan = new Titan(d.physics, d.events, new THREE.Vector3(x, terrain.heightAt(x, z), z), false, NO_ENERGY, { ...PLAYER_SPEC, design: designFor(choice) }, { remote: true });
+    const titan = new Titan(d.physics, d.events, new THREE.Vector3(x, terrain.heightAt(x, z), z), false, NO_ENERGY, specFor(choice), { remote: true });
     titan.model.object.visible = false;
     d.scene.add(titan.model.object);
     const beam = new BeamFx(d.scene, d.fire, colorwayFor(choice).beam);
@@ -418,7 +417,7 @@ export class Versus {
     if (!info) return;
     p.info = info;
     const choice = { titan: info.titan, color: info.color };
-    p.titan.setDesign(designFor(choice));
+    p.titan.applySpec(specFor(choice));
     p.titan.model.object.visible = p.seen;
     p.beam.setColors(colorwayFor(choice).beam);
   }

@@ -1,4 +1,8 @@
 import type { RivalId } from '../../config/rivals';
+import { COMBAT } from '../../config/combat';
+import { TITAN_BODY, TITAN_GAIT, TITAN_MOVEMENT } from '../../config/titan';
+import { bodyFor, combatFor, gaitFor, movementFor, type TitanProfile } from './profiles';
+import type { TitanSpec } from './TitanSpec';
 import { FULGURAX_DESIGN, PLAYER_DESIGN, TESTUDRAX_DESIGN, THORNMAW_DESIGN, VELACOR_DESIGN, VESPERION_DESIGN, type TitanDesign } from './designs';
 
 /** Stable ids (URLs, multiplayer); the display name is the Titanus designation. */
@@ -20,6 +24,8 @@ export interface RosterTitan {
   readonly epithet: string;
   readonly blurb: string;
   readonly design: TitanDesign;
+  /** Size, weight, dossier and play ratings. */
+  readonly profile: TitanProfile;
   /** The rival that shares this look (kept out of the rival rotation when picked). */
   readonly rival?: RivalId;
   readonly colors: readonly TitanColorway[];
@@ -43,6 +49,13 @@ export const ROSTER: readonly RosterTitan[] = [
     epithet: 'The Tidecaller',
     blurb: 'Atomic lizard risen from the deep: glowing dorsal plates and a charged breath beam.',
     design: PLAYER_DESIGN,
+    profile: {
+      height: 108, length: 230, weight: 92000,
+      classification: 'Apex amphibious saurian',
+      origin: 'Hadal trench vents, western Pacific',
+      abilities: ['Atomic breath beam', 'Balanced in every discipline', 'Thrives in deep water'],
+      ratings: { power: 3, armor: 3, speed: 3, agility: 3, beam: 3 },
+    },
     colors: [
       way('Abyss', 0x4a5e4f, 0x37463b, 0x7d7660, 0xa8bcc4, 0x58d8ff, 0xd8fbff),
       way('Obsidian', 0x2f3236, 0x1f2124, 0x5a5650, 0x9aa3ad, 0x7dffb0, 0xe2ffef),
@@ -58,6 +71,13 @@ export const ROSTER: readonly RosterTitan[] = [
     epithet: 'The Horned Brawler',
     blurb: 'Hunched, horned brawler with huge arms and ember-lit spikes.',
     design: THORNMAW_DESIGN,
+    profile: {
+      height: 92, length: 150, weight: 118000,
+      classification: 'Armored horned brawler',
+      origin: 'Volcanic caldera, Kamchatka arc',
+      abilities: ['Crushing melee strength', 'Thick hide, hard to stagger', 'Slow to turn and run'],
+      ratings: { power: 5, armor: 4, speed: 2, agility: 2, beam: 2 },
+    },
     rival: 'thornmaw',
     colors: [
       way('Ember', 0x6b3a2c, 0x47261c, 0x9c7a5a, 0x2d221d, 0xff6a1a, 0xffe2c4, 0xe8d9b8, 0xffd27a),
@@ -74,6 +94,13 @@ export const ROSTER: readonly RosterTitan[] = [
     epithet: 'The Crested Siege-Beast',
     blurb: 'Tall, long-necked titan with a fan crest and plasma orbs on its shoulders.',
     design: VESPERION_DESIGN,
+    profile: {
+      height: 128, length: 260, weight: 64000,
+      classification: 'Winged siege titan',
+      origin: 'Storm-cell roosts above the Andes',
+      abilities: ['Long-reach plasma beam', 'Light on its feet', 'Fragile under close assault'],
+      ratings: { power: 2, armor: 2, speed: 3, agility: 4, beam: 4 },
+    },
     rival: 'vesperion',
     colors: [
       way('Dusk', 0x3e3a55, 0x2a2740, 0x8a86a6, 0xc9b8ff, 0xb05cff, 0xf3dcff, 0xd8d2f0, 0xf2a6ff),
@@ -90,6 +117,13 @@ export const ROSTER: readonly RosterTitan[] = [
     epithet: 'The Sail Stalker',
     blurb: 'Lean river hunter: a towering spined sail, a crocodile snout and a tail that ends in a blade.',
     design: VELACOR_DESIGN,
+    profile: {
+      height: 96, length: 240, weight: 70000,
+      classification: 'Riverine ambush predator',
+      origin: 'Flooded river deltas, Bay of Bengal',
+      abilities: ['Fastest titan in a sprint', 'Low, level stance', 'Thin armor'],
+      ratings: { power: 3, armor: 2, speed: 5, agility: 3, beam: 2 },
+    },
     colors: [
       way('Riverbed', 0x5a5a3e, 0x3f3f2a, 0xa59a74, 0xb4573a, 0xffa23a, 0xfff0d0, 0xe6dcc0, 0xffe08a),
       way('Mangrove', 0x34483a, 0x233228, 0x7f9478, 0x3f7a6a, 0x4affc2, 0xdcfff2, 0xd8e6cc, 0xb4ffe0),
@@ -105,6 +139,13 @@ export const ROSTER: readonly RosterTitan[] = [
     epithet: 'The Living Bastion',
     blurb: 'Shell-backed juggernaut with tree-trunk legs, a blunt armored skull and a club tail.',
     design: TESTUDRAX_DESIGN,
+    profile: {
+      height: 74, length: 150, weight: 165000,
+      classification: 'Fortress-shell juggernaut',
+      origin: 'Deep continental crust, Siberian craton',
+      abilities: ['Near-impenetrable carapace', 'Heaviest footfalls of all', 'Barely outruns a glacier'],
+      ratings: { power: 4, armor: 5, speed: 1, agility: 2, beam: 3 },
+    },
     colors: [
       way('Old Growth', 0x56604f, 0x3c4437, 0x9d9478, 0x6f5a42, 0x8dff5c, 0xeaffd8, 0xd8ceb4, 0xb6ff7a),
       way('Granite', 0x5e5e60, 0x424244, 0xa09e98, 0x7a7670, 0xffb43a, 0xfff0d0, 0xe0dcd0, 0xffd48a),
@@ -120,6 +161,13 @@ export const ROSTER: readonly RosterTitan[] = [
     epithet: 'The Storm Herald',
     blurb: 'Crystal-quilled striker: a flared frill, forearm blades and quills that crackle with stored charge.',
     design: FULGURAX_DESIGN,
+    profile: {
+      height: 112, length: 200, weight: 58000,
+      classification: 'Bioelectric crystal striker',
+      origin: 'Crystal caverns beneath the Salar de Uyuni',
+      abilities: ['Turns on a dime', 'Quick blade-arm strikes', 'Brittle crystal frame'],
+      ratings: { power: 3, armor: 1, speed: 4, agility: 5, beam: 2 },
+    },
     colors: [
       way('Thunderhead', 0x2f3a4a, 0x202834, 0x6f7f93, 0xbfe6ff, 0x6fd0ff, 0xe8f8ff, 0xdde8f2, 0xe8f8ff),
       way('Amethyst', 0x3a2e4a, 0x281f34, 0x857094, 0xe0c0ff, 0xc07aff, 0xf4e6ff, 0xe8def2, 0xf0d8ff),
@@ -162,4 +210,19 @@ export function parseChoice(search: string): TitanChoice {
   const n = Number(q.get('color'));
   const color = Number.isInteger(n) && n >= 0 && n < rosterTitan(titan).colors.length ? n : 0;
   return { titan, color };
+}
+
+/** The full spec for a roster titan: its design and colorway plus the profile's size and stats. */
+export function specFor(choice: TitanChoice): TitanSpec {
+  const t = rosterTitan(choice.titan);
+  const p = t.profile;
+  return {
+    name: t.name,
+    body: bodyFor(TITAN_BODY, p, t.design.bulk),
+    movement: movementFor(TITAN_MOVEMENT, p),
+    gait: gaitFor(TITAN_GAIT, p),
+    combat: combatFor(COMBAT, p),
+    design: designFor(choice),
+    weight: p.weight,
+  };
 }

@@ -8,7 +8,7 @@ import type { GameEventBus } from '../../core/events';
 import { ALL_GROUPS, collisionGroups, GROUP, type PhysicsSystem } from '../../systems/PhysicsSystem';
 import { constrainToCircle } from '../../systems/encounters/EncounterSystem';
 import { Gait } from './Gait';
-import { TitanModel, MODEL_DESIGN_HEIGHT } from './TitanModel';
+import { TitanModel } from './TitanModel';
 import { TitanCombat, type CombatInput, type EnergyPool, type MoveId } from './TitanCombat';
 import { TitanMotor, type MoveIntent } from './TitanMotor';
 import { locomotionState, type TitanState } from './locomotion';
@@ -48,15 +48,15 @@ const NO_COMBAT: CombatInput = { claw: false, tail: false, stomp: false, roar: f
  */
 export class Titan {
   model: TitanModel;
-  readonly motor: TitanMotor;
-  readonly gait: Gait;
+  motor: TitanMotor;
+  gait: Gait;
   readonly fsm: StateMachine<TitanState, Titan>;
-  readonly combat: TitanCombat;
+  combat: TitanCombat;
   /** Feet position (sim). */
   readonly position = new THREE.Vector3();
   readonly renderPosition = new THREE.Vector3();
   readonly body: RAPIER.RigidBody;
-  readonly collider: RAPIER.Collider;
+  collider: RAPIER.Collider;
 
   /** Collider handles the body pushed against this tick (static structures). */
   readonly contacts: number[] = [];
@@ -69,10 +69,10 @@ export class Titan {
   private plantWeight = 1;
   private grounded = false;
   private readonly controller: RAPIER.KinematicCharacterController;
-  private readonly centerOffset: number;
+  private centerOffset: number;
   private time = 0;
-  /** Model scale relative to its design height; also scales foot offsets and dust. */
-  readonly scale: number;
+  /** Model scale (meters per design unit, so the model stands `spec.body.height` tall); also scales foot offsets and dust. */
+  scale: number;
   /**
    * Rivals don't collide with buildings (no pathfinding needed): they plow
    * through, wrecking whatever they overlap (see DestructionSystem).
@@ -91,8 +91,8 @@ export class Titan {
     private readonly events: GameEventBus,
     spawn: THREE.Vector3,
     readonly isPlayer: boolean,
-    energy: EnergyPool,
-    readonly spec: TitanSpec,
+    private readonly energy: EnergyPool,
+    public spec: TitanSpec,
     opts: { plowsThrough?: boolean; remote?: boolean } = {},
   ) {
     this.plowsThrough = opts.plowsThrough ?? false;
@@ -101,7 +101,7 @@ export class Titan {
     this.model = new TitanModel(spec.design, spec.combat);
     this.motor = new TitanMotor(spec.movement);
     this.gait = new Gait(spec.gait);
-    this.scale = spec.body.height / MODEL_DESIGN_HEIGHT;
+    this.scale = spec.body.height / this.model.restHeight;
     const { capsuleHalfHeight: hh, capsuleRadius: r } = spec.body;
     this.centerOffset = hh + r;
     this.position.copy(spawn);
@@ -123,28 +123,55 @@ export class Titan {
     
     this.model.object.scale.setScalar(this.scale);
     this.fsm = new StateMachine<TitanState, Titan>('idle', {}, this);
+    this.combat = this.createCombat();
+  }
+
+  private combatBody: ConstructorParameters<typeof TitanCombat>[0] | null = null;
+
+  private createCombat(): TitanCombat {
     const titan = this;
-    this.combat = new TitanCombat(
-      {
-        position: this.position,
-        get yaw() {
-          return titan.motor.yaw;
-        },
-        // Read from the model, so a new design (title screen) moves the beam origin too.
-        get mouthHeight() {
-          return titan.model.mouthRest.height * titan.scale;
-        },
-        get mouthForward() {
-          return titan.model.mouthRest.forward * titan.scale;
-        },
-        get state() {
-          return titan.fsm.state;
-        },
-        setState: (s) => this.fsm.transition(s),
+    this.combatBody ??= {
+      position: this.position,
+      get yaw() {
+        return titan.motor.yaw;
       },
-      energy,
-      spec.combat,
-    );
+      // Read from the model, so a new design (title screen) moves the beam origin too.
+      get mouthHeight() {
+        return titan.model.mouthRest.height * titan.scale;
+      },
+      get mouthForward() {
+        return titan.model.mouthRest.forward * titan.scale;
+      },
+      get state() {
+        return titan.fsm.state;
+      },
+      setState: (s) => this.fsm.transition(s),
+    };
+    return new TitanCombat(this.combatBody, this.energy, this.spec.combat);
+  }
+
+  /**
+   * Become another titan in place (title-screen choice, a network player's new look):
+   * model, size, hitbox, movement and combat stats all follow the new spec.
+   */
+  applySpec(spec: TitanSpec): void {
+    const mods = this.combat.mods;
+    const yaw = this.motor.yaw;
+    this.spec = spec;
+    this.setDesign(spec.design);
+    this.scale = spec.body.height / this.model.restHeight;
+    this.model.object.scale.setScalar(this.scale);
+    this.motor = new TitanMotor(spec.movement);
+    this.motor.yaw = this.motor.moveYaw = yaw;
+    this.gait = new Gait(spec.gait);
+    this.combat = this.createCombat();
+    this.combat.mods = mods;
+    this.fsm.transition('idle');
+    const { capsuleHalfHeight: hh, capsuleRadius: r } = spec.body;
+    this.physics.world.removeCollider(this.collider, false);
+    this.collider = this.physics.world.createCollider(RAPIER.ColliderDesc.capsule(hh, r), this.body);
+    this.centerOffset = hh + r;
+    this.body.setTranslation({ x: this.position.x, y: this.position.y + this.centerOffset, z: this.position.z }, true);
   }
 
   get state(): TitanState {

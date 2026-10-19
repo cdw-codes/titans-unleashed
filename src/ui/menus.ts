@@ -2,6 +2,7 @@ import { ACTION_LABELS, BINDINGS } from '../config/input';
 import { ACTIONS, codeLabel } from '../input/actions';
 import { randomSeed, reloadWith, type CityMapDef } from '../config/maps';
 import { ROSTER, rosterTitan, type TitanChoice } from '../entities/titan/roster';
+import { RATING_KEYS } from '../entities/titan/profiles';
 import { openWorldPreview } from './openWorldPreview';
 import logoSvg from './logo.svg?raw';
 import { parseRoomCode } from '../net/protocol';
@@ -184,7 +185,8 @@ export class TitleScreen extends Screen {
           <dl class="tt-track-label">
             <dt>SUBJECT</dt><dd data-role="track-name"></dd>
             <dt>CLASS</dt><dd>TITAN</dd>
-            <dt>HEIGHT</dt><dd>100 M</dd>
+            <dt>HEIGHT</dt><dd data-role="track-height"></dd>
+            <dt>WEIGHT</dt><dd data-role="track-weight"></dd>
             <dt>STATUS</dt><dd class="tt-warn">DORMANT</dd>
           </dl>
         </div>
@@ -233,6 +235,17 @@ export class TitleScreen extends Screen {
             <button type="button" class="pick-arrow" data-titan="1" aria-label="Next titan">›</button>
           </div>
           <p class="pick-blurb" data-role="titan-blurb"></p>
+          <dl class="tt-measure">
+            <div><dt>Height</dt><dd data-role="t-height"></dd></div>
+            <div><dt>Length</dt><dd data-role="t-length"></dd></div>
+            <div><dt>Weight</dt><dd data-role="t-weight"></dd></div>
+          </dl>
+          <dl class="tt-file">
+            <dt>Class</dt><dd data-role="t-class"></dd>
+            <dt>Origin</dt><dd data-role="t-origin"></dd>
+          </dl>
+          <div class="tt-ratings" data-role="t-ratings"></div>
+          <ul class="tt-traits" data-role="t-traits"></ul>
           <div class="tt-signal"><span class="tt-dim">BIO-SIGNATURE</span><div class="tt-trace"><svg viewBox="0 0 200 20" preserveAspectRatio="none"><polyline points="${signaturePoints()}"/></svg></div></div>
         </section>
 
@@ -512,6 +525,41 @@ export class TitleScreen extends Screen {
     set('track-name', t.name.toUpperCase());
     set('titan-count', `${ROSTER.indexOf(t) + 1}/${ROSTER.length}`);
     set('titan-blurb', t.blurb);
+    const pr = t.profile;
+    const tonnes = `${pr.weight.toLocaleString('en-US')} T`;
+    set('t-height', `${pr.height} M`);
+    set('t-length', `${pr.length} M`);
+    set('t-weight', tonnes);
+    set('t-class', pr.classification);
+    set('t-origin', pr.origin);
+    set('track-height', `${pr.height} M`);
+    set('track-weight', tonnes);
+    const ratings = this.el.querySelector('[data-role=t-ratings]')!;
+    ratings.replaceChildren(
+      ...RATING_KEYS.map((k) => {
+        const row = document.createElement('div');
+        row.className = 'tt-rating';
+        row.setAttribute('aria-label', `${k} ${pr.ratings[k]} of 5`);
+        const label = document.createElement('span');
+        label.textContent = k;
+        const bar = document.createElement('span');
+        bar.className = 'tt-bar';
+        for (let i = 1; i <= 5; i++) {
+          const seg = document.createElement('i');
+          if (i <= pr.ratings[k]) seg.className = 'on';
+          bar.appendChild(seg);
+        }
+        row.append(label, bar);
+        return row;
+      }),
+    );
+    this.el.querySelector('[data-role=t-traits]')!.replaceChildren(
+      ...pr.abilities.map((a) => {
+        const li = document.createElement('li');
+        li.textContent = a;
+        return li;
+      }),
+    );
     set('color-name', t.colors[this.choice.color]?.name ?? '');
     const sw = this.el.querySelector<HTMLDivElement>('.swatches')!;
     sw.innerHTML = t.colors

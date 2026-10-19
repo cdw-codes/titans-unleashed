@@ -12,6 +12,8 @@ export interface TitanSpec {
   readonly gait: TitanGaitConfig;
   readonly combat: CombatConfig;
   readonly design: TitanDesign;
+  /** Tonnes (footfall weight); the reference titan when absent. */
+  readonly weight?: number;
 }
 
 export const PLAYER_SPEC: TitanSpec = {

@@ -18,8 +18,6 @@ type BoneName =
   | 'thighL' | 'shinL' | 'footL' | 'thighR' | 'shinR' | 'footR'
   | `tail${number}`;
 
-/** Height the primitives are authored at; the entity scales the model to TITAN_BODY.height. */
-export const MODEL_DESIGN_HEIGHT = 80;
 
 const TAIL_SEGMENTS = 7;
 const BASE_TAIL_STEP = new THREE.Vector3(0, -3.8, -9.5);
@@ -125,7 +123,25 @@ export class TitanModel {
     this.object.updateMatrixWorld(true);
     const m = this.mouth.getWorldPosition(new THREE.Vector3());
     this.mouthRest = { height: m.y, forward: m.z };
+    // Standing extent (design units): the entity scales the model so `restHeight` = its height.
+    const pos = this.mesh.geometry.attributes['position']!;
+    const p = new THREE.Vector3();
+    let top = 0;
+    let front = -Infinity;
+    let back = Infinity;
+    for (let i = 0; i < pos.count; i++) {
+      this.mesh.applyBoneTransform(i, p.fromBufferAttribute(pos, i));
+      top = Math.max(top, p.y);
+      front = Math.max(front, p.z);
+      back = Math.min(back, p.z);
+    }
+    this.restHeight = top;
+    this.restLength = front - back;
   }
+
+  /** Highest point and nose-to-tail length standing at rest (design units). */
+  readonly restHeight: number;
+  readonly restLength: number;
 
   /** Mouth position at rest in design units (height above the soles, distance ahead). */
   readonly mouthRest: { height: number; forward: number };

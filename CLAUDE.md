@@ -94,7 +94,9 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   crushed on contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
 - Start screen (`TitleScreen`): left panel (start, controls, location / titan / colorway
   pickers), live scene right (showcase camera, sim paused). Titan + colorway (`roster.ts`)
-  swap live via `Titan.setDesign`; choice is cosmetic (same moves), kept in `?titan=&color=`;
+  swap live via `Titan.applySpec(specFor(choice))`, kept in `?titan=&color=`. Same moves for all,
+  but each has a profile (`profiles.ts`: height, weight, 5 ratings on a fixed 15-point budget →
+  size/hitbox/camera, speed, turning, health, poise, damage, beam; tested);
   six specimens named "Titanus <Name>" + epithet (original names only, never the films'), each a
   distinct silhouette (back/head/tail-tip/frill/blades in `designs.ts`) with 6 colorways;
   rivals exclude the player's look-alike. A different location loads on "Travel to …".
