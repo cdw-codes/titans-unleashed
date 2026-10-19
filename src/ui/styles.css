@@ -778,7 +778,9 @@ html, body {
 }
 
 /* ---------------------------------------------------------------- versus */
-.vs-field { display: grid; gap: 4px; font-size: 12px; }
+[data-role='vs-lobby'], [data-role='vs-room'] { display: grid; gap: 12px; }
+[data-role='vs-lobby'][hidden], [data-role='vs-room'][hidden] { display: none; }
+.vs-field { display: grid; gap: 6px; font-size: 12px; }
 .vs-field span { opacity: 0.7; }
 .vs-field input, .vs-code-input {
   padding: 9px 10px;
@@ -798,7 +800,11 @@ html, body {
 .vs-room-code { margin: 0; font-size: 14px; }
 .vs-room-code strong { margin-left: 4px; font-size: 18px; letter-spacing: 0.18em; color: var(--ui-accent-bright); }
 .vs-row .pick-link { margin-top: 0; }
+/* Host · code · Join share the row evenly. */
+[data-role='vs-lobby'] .vs-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; }
+[data-role='vs-lobby'] .vs-code-input { width: auto; }
 .vs-players { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.vs-status:empty { display: none; }
 .vs-status { margin: 0; min-height: 1em; font-size: 12px; opacity: 0.8; }
 .pick-arrow:disabled, .pick-link:disabled { opacity: 0.3; cursor: default; }
 
