@@ -76,21 +76,16 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   through GLOBAL instance pools shared by all chunks (never per-chunk meshes: draw calls would
   scale with chunk count). Destroyed state is persisted as (chunk, index), so generation must
   stay deterministic — changing generator code reshuffles indices (fine pre-save-games).
-- Real cities: `config/maps.ts` defines each (bbox, 3.5x distance compression, sea seeds);
-  `npm run map:fetch|map:bake <id>` (tools/osm, dev-only, Node runs the TS) writes
-  `public/maps/<id>.json/.bin`. At boot `terrain.setMap(CityMap)` switches Terrain, districts
-  and the generator to map mode: land-cover grid → height/water/colors/districts, real tall
-  buildings fill their blocks at real heights, real roads overlay the street grid (decks over
-  water), real masts use the original tower design. Footprints/heights real; positions compressed.
-- Open world = a new seed every game (`?seed=`, random if absent, written back to the URL;
-  `seed=classic` = the hand-made layout in `config/regions.ts`). `terrain.reseed(seed)` at boot
-  reseeds noise/towns and `regionsGen.ts` places regions, rivers, landmarks under placement
-  rules (re-rolled if broken); `findSpawn()` picks a dry street corner. New game = new seed;
-  the title card previews the seed and rerolls ("New world").
-- Open world layout: `config/regions.ts` places the authored regions, rivers and landmarks; satellite
-  towns (jittered grid) fill the rest. Towns have street grids + districts; airport/plant are
-  flat sites; other chunks are countryside biomes. Set pieces come from `Sites` (built once,
-  handed out per chunk by center). Streets bridge rivers on every other street.
+- Real cities (`config/maps.ts`; `npm run map:fetch|map:bake <id>`, tools/osm, Node runs the
+  TS) → `public/maps/<id>.json/.bin/.png`. `terrain.setMap(CityMap)` at boot switches terrain,
+  districts and generator to map mode: land-cover grid, real tall buildings on their blocks at
+  real heights, real roads over the street grid, real masts in the original tower design.
+  Footprints/heights real; positions compressed 3.5x.
+- Open world: a new seed every game (`?seed=`, random if absent and written to the URL;
+  `seed=classic` = hand-made `config/regions.ts`). `terrain.reseed()` reseeds noise/towns;
+  `regionsGen.ts` places regions, rivers and landmarks under placement rules; `findSpawn()`
+  picks a dry street corner. Satellite towns fill the rest; airport/plant are flat sites;
+  set pieces come from `Sites`; streets bridge rivers on every other street.
 - Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops/barns,
   crushed on contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
 - Every titan (player or rival) is the same `Titan` class built from a `TitanSpec` (body,
