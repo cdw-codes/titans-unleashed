@@ -47,10 +47,11 @@ export const CITY_MAPS: readonly CityMapDef[] = [
     bbox: [40.6, -74.08, 40.84, -73.86],
     compress: 3.5,
     cell: 16,
-    seaSeeds: [[40.665, -74.04], [40.62, -74.03], [40.7, -74.02]],
+    // Upper Bay, the Hudson off the Battery, the East River (all open water).
+    seaSeeds: [[40.665, -74.04], [40.7, -74.02], [40.73, -73.97]],
     // Times Square, among the Midtown towers.
     spawn: [40.758, -73.9855],
-    majorPlaces: ['borough', 'city', 'suburb'],
+    majorPlaces: ['borough', 'city', 'suburb', 'quarter', 'neighbourhood'],
   },
   {
     id: 'london',

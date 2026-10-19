@@ -148,9 +148,15 @@ async function bake(def: CityMapDef): Promise<void> {
     const t = el.tags ?? {};
     const name = t['name:en'] ?? t['name'];
     const h = def.towerHeights?.[name ?? ''] ?? parseHeight(t);
+    // Only broadcast towers and masts: other "towers" are spires, chimneys or lookouts.
+    const broadcast = t['man_made'] === 'communications_tower' || t['man_made'] === 'mast' || t['tower:type'] === 'communication' || !!def.towerHeights?.[name ?? ''];
+    if (!broadcast) continue;
     const at = el.center ?? (el.lat !== undefined ? { lat: el.lat, lon: el.lon! } : null);
     if (h < 100 || !at) continue;
     const [x, z] = project(p, at.lat, at.lon);
+    // An antenna on top of a skyscraper (One WTC's spire): the building wins.
+    const freestanding = t['man_made'] === 'communications_tower' || !!def.towerHeights?.[name ?? ''];
+    if (!freestanding && candidates.some((b) => b.h >= h * 0.6 && Math.hypot(b.x - x, b.z - z) < 60)) continue;
     towers.push({ x: Math.round(x), z: Math.round(z), h: Math.round(h), ...(name ? { name } : {}) });
   }
 
