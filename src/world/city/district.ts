@@ -13,7 +13,7 @@ export function townDistrict(town: Town, f: number, x: number, z: number, terrai
   switch (town.kind) {
     case 'city':
       if (f < c.downtownFraction) return 'downtown';
-      if (f >= c.industrialMinFraction && noise2D(x * c.industrialNoiseScale, z * c.industrialNoiseScale, c.seed % 1000) > c.industrialThreshold) {
+      if (f >= c.industrialMinFraction && noise2D(x * c.industrialNoiseScale, z * c.industrialNoiseScale, (c.seed + terrain.seed) % 1000) > c.industrialThreshold) {
         return 'industrial';
       }
       return f < c.fringeFraction ? 'fringe' : 'suburbs';

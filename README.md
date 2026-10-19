@@ -1,7 +1,8 @@
 # Titans Unleashed
 
-A third-person browser action game: you are a giant atomic lizard. Smash a streamed,
-procedurally generated city, fight escalating military, and survive ambushes by rival titan.
+A third-person browser action game: you are a giant atomic lizard. Smash a real city
+(Tokyo, New York, London — laid out from OpenStreetMap) or a procedurally generated open
+world that is new every game, fight escalating military, and survive ambushes by rival titans.
 Three.js + Rapier + TypeScript + Vite.
 
 ## Run
@@ -14,6 +15,8 @@ npm run build      # production build in dist/ (typecheck included)
 npm run preview    # serve dist/ locally
 ```
 
+`?map=tokyo|newyork|london|open` picks the world (also on the title screen); in the open
+world `?seed=<1-99999>` replays a world and `?seed=classic` loads the hand-made layout.
 `?quality=low|medium|high` forces a graphics preset (otherwise medium, stepping down
 automatically if frames run slow).
 

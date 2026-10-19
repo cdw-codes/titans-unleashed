@@ -1,6 +1,6 @@
 import { ACTION_LABELS, BINDINGS } from '../config/input';
 import { ACTIONS, codeLabel } from '../input/actions';
-import type { CityMapDef } from '../config/maps';
+import { randomSeed, reloadWith, type CityMapDef } from '../config/maps';
 import { openWorldPreview } from './openWorldPreview';
 
 /** Shared run stats shown on the pause and game-over screens. */
@@ -60,9 +60,10 @@ export class TitleScreen extends Screen {
   /**
    * `maps`: real cities to pick from (plus the procedural open world), each shown as a
    * top-view preview of its baked layout. Picking one reloads the page with ?map=<id>.
-   * `current` is the loaded map id (null = open world).
+   * `current` is the loaded map id (null = open world), `openSeed` the loaded open
+   * world's seed. The open-world card previews a seed and can reroll it ("New world").
    */
-  constructor(parent: HTMLElement, maps: readonly CityMapDef[], current: string | null, credits: string | null, onStart: () => void) {
+  constructor(parent: HTMLElement, maps: readonly CityMapDef[], current: string | null, openSeed: number | null, credits: string | null, onStart: () => void) {
     super(parent, 'title-screen');
     const base = import.meta.env.BASE_URL;
     const card = (id: string, name: string, img: string) => {
@@ -72,6 +73,7 @@ export class TitleScreen extends Screen {
             <img ${img ? `src="${img}"` : ''} alt="Top view of ${name}">
             <span>${name}</span>
           </button>
+          ${id === 'open' ? '<button type="button" class="map-reroll" data-act="reroll">↻ New world</button>' : ''}
         </div>`;
     };
     const choices = [...maps.map((m) => card(m.id, m.name, `${base}maps/${m.id}.png`)), card('open', 'Open world', '')].join('');
@@ -86,18 +88,32 @@ export class TitleScreen extends Screen {
         ${credits ? `<p class="menu-credits">Map data ${credits}</p>` : ''}
       </div>`;
     this.el.querySelector('[data-act=start]')!.addEventListener('click', onStart);
-    // The open world is invented: its preview is drawn from the terrain function.
-    const openImg = this.el.querySelector<HTMLImageElement>('[data-map=open] img')!;
-    setTimeout(() => (openImg.src = openWorldPreview(180)), 0);
+    // The open world is invented: its preview is drawn from the terrain for the pending seed.
+    let pending = openSeed ?? randomSeed();
+    const openCard = this.el.querySelector<HTMLDivElement>('[data-map=open]')!.closest('.map-card')!;
+    const openImg = openCard.querySelector('img')!;
+    const openLabel = openCard.querySelector('span')!;
+    const showPending = () => {
+      openLabel.textContent = `Open world #${pending}`;
+      openImg.removeAttribute('src');
+      setTimeout(() => (openImg.src = openWorldPreview(180, pending)), 0);
+      const loaded = current === null && pending === openSeed;
+      openCard.classList.toggle('active', loaded);
+      openCard.querySelector('.map-pick')!.setAttribute('aria-pressed', String(loaded));
+    };
+    showPending();
+    this.el.querySelector('[data-act=reroll]')!.addEventListener('click', () => {
+      pending = randomSeed();
+      showPending();
+    });
     for (const img of this.el.querySelectorAll<HTMLImageElement>('.map-card img')) {
       img.addEventListener('error', () => img.closest('.map-card')?.classList.add('missing'));
     }
     for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-map]')) {
       b.addEventListener('click', () => {
         if (b.closest('.map-card')!.classList.contains('active')) return;
-        const q = new URLSearchParams(location.search);
-        q.set('map', b.dataset['map']!);
-        location.search = q.toString();
+        const id = b.dataset['map']!;
+        reloadWith(id === 'open' ? { map: 'open', seed: String(pending) } : { map: id });
       });
     }
     this.visible = true;

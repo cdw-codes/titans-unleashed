@@ -1,4 +1,3 @@
-import { REGIONS, type RegionsConfig } from '../../config/regions';
 import { smoothstep } from '../../core/math';
 import type { Terrain, Town } from '../terrain/Terrain';
 import { broadcastTowerParts, flat, part } from './parts';
@@ -48,8 +47,12 @@ export class Sites {
   constructor(
     private readonly terrain: Terrain,
     private readonly pitch: number,
-    private readonly r: RegionsConfig = REGIONS,
   ) {}
+
+  /** The world's region layout (classic or generated from the seed). */
+  private get r() {
+    return this.terrain.r;
+  }
 
   /** Pieces whose centers fall inside the square [x0, x0 + size) x [z0, z0 + size). */
   forChunk(x0: number, z0: number, size: number): SiteContent {

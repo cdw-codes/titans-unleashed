@@ -82,6 +82,11 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   and the generator to map mode: land-cover grid → height/water/colors/districts, real tall
   buildings fill their blocks at real heights, real roads overlay the street grid (decks over
   water), real masts use the original tower design. Footprints/heights real; positions compressed.
+- Open world = a new seed every game (`?seed=`, random if absent, written back to the URL;
+  `seed=classic` = the hand-made layout in `config/regions.ts`). `terrain.reseed(seed)` at boot
+  reseeds noise/towns and `regionsGen.ts` places regions, rivers, landmarks under placement
+  rules (re-rolled if broken); `findSpawn()` picks a dry street corner. New game = new seed;
+  the title card previews the seed and rerolls ("New world").
 - Open world layout: `config/regions.ts` places the authored regions, rivers and landmarks; satellite
   towns (jittered grid) fill the rest. Towns have street grids + districts; airport/plant are
   flat sites; other chunks are countryside biomes. Set pieces come from `Sites` (built once,

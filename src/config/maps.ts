@@ -68,3 +68,32 @@ export function selectedMapId(search: string = typeof location === 'undefined' ?
   const id = new URLSearchParams(search).get('map') ?? 'tokyo';
   return CITY_MAPS.some((m) => m.id === id) ? id : null;
 }
+
+/** A new open-world seed (1..99999; noise stays precise at this size). */
+export function randomSeed(): number {
+  return 1 + Math.floor(Math.random() * 99999);
+}
+
+/**
+ * Open-world seed from ?seed=: a number, 'classic' (the hand-made layout = null),
+ * or absent (a new random world every game, written back to the URL so a reload
+ * keeps it and the world can be shared).
+ */
+export function selectedSeed(): number | null {
+  const q = new URLSearchParams(location.search);
+  const raw = q.get('seed');
+  if (raw === 'classic') return null;
+  const n = Number(raw);
+  if (raw && Number.isInteger(n) && n > 0 && n < 100000) return n;
+  const seed = randomSeed();
+  q.set('seed', String(seed));
+  history.replaceState(null, '', `${location.pathname}?${q}`);
+  return seed;
+}
+
+/** Reload into a URL with these parameters changed (map / seed). */
+export function reloadWith(params: Record<string, string>): void {
+  const q = new URLSearchParams(location.search);
+  for (const [k, v] of Object.entries(params)) q.set(k, v);
+  location.search = q.toString();
+}

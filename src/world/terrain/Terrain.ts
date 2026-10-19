@@ -4,6 +4,7 @@ import { TERRAIN, TERRAIN_COLORS as COL, type TerrainConfig } from '../../config
 import { REGIONS, type RegionsConfig } from '../../config/regions';
 import { CITY } from '../../config/city';
 import { LAND } from '../maps/format';
+import { generateRegions } from './regionsGen';
 import type { CityMap } from '../maps/CityMap';
 
 /**
@@ -65,12 +66,34 @@ export class Terrain {
   map: CityMap | null = null;
   /** Where the player starts. */
   spawn: { x: number; z: number } = { x: CITY.spawnX, z: CITY.spawnZ };
-  readonly island: Town;
+  island!: Town;
   /** Per-river bounding boxes (with bank margin) to skip far rivers cheaply. */
-  private readonly riverBoxes: { minX: number; maxX: number; minZ: number; maxZ: number }[];
+  private riverBoxes: { minX: number; maxX: number; minZ: number; maxZ: number }[] = [];
+  /** World seed; the classic hand-made layout uses TERRAIN.seed. */
+  get seed(): number {
+    return this.c.seed;
+  }
 
-  constructor(readonly c: TerrainConfig = TERRAIN, readonly r: RegionsConfig = REGIONS) {
+  constructor(public c: TerrainConfig = TERRAIN, public r: RegionsConfig = REGIONS) {
     this.main = { x: 0, z: 0, radius: c.mainCityRadius, kind: 'city', name: r.mainName };
+    this.authored = [];
+    this.buildLayout();
+  }
+
+  /**
+   * A new open world: noise, satellite towns and the placement of every region
+   * come from `seed` (call before any chunk is generated).
+   */
+  reseed(seed: number): void {
+    this.c = { ...this.c, seed };
+    this.r = generateRegions(seed, (z) => this.coastX(z));
+    this.townCache.clear();
+    this.buildLayout();
+    this.spawn = this.findSpawn();
+  }
+
+  private buildLayout(): void {
+    const r = this.r;
     const isl = r.island;
     this.island = { x: isl.x, z: isl.z, radius: isl.halfWidth, kind: 'island', name: isl.name, ellipse: { halfLength: isl.halfLength, angle: isl.angle } };
     const margin = 900;
@@ -88,6 +111,24 @@ export class Terrain {
       { x: r.airport.x, z: r.airport.z, radius: r.airport.radius, kind: 'airport', name: r.airport.name },
       { x: this.coastX(pp.z) - pp.inland - pp.radius, z: pp.z, radius: pp.radius, kind: 'plant', name: pp.name },
     ];
+  }
+
+  /** A street intersection in the main city: dry, off the river, clear of the landmarks. */
+  findSpawn(): { x: number; z: number } {
+    const pitch = CITY.blockSize + CITY.streetWidth;
+    const { broadcastTower: t, stadium: st } = this.r;
+    for (let ring = 0; ring <= 8; ring++) {
+      for (let i = -ring; i <= ring; i++) {
+        for (const [a, b] of [[i, -ring], [i, ring], [-ring, i], [ring, i]] as const) {
+          const x = CITY.spawnX + a * pitch;
+          const z = CITY.spawnZ + b * pitch;
+          if (this.isWater(x, z, 3) || this.riverDistance(x, z) < 220) continue;
+          if (Math.hypot(x - t.x, z - t.z) < 150 || Math.hypot(x - st.x, z - st.z) < 260) continue;
+          return { x, z };
+        }
+      }
+    }
+    return { x: CITY.spawnX, z: CITY.spawnZ };
   }
 
   /** Switch to a real city map (call before any chunk is generated). */

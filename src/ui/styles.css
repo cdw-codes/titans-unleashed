@@ -522,3 +522,17 @@ html, body {
 .map-pick img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 2px; background: rgba(255, 255, 255, 0.08); }
 .map-pick:hover, .map-pick:focus-visible { border-color: var(--ui-accent); outline: none; }
 .map-card.active .map-pick { border-color: var(--ui-accent); box-shadow: 0 0 0 2px rgba(88, 216, 255, 0.25); cursor: default; }
+.map-card { display: grid; gap: 6px; }
+.map-reroll {
+  justify-self: center;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ui-fg);
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.map-reroll:hover, .map-reroll:focus-visible { border-color: var(--ui-accent); outline: none; }

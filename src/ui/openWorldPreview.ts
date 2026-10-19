@@ -1,11 +1,12 @@
 import { Terrain } from '../world/terrain/Terrain';
 
 /**
- * Top view of the procedural open world (data URL), drawn from a fresh Terrain
- * so it shows the invented layout even while a city map is loaded.
+ * Top view of the procedural open world for a seed (null = classic layout) as a
+ * data URL, drawn from a fresh Terrain so it works while a city map is loaded.
  */
-export function openWorldPreview(size: number, range = 11000): string {
+export function openWorldPreview(size: number, seed: number | null, range = 11000): string {
   const t = new Terrain();
+  if (seed !== null) t.reseed(seed);
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d')!;

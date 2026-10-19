@@ -58,7 +58,8 @@ export class CityGenerator {
     const z0 = cz * S;
     const place = chunkPlace(x0, z0, S, this.terrain, this.c);
     const district = place.district;
-    const rng = new Random(hashCoords(cx, cz, this.c.seed));
+    // Per-chunk RNG from the city seed and the world seed (a new world reshuffles every block).
+    const rng = new Random(hashCoords(cx, cz, (this.c.seed ^ this.terrain.seed) >>> 0));
     const ground = this.terrain.buildTile(x0, z0, S, GROUND_CELLS, this.pitch);
     const chunk: ChunkSpec = { cx, cz, district, structures: [], flats: [], ground };
     if (district === 'forest' || district === 'farmland' || district === 'meadow') {

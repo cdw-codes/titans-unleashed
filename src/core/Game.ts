@@ -26,7 +26,7 @@ import { Water } from '../world/Water';
 import { CityGenerator, GROUND_CELLS } from '../world/city/CityGenerator';
 import { WORLD } from '../config/world';
 import { BINDINGS } from '../config/input';
-import { CITY_MAPS, selectedMapId } from '../config/maps';
+import { CITY_MAPS, randomSeed, reloadWith, selectedMapId, selectedSeed } from '../config/maps';
 import { CityMap } from '../world/maps/CityMap';
 import { CityPools } from '../world/city/CityPools';
 import { ChunkManager } from '../world/city/ChunkManager';
@@ -180,10 +180,11 @@ export class Game {
       this.audio.unlock();
       void this.input.requestLock();
     };
-    const newGame = () => location.reload();
+    // A new game in the open world is a new world; a city map just starts over.
+    const newGame = () => (terrain.map ? location.reload() : reloadWith({ seed: String(randomSeed()) }));
     this.pauseMenu = new PauseMenu(uiRoot, terrain.map?.meta.attribution ?? null, resume, newGame);
     this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
-    this.title = new TitleScreen(uiRoot, CITY_MAPS, terrain.map?.meta.id ?? null, terrain.map?.meta.attribution ?? null, () => {
+    this.title = new TitleScreen(uiRoot, CITY_MAPS, terrain.map?.meta.id ?? null, terrain.map ? null : terrain.seed, terrain.map?.meta.attribution ?? null, () => {
       this.started = true;
       this.title.visible = false;
       resume();
@@ -331,6 +332,10 @@ export class Game {
       } catch (err) {
         console.warn(`[map] ${mapId} unavailable, using the open world`, err);
       }
+    }
+    if (!terrain.map) {
+      const seed = selectedSeed();
+      if (seed !== null) terrain.reseed(seed);
     }
     const physics = await PhysicsSystem.create(1 / SIM.tickRate);
     onProgress(0.2, 'Tuning the roars');
