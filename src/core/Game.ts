@@ -65,6 +65,8 @@ import { Scoreboard } from '../ui/Scoreboard';
 import type { RoomView } from '../ui/menus';
 
 const _camDir = new THREE.Vector3();
+const _trackTop = new THREE.Vector3();
+const _trackBottom = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
 const COOLDOWN_IDS: PlayerAbility[] = ['claw', 'tail', 'stomp', 'beam', 'roar', 'pulse'];
 import { Titan } from '../entities/titan/Titan';
@@ -684,6 +686,14 @@ export class Game {
     const rz = -Math.sin(a);
     const off = wide ? h * 0.75 : 0;
     cam.lookAt(p.x - rx * off, p.y + h * 0.5, p.z - rz * off);
+    // The title screen's tracking box frames the titan (wide screens only).
+    if (!wide) return this.title.track(null);
+    cam.updateMatrixWorld();
+    _trackTop.set(p.x, p.y + h * 1.05, p.z).project(cam);
+    _trackBottom.set(p.x, p.y, p.z).project(cam);
+    const W = this.render.canvas.clientWidth;
+    const H = this.render.canvas.clientHeight;
+    this.title.track({ x: ((_trackTop.x + 1) / 2) * W, top: ((1 - _trackTop.y) / 2) * H, bottom: ((1 - _trackBottom.y) / 2) * H });
   }
 
   /** Title-screen titan / colorway choice: live model swap, beam color, rival rotation, URL. */

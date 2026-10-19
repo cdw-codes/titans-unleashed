@@ -100,10 +100,37 @@ interface Location {
   name: string;
   blurb: string;
   img: string | null;
+  /** Spawn coordinates as text (cities), null for the open world. */
+  coords: string | null;
 }
 
 /** Logo mark: the titan dorsal plates artwork (src/ui/logo.svg), cropped to the plates. */
 const LOGO_MARK = logoSvg;
+
+/** A seismograph trace: calm with a few jolts (static; the strip scrolls in CSS). */
+function seismicPoints(): string {
+  const pts: string[] = [];
+  for (let x = 0; x <= 400; x += 4) {
+    const jolt = Math.exp(-(((x % 200) - 120) ** 2) / 300) * 9;
+    const y = 12 + Math.sin(x * 0.9) * (1.2 + jolt) + Math.sin(x * 2.3) * 0.8;
+    pts.push(`${x},${y.toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+/** A heartbeat-like trace for the specimen dossier. */
+function signaturePoints(): string {
+  const pts: string[] = [];
+  for (let x = 0; x <= 200; x += 2) {
+    const k = x % 50;
+    const y = k > 20 && k < 30 ? 10 - Math.sin(((k - 20) / 10) * Math.PI * 2) * 8 : 10 + Math.sin(x * 0.7) * 0.6;
+    pts.push(`${x},${y.toFixed(1)}`);
+  }
+  return pts.join(' ');
+}
+
+const latLon = (lat: number, lon: number) =>
+  `${Math.abs(lat).toFixed(2)}°${lat >= 0 ? 'N' : 'S'} ${Math.abs(lon).toFixed(2)}°${lon >= 0 ? 'E' : 'W'}`;
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
@@ -125,58 +152,83 @@ export class TitleScreen extends Screen {
     this.pendingSeed = o.openSeed ?? randomSeed();
     const base = import.meta.env.BASE_URL;
     this.locations = [
-      ...o.maps.map((m) => ({ id: m.id, name: m.name, blurb: m.blurb, img: `${base}maps/${m.id}.png` })),
-      { id: 'open', name: 'Open world', blurb: 'An invented world of towns, rivers and mountains, new every game.', img: null },
+      ...o.maps.map((m) => ({ id: m.id, name: m.name, blurb: m.blurb, img: `${base}maps/${m.id}.png`, coords: latLon(m.spawn[0], m.spawn[1]) })),
+      { id: 'open', name: 'Open world', blurb: 'An invented world of towns, rivers and mountains, new every game.', img: null, coords: null },
     ];
     this.loc = Math.max(0, this.locations.findIndex((l) => (l.id === 'open' ? o.currentMap === null : l.id === o.currentMap)));
 
     this.el.innerHTML = `
+      <div class="tt-frame" aria-hidden="true">
+        <div class="tt-scan"></div>
+        <i class="tt-corner tl"></i><i class="tt-corner tr"></i><i class="tt-corner bl"></i><i class="tt-corner br"></i>
+        <div class="tt-topbar">
+          <span class="tt-live"><i></i>LIVE FEED</span>
+          <span>TITAN OBSERVATION NETWORK</span>
+          <span class="tt-dim">FIELD TERMINAL 07</span>
+          <span class="tt-push" data-role="clock">UTC --:--:--</span>
+        </div>
+        <div class="tt-track" data-role="track" hidden>
+          <div class="tt-track-box"><i></i><i></i><i></i><i></i></div>
+          <dl class="tt-track-label">
+            <dt>SUBJECT</dt><dd data-role="track-name"></dd>
+            <dt>CLASS</dt><dd>TITAN</dd>
+            <dt>HEIGHT</dt><dd>100 M</dd>
+            <dt>STATUS</dt><dd class="tt-warn">DORMANT</dd>
+          </dl>
+        </div>
+        <div class="tt-bottombar">
+          <span class="tt-dim">SEISMIC</span>
+          <div class="tt-wave"><svg viewBox="0 0 400 24" preserveAspectRatio="none"><polyline points="${seismicPoints()}"/></svg></div>
+          <span data-role="coords"></span>
+        </div>
+      </div>
+
       <div class="title-panel">
         <header class="title-brand">
           ${LOGO_MARK}
           <h1 class="title-logo">TITANS<br>UNLEASHED</h1>
           <p class="title-tagline">A city. A titan. No mercy.</p>
         </header>
-        <div class="title-actions">
-          <button type="button" class="title-btn primary" data-act="start"></button>
-          <button type="button" class="title-btn" data-act="controls" aria-expanded="false">Controls</button>
-          <div class="title-controls" hidden>${controlsHtml()}</div>
-        </div>
 
-        <section class="title-pick" aria-label="Location">
-          <h2>Location</h2>
-          <div class="picker">
+        <section class="tt-module" aria-label="Location">
+          <h2><span class="tt-idx">01</span>Target zone<span class="tt-count" data-role="loc-count"></span></h2>
+          <div class="tt-zone">
             <button type="button" class="pick-arrow" data-loc="-1" aria-label="Previous location">‹</button>
-            <div class="pick-body">
-              <img class="pick-preview" data-role="loc-img" alt="">
-              <div class="pick-text">
-                <p class="pick-name"><span data-role="loc-name"></span> <small data-role="loc-count"></small></p>
-                <p class="pick-blurb" data-role="loc-blurb"></p>
-                <button type="button" class="pick-link" data-act="reroll" hidden>↻ New world</button>
-              </div>
-            </div>
+            <figure class="tt-scope">
+              <img data-role="loc-img" alt="">
+              <span class="tt-scope-grid"></span><span class="tt-sweep"></span><span class="tt-cross"></span>
+              <figcaption data-role="loc-coords"></figcaption>
+            </figure>
             <button type="button" class="pick-arrow" data-loc="1" aria-label="Next location">›</button>
           </div>
+          <p class="pick-name" data-role="loc-name"></p>
+          <p class="pick-blurb" data-role="loc-blurb"></p>
+          <button type="button" class="pick-link" data-act="reroll" hidden>↻ Scan a new world</button>
         </section>
 
-        <section class="title-pick" aria-label="Titan">
-          <h2>Titan</h2>
-          <div class="picker">
+        <section class="tt-module" aria-label="Titan">
+          <h2><span class="tt-idx">02</span>Specimen<span class="tt-count" data-role="titan-count"></span></h2>
+          <div class="tt-zone">
             <button type="button" class="pick-arrow" data-titan="-1" aria-label="Previous titan">‹</button>
-            <div class="pick-text">
-              <p class="pick-name"><span data-role="titan-name"></span> <small data-role="titan-count"></small></p>
-              <p class="pick-blurb" data-role="titan-blurb"></p>
+            <div class="tt-dossier">
+              <p class="tt-code" data-role="titan-code"></p>
+              <p class="pick-name" data-role="titan-name"></p>
             </div>
             <button type="button" class="pick-arrow" data-titan="1" aria-label="Next titan">›</button>
           </div>
-          <div class="swatches" role="radiogroup" aria-label="Colors"></div>
-          <p class="swatch-name" data-role="color-name"></p>
+          <p class="pick-blurb" data-role="titan-blurb"></p>
+          <div class="tt-signal"><span class="tt-dim">BIO-SIGNATURE</span><div class="tt-trace"><svg viewBox="0 0 200 20" preserveAspectRatio="none"><polyline points="${signaturePoints()}"/></svg></div></div>
         </section>
 
-        <section class="title-pick title-versus" aria-label="Versus">
-          <h2>Versus <small>up to 4 titans, peer to peer</small></h2>
+        <section class="tt-module" aria-label="Colors">
+          <h2><span class="tt-idx">03</span>Spectrum variant<span class="tt-count" data-role="color-name"></span></h2>
+          <div class="swatches" role="radiogroup" aria-label="Colors"></div>
+        </section>
+
+        <section class="tt-module title-versus" aria-label="Versus">
+          <h2><span class="tt-idx">04</span>Uplink · versus<span class="tt-count">max 4 · p2p</span></h2>
           <div data-role="vs-lobby">
-            <label class="vs-field"><span>Your name</span><input data-role="vs-name" maxlength="20" autocomplete="nickname" spellcheck="false"></label>
+            <label class="vs-field"><span>Callsign</span><input data-role="vs-name" maxlength="20" autocomplete="nickname" spellcheck="false"></label>
             <div class="vs-row">
               <button type="button" class="title-btn" data-act="host">Host a room</button>
               <input class="vs-code-input" data-role="vs-code" maxlength="7" placeholder="CODE" aria-label="Room code" autocomplete="off" spellcheck="false">
@@ -194,10 +246,15 @@ export class TitleScreen extends Screen {
           <p class="vs-status" data-role="vs-status" role="status"></p>
         </section>
 
+        <div class="title-actions">
+          <button type="button" class="title-btn primary" data-act="start"></button>
+          <button type="button" class="pick-link" data-act="controls" aria-expanded="false">Controls</button>
+          <div class="title-controls" hidden>${controlsHtml()}</div>
+        </div>
+
         <footer class="title-foot">
-          <p>No account · nothing is saved</p>
+          <p>No account · nothing is saved · Esc pauses · F1 debug</p>
           ${o.credits ? `<p>Map data ${o.credits}</p>` : ''}
-          <p class="pause-hint">Esc pauses · F1 debug</p>
         </footer>
       </div>`;
 
@@ -230,6 +287,27 @@ export class TitleScreen extends Screen {
     this.renderLocation();
     this.renderTitan();
     this.visible = true;
+    const clock = q('[data-role=clock]');
+    const tick = () => {
+      if (this.isVisible) clock.textContent = `UTC ${new Date().toISOString().slice(11, 19)}`;
+    };
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  /**
+   * Tracking box around the titan in the live scene (screen pixels: center x,
+   * head and feet y), or null to hide it (narrow screens).
+   */
+  track(box: { x: number; top: number; bottom: number } | null): void {
+    const el = this.el.querySelector<HTMLDivElement>('[data-role=track]')!;
+    el.hidden = !box;
+    if (!box) return;
+    const h = Math.max(40, box.bottom - box.top);
+    el.style.setProperty('--tx', `${box.x}px`);
+    el.style.setProperty('--ty', `${box.top}px`);
+    el.style.setProperty('--th', `${h}px`);
+    el.style.setProperty('--tw', `${h * 0.62}px`);
   }
 
   private room: RoomView | null = null;
@@ -320,6 +398,10 @@ export class TitleScreen extends Screen {
     set('loc-name', l.id === 'open' ? `Open world #${this.pendingSeed}` : l.name);
     set('loc-count', `${this.loc + 1}/${this.locations.length}`);
     set('loc-blurb', l.blurb);
+    const coords = l.coords ?? `GRID SEED ${String(this.pendingSeed).padStart(5, '0')} · UNCHARTED`;
+    set('loc-coords', coords);
+    // The feed's own coordinates stay on the loaded world.
+    if (this.isLoaded) set('coords', coords);
     const img = this.el.querySelector<HTMLImageElement>('[data-role=loc-img]')!;
     img.alt = `Top view of ${l.name}`;
     if (l.img) img.src = l.img;
@@ -327,7 +409,7 @@ export class TitleScreen extends Screen {
       img.removeAttribute('src');
       const seed = this.pendingSeed;
       setTimeout(() => {
-        if (this.location.id === 'open' && this.pendingSeed === seed) img.src = openWorldPreview(160, seed);
+        if (this.location.id === 'open' && this.pendingSeed === seed) img.src = openWorldPreview(240, seed);
       }, 0);
     }
     this.el.querySelector<HTMLButtonElement>('[data-act=reroll]')!.hidden = l.id !== 'open';
@@ -345,14 +427,18 @@ export class TitleScreen extends Screen {
     const t = rosterTitan(this.choice.titan);
     const set = (role: string, text: string) => (this.el.querySelector(`[data-role=${role}]`)!.textContent = text);
     set('titan-name', t.name);
+    set('titan-code', `SPECIMEN TN-${String(ROSTER.indexOf(t) + 1).padStart(2, '0')}`);
+    set('track-name', t.name.toUpperCase());
     set('titan-count', `${ROSTER.indexOf(t) + 1}/${ROSTER.length}`);
     set('titan-blurb', t.blurb);
     set('color-name', t.colors[this.choice.color]?.name ?? '');
     const sw = this.el.querySelector<HTMLDivElement>('.swatches')!;
     sw.innerHTML = t.colors
       .map((c, i) => `<button type="button" class="swatch" role="radio" aria-checked="${i === this.choice.color}" aria-label="${c.name}" title="${c.name}"
-          data-color="${i}" style="--skin:${hex(c.palette.skin)};--glow:${hex(c.glow)}"></button>`)
+          data-color="${i}" style="--skin:${hex(c.palette.skin)};--glow:${hex(c.glow)}"><span>${String.fromCharCode(65 + i)}</span></button>`)
       .join('');
+    // The dossier trace and tracker take the variant's glow.
+    this.el.style.setProperty('--sig', hex(t.colors[this.choice.color]?.glow ?? 0x58d8ff));
     for (const b of sw.querySelectorAll<HTMLButtonElement>('[data-color]')) {
       b.addEventListener('click', () => this.setChoice({ titan: this.choice.titan, color: Number(b.dataset['color']) }));
     }
