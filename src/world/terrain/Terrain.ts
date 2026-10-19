@@ -43,6 +43,10 @@ const smoothstep = (a: number, b: number, v: number): number => {
 };
 
 /** Three octaves of value noise, rotated per octave to hide the grid. Roughly 0..1. */
+/** City maps: bank (m) from the quay down to just under the water, then the shelf (m) to full depth. */
+const MAP_BANK = 14;
+const MAP_SHELF = 150;
+
 function fbm(x: number, z: number, seed: number): number {
   let sum = noise2D(x, z, seed) * 0.57;
   sum += noise2D(x * 1.6 + z * 1.2 + 5.3, z * 1.6 - x * 1.2 - 2.1, seed + 1) * 0.29;
@@ -351,11 +355,14 @@ export class Terrain {
     return sum;
   }
 
-  lakeWeight(x: number, z: number): number {
+  private lakeNoise(x: number, z: number): number {
     const c = this.c;
     const s = 1 / c.lakeSize;
-    const l = noise2D(x * s + 17.3, z * s - 4.1, c.seed + 21) * 0.75 + noise2D(x * s * 2.3 - z * s * 1.4, z * s * 2.3 + x * s * 1.4, c.seed + 22) * 0.25;
-    return smoothstep(c.lakeThreshold, c.lakeThreshold + 0.07, l);
+    return noise2D(x * s + 17.3, z * s - 4.1, c.seed + 21) * 0.75 + noise2D(x * s * 2.3 - z * s * 1.4, z * s * 2.3 + x * s * 1.4, c.seed + 22) * 0.25;
+  }
+
+  lakeWeight(x: number, z: number): number {
+    return smoothstep(this.c.lakeThreshold, this.c.lakeThreshold + 0.07, this.lakeNoise(x, z));
   }
 
   /** Ground height (m) at a world position. */
@@ -366,8 +373,17 @@ export class Terrain {
     let h = u < 1 ? this.hills(x, z) * (1 - u) : 0;
     const alps = this.alpsWeight(x, z) * (1 - u);
     if (alps > 0) h += alps * this.peaks(x, z) * this.r.alps.height;
-    const lake = this.lakeWeight(x, z) * (1 - u) * (1 - alps);
-    if (lake > 0) h = lerp(h, -c.lakeDepth, lake);
+    // Lakes sit in a basin: hills flatten into a shore first, then the bed shelves
+    // down gently enough for a titan to wade in and climb back out.
+    const lakeMask = (1 - u) * (1 - alps);
+    if (lakeMask > 0) {
+      const l = this.lakeNoise(x, z);
+      const th = c.lakeThreshold;
+      if (l > th - 0.14) {
+        h = lerp(h, Math.min(h, 2), smoothstep(th - 0.14, th - 0.02, l) * lakeMask);
+        h = lerp(h, -c.lakeDepth, smoothstep(th - 0.01, th + 0.13, l) * lakeMask);
+      }
+    }
     const dx = this.seaDist(x, z);
     if (dx > -2 * c.beachWidth) {
       h = lerp(h, Math.min(h, 1), smoothstep(-2 * c.beachWidth, -c.beachWidth * 0.2, dx));
@@ -448,8 +464,14 @@ export class Terrain {
     if (out > 0) return this.hills(x, z) * smoothstep(0, 900, out);
     const w = map.waterWeight(x, z);
     if (w <= 0) return 0;
-    const depth = map.classAt(x, z) === LAND.sea ? this.c.seaDepth : this.r.riverDepth;
-    return -depth * smoothstep(0.1, 0.9, w);
+    // A short bank down to just under the surface, then a long shelf: walkable both ways.
+    const d = map.waterDepthDistance(x, z);
+    // Sea vs. river depth, blended over a few cells so the bed has no underwater cliff.
+    const k = map.meta.cell * 2.5;
+    const sea = (map.seaWeight(x, z) + map.seaWeight(x - k, z - k) + map.seaWeight(x + k, z - k) + map.seaWeight(x - k, z + k) + map.seaWeight(x + k, z + k)) / 5;
+    const depth = lerp(this.r.riverDepth, this.c.seaDepth, smoothstep(0, 1, sea));
+    const wl = -this.c.waterLevel + 1;
+    return -wl * smoothstep(0, MAP_BANK, d) - Math.max(0, depth - wl) * smoothstep(MAP_BANK, MAP_BANK + MAP_SHELF, d);
   }
 
   private mapUrban(x: number, z: number): number {

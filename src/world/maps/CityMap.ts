@@ -34,10 +34,13 @@ export class CityMap {
   private readonly roadBuckets = new Map<string, RoadPiece[]>();
   private readonly buildingBuckets = new Map<string, MapBuilding[]>();
   private readonly towerBuckets = new Map<string, MapTower[]>();
+  /** Per water cell: distance to the nearest land cell, in thirds of a cell (chamfer 3-4), capped. */
+  private readonly shoreDist: Uint16Array;
 
   constructor(readonly meta: MapMeta, private readonly grid: Uint8Array, private readonly chunkSize = 256) {
     this.maxX = meta.minX + meta.cols * meta.cell;
     this.maxZ = meta.minZ + meta.rows * meta.cell;
+    this.shoreDist = shoreDistances(grid, meta.cols, meta.rows);
     for (const r of meta.roads) this.addRoad(r);
     for (const b of meta.buildings) this.bucket(this.buildingBuckets, b.x, b.z).push(b);
     for (const t of meta.towers) this.bucket(this.towerBuckets, t.x, t.z).push(t);
@@ -83,6 +86,15 @@ export class CityMap {
 
   /** 0..1 water (rivers, lakes, sea), bilinearly smoothed between cell centers. */
   waterWeight(x: number, z: number): number {
+    return this.smoothed(x, z, (v) => v === LAND.water || v === LAND.sea);
+  }
+
+  /** 0..1 sea (vs. rivers and lakes), smoothed the same way: blends their depths. */
+  seaWeight(x: number, z: number): number {
+    return this.smoothed(x, z, (v) => v === LAND.sea);
+  }
+
+  private smoothed(x: number, z: number, test: (v: number) => boolean): number {
     const m = this.meta;
     const fx = (x - m.minX) / m.cell - 0.5;
     const fz = (z - m.minZ) / m.cell - 0.5;
@@ -93,12 +105,34 @@ export class CityMap {
     const w = (cc: number, rr: number) => {
       const cl = Math.min(m.cols - 1, Math.max(0, cc));
       const rl = Math.min(m.rows - 1, Math.max(0, rr));
-      const v = this.grid[rl * m.cols + cl];
-      return v === LAND.water || v === LAND.sea ? 1 : 0;
+      return test(this.grid[rl * m.cols + cl]!) ? 1 : 0;
     };
     const top = w(c, r) * (1 - tx) + w(c + 1, r) * tx;
     const bottom = w(c, r + 1) * (1 - tx) + w(c + 1, r + 1) * tx;
     return top * (1 - tz) + bottom * tz;
+  }
+
+  /**
+   * Distance (m) from the shore into the water, bilinear between cell centers; 0 on
+   * land. Lets the terrain shelve the sea and river beds instead of dropping a cliff.
+   */
+  waterDepthDistance(x: number, z: number): number {
+    const m = this.meta;
+    const fx = (x - m.minX) / m.cell - 0.5;
+    const fz = (z - m.minZ) / m.cell - 0.5;
+    const c = Math.floor(fx);
+    const r = Math.floor(fz);
+    const tx = fx - c;
+    const tz = fz - r;
+    const d = (cc: number, rr: number) => {
+      const cl = Math.min(m.cols - 1, Math.max(0, cc));
+      const rl = Math.min(m.rows - 1, Math.max(0, rr));
+      return this.shoreDist[rl * m.cols + cl]!;
+    };
+    const top = d(c, r) * (1 - tx) + d(c + 1, r) * tx;
+    const bottom = d(c, r + 1) * (1 - tx) + d(c + 1, r + 1) * tx;
+    // Cell centers sit half a cell from the edge they share with land.
+    return Math.max(0, ((top * (1 - tz) + bottom * tz) / 3 - 0.5) * m.cell);
   }
 
   roadsIn(cx: number, cz: number): readonly RoadPiece[] {
@@ -165,4 +199,44 @@ export class CityMap {
       }
     }
   }
+}
+
+const isWaterCell = (v: number) => v === LAND.water || v === LAND.sea;
+
+/**
+ * Two-pass chamfer distance transform (3 straight, 4 diagonal) from every water cell
+ * to the nearest land cell. Capped well past any shelf width, so it fits 16 bits.
+ */
+export function shoreDistances(grid: Uint8Array, cols: number, rows: number, cap = 3 * 64): Uint16Array {
+  const d = new Uint16Array(cols * rows);
+  for (let i = 0; i < d.length; i++) d[i] = isWaterCell(grid[i]!) ? cap : 0;
+  const relax = (i: number, j: number, w: number) => {
+    const v = d[j]! + w;
+    if (v < d[i]!) d[i] = v;
+  };
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const i = r * cols + c;
+      if (d[i] === 0) continue;
+      if (c > 0) relax(i, i - 1, 3);
+      if (r > 0) {
+        relax(i, i - cols, 3);
+        if (c > 0) relax(i, i - cols - 1, 4);
+        if (c < cols - 1) relax(i, i - cols + 1, 4);
+      }
+    }
+  }
+  for (let r = rows - 1; r >= 0; r--) {
+    for (let c = cols - 1; c >= 0; c--) {
+      const i = r * cols + c;
+      if (d[i] === 0) continue;
+      if (c < cols - 1) relax(i, i + 1, 3);
+      if (r < rows - 1) {
+        relax(i, i + cols, 3);
+        if (c < cols - 1) relax(i, i + cols + 1, 4);
+        if (c > 0) relax(i, i + cols - 1, 4);
+      }
+    }
+  }
+  return d;
 }
