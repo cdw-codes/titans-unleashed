@@ -498,3 +498,20 @@ html, body {
   0%, 85% { opacity: 1; }
   100% { opacity: 0; }
 }
+
+.menu-credits { margin: 0; font-size: 11px; opacity: 0.55; }
+.menu-maps { gap: 8px; }
+.menu-choice {
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ui-fg);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.menu-choice:hover, .menu-choice:focus-visible { border-color: var(--ui-accent); outline: none; }
+.menu-choice.active { color: #0b1a14; background: var(--ui-accent); border-color: var(--ui-accent); cursor: default; }

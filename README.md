@@ -25,8 +25,18 @@ Esc pause (remap keys in the pause menu) · F1 debug.
 
 ## Assets
 
-None: all 3D content and all (placeholder) sounds are generated in code. See
+All 3D content and all (placeholder) sounds are generated in code. See
 [docs/ASSETS.md](docs/ASSETS.md) to swap in real sound files.
+
+City maps (Tokyo, …) are baked from OpenStreetMap: map data © OpenStreetMap contributors,
+available under the [Open Database License](https://opendatacommons.org/licenses/odbl/);
+the baked files in `public/maps/` are a derivative database under the same license.
+To add or refresh a city: define it in `src/config/maps.ts`, then
+
+```bash
+npm run map:fetch tokyo
+npm run map:bake tokyo
+```
 
 ## Deploy
 

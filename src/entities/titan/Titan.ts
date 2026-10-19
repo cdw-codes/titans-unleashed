@@ -219,6 +219,19 @@ export class Titan {
     return true;
   }
 
+  /** Keep the body inside a rectangle (map edge). Call after fixedUpdate. Returns true if it pushed. */
+  constrainBox(minX: number, minZ: number, maxX: number, maxZ: number): boolean {
+    const p = this.position;
+    const x = Math.min(maxX, Math.max(minX, p.x));
+    const z = Math.min(maxZ, Math.max(minZ, p.z));
+    if (x === p.x && z === p.z) return false;
+    p.x = x;
+    p.z = z;
+    this.motor.speed *= 0.5;
+    this.body.setNextKinematicTranslation({ x: p.x, y: p.y + this.centerOffset, z: p.z });
+    return true;
+  }
+
   render(alpha: number, frameDt: number): void {
     this.renderPosition.lerpVectors(this.prevPosition, this.position, alpha);
     this.renderPosition.y -= this.sink;

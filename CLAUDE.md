@@ -5,12 +5,10 @@ Third-person 3D browser action game. The player is an ORIGINAL giant atomic liza
 (tail, claws, charged energy beam). Never use Godzilla or any trademarked names/designs.
 Naming: the giant creatures are always "titans" (code, UI, docs, commits) — matches the title.
 
-Core loop: roam a large streamed world of real-world-inspired regions (Tokyo Bay main city
-with a river, Manhattan island + suspension bridge, London on its river, the Alps, an airport,
-a coastal power station) plus procedural towns and countryside → smash buildings/vehicles → grow stronger from destruction → get ambushed by rival
-titan (energy-barrier arena until one is defeated) → roam again. Military (tanks,
-helicopters) harasses and escalates with destruction. Look: stylized low-poly (flat shading,
-warm pastel palette, autumn trees, soft sky, lilac horizon mountains).
+Core loop: roam a real city baked from OpenStreetMap (Tokyo first; title-screen picker,
+`?map=`) or the procedural "Open world" → smash buildings/vehicles → grow stronger → get
+ambushed by rival titans (energy-barrier arena) → roam again. Military escalates with
+destruction. Look: stylized low-poly (flat shading, warm pastels, autumn trees, soft sky).
 
 **Design priority above all: feel GIGANTIC and HEAVY.** Slow weighty movement, buildings
 crumbling underfoot, camera shake + dust on every step and impact, constant scale cues.
@@ -59,7 +57,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - `src/debug` — F1 debug system, DebugDraw, DebugLabels, dev GUI (tuning, region teleports,
   spawners) + tunables registry, test tools
 - `tools` — dev-only Node code: Vite plugin (tuning save + `/__dev/shot` screenshots into
-  `.dev-shots/`), config source patcher (tested)
+  `.dev-shots/`), config source patcher (tested), `osm/` map fetch + bake (raster tested)
+- `src/world/maps` — map format (shared with tools) + CityMap runtime loader
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
 
 ## Architecture rules
@@ -77,7 +76,13 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   through GLOBAL instance pools shared by all chunks (never per-chunk meshes: draw calls would
   scale with chunk count). Destroyed state is persisted as (chunk, index), so generation must
   stay deterministic — changing generator code reshuffles indices (fine pre-save-games).
-- Layout: `config/regions.ts` places the authored regions, rivers and landmarks; satellite
+- Real cities: `config/maps.ts` defines each (bbox, 3.5x distance compression, sea seeds);
+  `npm run map:fetch|map:bake <id>` (tools/osm, dev-only, Node runs the TS) writes
+  `public/maps/<id>.json/.bin`. At boot `terrain.setMap(CityMap)` switches Terrain, districts
+  and the generator to map mode: land-cover grid → height/water/colors/districts, real tall
+  buildings fill their blocks at real heights, real roads overlay the street grid (decks over
+  water), real masts use the original tower design. Footprints/heights real; positions compressed.
+- Open world layout: `config/regions.ts` places the authored regions, rivers and landmarks; satellite
   towns (jittered grid) fill the rest. Towns have street grids + districts; airport/plant are
   flat sites; other chunks are countryside biomes. Set pieces come from `Sites` (built once,
   handed out per chunk by center). Streets bridge rivers on every other street.
@@ -125,10 +130,9 @@ WASD move (camera-relative) · Shift sprint · LMB claw · RMB tail sweep · Spa
 hold E charge beam / release fire · R roar · F Atomic Pulse (unlock) · Q or MMB lock-on · F1 debug.
 
 ## Current status
-All 8 milestones done and published (`cdw-codes/titans-unleashed`; pushing `main` deploys
-Pages). Post-launch world overhaul (terrain, towns, countryside, look) done.
-**Waiting for the user to playtest the new map locally, then tune** (terrain/environment in
-the dev panel). Still to do: playtest on an integrated-GPU laptop.
+All 8 milestones published (`cdw-codes/titans-unleashed`; pushing `main` deploys Pages).
+Since then: terrain world, real-city maps (Tokyo). **Waiting for the user to playtest Tokyo.**
+Still to do: playtest on an integrated-GPU laptop; more cities (New York, London).
 
 Known issues:
 - Rapier compat bundle ~1.7 MB gzip (base64 wasm); a non-compat build needs a plugin (ask).
@@ -141,22 +145,18 @@ Known issues:
 
 Decisions:
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
-- F1 debug ships in production builds (needed for M8 perf checks); lil-gui is dev-only.
-- No settings UI at all: medium preset + AutoQuality step-down, 30 FPS cap; no key
-  remapping (fixed `BINDINGS` in config/input.ts, shown read-only in the menus). Nothing
-  is saved to localStorage.
+- F1 debug ships in production builds; lil-gui is dev-only.
+- No settings UI: medium preset + AutoQuality, 30 FPS cap; fixed `BINDINGS` (no remapping,
+  shown read-only in menus). Nothing is saved to localStorage.
 - Movement is facing-based (turn-limited, heavy); lock-on switches to strafing.
 - Defeat: Respawn beyond the fog from the rival, on dry ground at a street-grid point, 5 s
   invulnerable; barrier drops at once. Rivals also spawn beyond the fog.
 - Tuning: ship genre-typical defaults; the user tunes from player feedback later.
-- Game name: **Titans Unleashed** (repo `titans-unleashed`).
-- Art: ALL 3D content is code-built (titan, buildings, terrain, trees, vehicles, military;
-  titan anim = procedural skeletal with blended layers). No model files or glTF pipeline; if
-  the user supplies models later, add a loader then.
-- No third-party assets at all: every sound is a code-synthesized placeholder
-  (`systems/audio/synth.ts`); real files in `public/audio` + `files` in config/audio.ts
-  override them (docs/ASSETS.md).
-- Regions: real geography and names only; buildings/landmarks are original designs. Never
-  copy trademarked landmarks or re-create film scenes (user agreed).
+- Art: ALL 3D content is code-built (no model files/glTF pipeline; add a loader only if the
+  user supplies models). Every sound is a synthesized placeholder (`systems/audio/synth.ts`);
+  files in `public/audio` + `files` in config/audio.ts override them (docs/ASSETS.md).
+- Real places: geography, names and building heights/positions from OSM; every building
+  and landmark is an original generic design. Never copy trademarked landmark designs or
+  re-create film scenes (user agreed). OSM attribution (ODbL) stays on title + pause.
 - Look reference: the user's "Quiet Ridge" screenshot (stylized autumn valley); Neutral tone
   mapping. Beam = hold to charge/fire, release cancels.

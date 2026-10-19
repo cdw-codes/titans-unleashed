@@ -4,7 +4,9 @@ import type { CityConfig, Range } from '../../config/city';
 import { TERRAIN_COLORS } from '../../config/terrain';
 import { terrain as worldTerrain, type Terrain } from '../terrain/Terrain';
 import { chunkPlace, type ChunkPlace } from './district';
-import { flat, hsl, part } from './parts';
+import { broadcastTowerParts, flat, hsl, part } from './parts';
+import type { MapBuilding } from '../maps/format';
+import type { RoadPiece } from '../maps/CityMap';
 import { Sites, ROAD_COLOR } from './sites';
 import { SIZE_OF, type ChunkSpec, type PartSpec, type PoolId, type StructureKind, type StructureSpec, type UrbanDistrict } from './types';
 
@@ -17,6 +19,7 @@ const COLORS = {
   quay: 0x8c8880,
   roof: 0x8a4b3a,
   rooftop: 0x8c8c88,
+  alley: 0x8d8a83,
   park: 0x86ab55,
   pond: 0x5f8ea6,
   containers: [0xb0442f, 0x2f6fa8, 0x3d8a4a, 0xd19a2b, 0x7a7d80, 0x9b3f78],
@@ -38,6 +41,8 @@ export class CityGenerator {
   readonly chunkSize: number;
 
   private readonly sites: Sites;
+  /** Real tall buildings of the chunk being generated, keyed by block center. */
+  private realBlocks: Map<string, MapBuilding[]> | null = null;
   /** Town being generated (styles its blocks). */
   private place: ChunkPlace | null = null;
 
@@ -67,9 +72,11 @@ export class CityGenerator {
     const site = this.sites.forChunk(x0, z0, S);
     chunk.structures.push(...site.structures);
     chunk.flats.push(...site.flats);
+    if (this.terrain.map) this.mapFeatures(chunk, cx, cz, x0, z0);
 
     // Keep the spawn point clear.
-    const { spawnX, spawnZ, spawnClearRadius: r } = this.c;
+    const { x: spawnX, z: spawnZ } = this.terrain.spawn;
+    const r = this.c.spawnClearRadius;
     chunk.structures = chunk.structures.filter(
       (s) => Math.hypot(s.x - spawnX, s.z - spawnZ) > r + Math.max(s.halfW, s.halfD),
     );
@@ -78,6 +85,7 @@ export class CityGenerator {
 
   /** Street grid with blocks (towns are flat at y = 0); nothing where the coast cuts in. */
   private town(chunk: ChunkSpec, district: UrbanDistrict, rng: Random, x0: number, z0: number): void {
+    this.realBlocks = this.terrain.map ? this.assignRealBuildings(x0, z0) : null;
     const bridges = this.roads(chunk, x0, z0);
     const half = this.c.streetWidth / 2;
     const B = this.c.blockSize;
@@ -235,7 +243,9 @@ export class CityGenerator {
           if (run < 0) return;
           const mid = ((run + end) * piece) / 2;
           const len = (end - run) * piece;
-          chunk.flats.push(alongX ? flat(x0 + mid, z0 + o, len, W, COLORS.road, 0.03) : flat(x0 + o, z0 + mid, W, len, COLORS.road, 0.03));
+          // On real maps the grid streets are pale side streets; real roads (asphalt) are the main ones.
+          const color = this.terrain.map ? COLORS.alley : COLORS.road;
+          chunk.flats.push(alongX ? flat(x0 + mid, z0 + o, len, W, color, 0.03) : flat(x0 + o, z0 + mid, W, len, color, 0.03));
           run = -1;
         };
         const flushWet = (open: boolean) => {
@@ -269,6 +279,72 @@ export class CityGenerator {
     return bridges;
   }
 
+  // ------------------------------------------------------------- real city maps
+
+  /** Real tall buildings of this chunk, grouped onto the block each stands in (tallest two kept). */
+  private assignRealBuildings(x0: number, z0: number): Map<string, MapBuilding[]> {
+    const map = this.terrain.map!;
+    const S = this.chunkSize;
+    const out = new Map<string, MapBuilding[]>();
+    const half = this.c.streetWidth / 2;
+    const B = this.c.blockSize;
+    for (const b of map.buildingsIn(Math.floor(x0 / S), Math.floor(z0 / S))) {
+      const bx = (b.x - x0) < this.pitch ? 0 : 1;
+      const bz = (b.z - z0) < this.pitch ? 0 : 1;
+      const key = `${Math.round(x0 + bx * this.pitch + half + B / 2)},${Math.round(z0 + bz * this.pitch + half + B / 2)}`;
+      const list = out.get(key) ?? [];
+      list.push(b);
+      list.sort((p, q) => q.h - p.h);
+      out.set(key, list.slice(0, 2));
+    }
+    return out;
+  }
+
+  /** A block holding real towers: one tower filling the block, or a pair side by side. */
+  private realBlock(chunk: ChunkSpec, rng: Random, cx: number, cz: number, B: number, real: MapBuilding[]): void {
+    const color = () => rng.chance(0.65)
+      ? hsl(rng.range(0.52, 0.6), rng.range(0.12, 0.3), rng.range(0.5, 0.72))
+      : hsl(rng.range(0.07, 0.12), rng.range(0.15, 0.32), rng.range(0.6, 0.8));
+    if (real.length === 1) {
+      const b = real[0]!;
+      this.tower(chunk, rng, cx, cz, clamp(b.hw * 2, 30, B - 10), clamp(b.hd * 2, 30, B - 10), b.h, color());
+      return;
+    }
+    const ox = B / 4 + 1;
+    real.forEach((b, i) => {
+      this.tower(chunk, rng, cx + (i ? ox : -ox), cz, clamp(b.hw * 2, 26, B / 2 - 6), clamp(b.hd * 2, 30, B - 10), b.h, color());
+    });
+  }
+
+  /** Real roads (with decks over water), broadcast towers, and clearing what the roads run through. */
+  private mapFeatures(chunk: ChunkSpec, cx: number, cz: number, x0: number, z0: number): void {
+    const map = this.terrain.map!;
+    for (const t of map.towersIn(cx, cz)) {
+      chunk.structures = chunk.structures.filter((s) => Math.hypot(s.x - t.x, s.z - t.z) > 45);
+      this.add(chunk, 'mast', t.x, t.z, 22, 22, t.h, 0, broadcastTowerParts(t.x, t.z, t.h));
+    }
+    const near = map.roadsNear(x0 + this.chunkSize / 2, z0 + this.chunkSize / 2);
+    if (near.length) {
+      chunk.structures = chunk.structures.filter((s) => s.kind === 'mast' || s.kind === 'tower' && s.height > 120 || !near.some((p) => onRoad(p, s.x, s.z, Math.max(s.halfW, s.halfD) * 0.7)));
+    }
+    for (const p of map.roadsIn(cx, cz)) {
+      const rot = Math.atan2(p.dx, p.dz);
+      const color = p.kind === 'runway' ? 0x3a3b3e : COLORS.road;
+      if (this.terrain.isWater(p.x, p.z, 1)) {
+        const bed = this.terrain.heightAt(p.x, p.z);
+        chunk.structures.push({
+          kind: 'bridge', size: SIZE_OF.bridge, x: p.x, z: p.z, y: -2.4, halfW: p.width / 2, halfD: p.length / 2, height: 4, rotY: rot,
+          parts: [
+            part('plain', p.x, -2.4, p.z, p.width, 2.5, p.length + 1, rot, COLORS.road),
+            part('plain', p.x, bed, p.z, 7, -2.4 - bed, 7, rot, 0x8a8680),
+          ],
+        });
+      } else {
+        chunk.flats.push(flat(p.x, p.z, p.width, p.length + 2, color, p.kind === 'runway' ? 0.05 : 0.045, rot));
+      }
+    }
+  }
+
   /** A street span over water: deck, parapets and a pier down to the bed (crushed on contact). */
   private roadBridge(x: number, z: number, alongX: boolean, len: number, W: number): StructureSpec {
     const rot = alongX ? Math.PI / 2 : 0;
@@ -286,6 +362,11 @@ export class CityGenerator {
   private block(chunk: ChunkSpec, d: UrbanDistrict, rng: Random, minX: number, minZ: number, B: number): void {
     const cx = minX + B / 2;
     const cz = minZ + B / 2;
+    const real = this.realBlocks?.get(`${Math.round(cx)},${Math.round(cz)}`);
+    if (real) {
+      chunk.flats.push(flat(cx, cz, B, B, COLORS.concrete, 0.015));
+      return this.realBlock(chunk, rng, cx, cz, B, real);
+    }
     if (this.sites.isReserved(cx, cz, B / 2)) {
       chunk.flats.push(flat(cx, cz, B, B, COLORS.concrete, 0.015));
       return;
@@ -333,7 +414,8 @@ export class CityGenerator {
     // Skyline per region: the island is a wall of supertalls, the river metro stays low.
     const limit = town.kind === 'island' ? 0.75 : town.kind === 'metro' ? 0.22 : this.c.downtownFraction;
     const scale = town.kind === 'island' ? 1.5 : town.kind === 'metro' ? 0.6 : 1;
-    const t = clamp(this.terrain.townFraction(town, cx, cz) / limit, 0, 1);
+    // On real maps the true skyline comes from the tall-building data; fill blocks stay moderate.
+    const t = this.terrain.map ? 0.75 : clamp(this.terrain.townFraction(town, cx, cz) / limit, 0, 1);
     const hc = this.c.towerHeightCenter;
     const he = this.c.towerHeightEdge;
     const height = () => rng.range(lerp(hc.min, he.min, t), lerp(hc.max, he.max, t)) * scale;
@@ -532,6 +614,15 @@ export class CityGenerator {
 }
 
 // ------------------------------------------------------------- helpers
+
+/** Is (x, z) within `margin` of a road piece's strip? */
+function onRoad(p: RoadPiece, x: number, z: number, margin: number): boolean {
+  const rx = x - p.x;
+  const rz = z - p.z;
+  const along = rx * p.dx + rz * p.dz;
+  const across = Math.abs(rx * p.dz - rz * p.dx);
+  return Math.abs(along) <= p.length / 2 + margin && across <= p.width / 2 + margin;
+}
 
 function withY([x, z]: [number, number], y: number): [number, number, number] {
   return [x, y, z];

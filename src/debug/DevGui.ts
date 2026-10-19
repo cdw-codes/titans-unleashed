@@ -2,7 +2,6 @@ import type GUI from 'lil-gui';
 import type { Game } from '../core/Game';
 import { QUALITY_LEVELS } from '../config/quality';
 import { ENVIRONMENT } from '../config/environment';
-import { CITY } from '../config/city';
 import { REGIONS } from '../config/regions';
 import { terrain } from '../world/terrain/Terrain';
 import { autoRange, getPath, numericPaths, setPath, TUNABLES, type Tunable } from './tunables';
@@ -59,13 +58,21 @@ export async function createDevGui(game: Game): Promise<GUI> {
   // Teleport: one button per region, landing near its center.
   const tp = gui.addFolder('Teleport').close();
   const go = (x: number, z: number) => () => game.teleportTo(x, z);
-  const dest: Record<string, () => void> = { 'Spawn (Tokyo Bay)': go(CITY.spawnX, CITY.spawnZ) };
-  for (const t of terrain.authored) if (t.name) dest[t.name] = go(t.x, t.z);
-  const bridge = REGIONS.island.bridgeZ;
-  dest['Suspension bridge (mainland end)'] = go(terrain.coastX(bridge) - 250, bridge + 150);
-  dest['Broadcast tower'] = go(REGIONS.broadcastTower.x, REGIONS.broadcastTower.z + 200);
-  dest['Stadium'] = go(REGIONS.stadium.x, REGIONS.stadium.z + 260);
-  dest[REGIONS.alps.name] = go(-1200, (REGIONS.alps.startZ + REGIONS.alps.fullZ) / 2);
+  const dest: Record<string, () => void> = { Spawn: go(terrain.spawn.x, terrain.spawn.z) };
+  const map = terrain.map;
+  if (map) {
+    // Real city: its districts and named towers.
+    const places = map.meta.places.filter((p) => p.rank === 'major').sort((a, b) => a.name.localeCompare(b.name));
+    for (const p of places) dest[p.name] = go(p.x, p.z);
+    for (const t of map.meta.towers) if (t.name) dest[`${t.name} (${t.h} m)`] = go(t.x, t.z + 220);
+  } else {
+    for (const t of terrain.authored) if (t.name) dest[t.name] = go(t.x, t.z);
+    const bridge = REGIONS.island.bridgeZ;
+    dest['Suspension bridge (mainland end)'] = go(terrain.coastX(bridge) - 250, bridge + 150);
+    dest['Broadcast tower'] = go(REGIONS.broadcastTower.x, REGIONS.broadcastTower.z + 200);
+    dest['Stadium'] = go(REGIONS.stadium.x, REGIONS.stadium.z + 260);
+    dest[REGIONS.alps.name] = go(-1200, (REGIONS.alps.startZ + REGIONS.alps.fullZ) / 2);
+  }
   for (const name of Object.keys(dest)) tp.add(dest, name);
   const mil = gui.addFolder('Military & upgrades').close();
   mil.add(state, 'raiseThreat').name('Threat +1 star');

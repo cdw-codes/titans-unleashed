@@ -84,7 +84,17 @@ export class Minimap {
       if (Math.abs(x0 + S / 2) > R * 1.5 + S || Math.abs(z0 + S / 2) > R * 1.5 + S) continue;
       g.drawImage(this.groundImage(chunk), x0, z0, S, S);
       for (const f of chunk.spec.flats) {
-        if (f.color === ROAD_COLOR) g.fillRect(f.x - ox - f.sx / 2, f.z - oz - f.sz / 2, f.sx, f.sz);
+        if (f.color !== ROAD_COLOR) continue;
+        if (!f.rotY) {
+          g.fillRect(f.x - ox - f.sx / 2, f.z - oz - f.sz / 2, f.sx, f.sz);
+          continue;
+        }
+        // Real-map roads run at any angle.
+        g.save();
+        g.translate(f.x - ox, f.z - oz);
+        g.rotate(-f.rotY);
+        g.fillRect(-f.sx / 2, -f.sz / 2, f.sx, f.sz);
+        g.restore();
       }
     }
 

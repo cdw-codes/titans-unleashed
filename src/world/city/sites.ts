@@ -1,7 +1,7 @@
 import { REGIONS, type RegionsConfig } from '../../config/regions';
 import { smoothstep } from '../../core/math';
 import type { Terrain, Town } from '../terrain/Terrain';
-import { flat, part } from './parts';
+import { broadcastTowerParts, flat, part } from './parts';
 import { SIZE_OF, type PartSpec, type StructureKind, type StructureSpec } from './types';
 
 /** Street color (the minimap draws flats of this color as roads). */
@@ -71,6 +71,8 @@ export class Sites {
     if (this.content) return this.content;
     const c: SiteContent = { structures: [], flats: [] };
     this.content = c;
+    // Real city maps bring their own landmarks (CityGenerator.mapFeatures).
+    if (this.terrain.map) return c;
     this.bridge(c);
     const airport = this.terrain.authored.find((t) => t.kind === 'airport');
     if (airport) this.airport(c, airport);
@@ -251,16 +253,7 @@ export class Sites {
     const [x, z] = this.blockCenter(b.x, b.z);
     const h = b.height;
     this.reserves.push({ x, z, r: 40 });
-    const parts: PartSpec[] = [
-      part('cone', x, 0, z, 64, 22, 64, 0, COL.white),
-      part('cone', x, 22, z, 30, 80, 30, 0, COL.signal),
-      part('cone', x, 102, z, 21, 70, 21, 0, COL.white),
-      part('cylinder', x, 150, z, 46, 16, 46, 0, COL.glass),
-      part('cone', x, 172, z, 15, 70, 15, 0, COL.signal),
-      part('cylinder', x, 238, z, 26, 9, 26, 0, COL.glass),
-      part('cylinder', x, 247, z, 3, h - 247, 3, 0, COL.white),
-    ];
-    this.add(c, 'mast', x, z, 0, 22, 22, h, 0, parts);
+    this.add(c, 'mast', x, z, 0, 22, 22, h, 0, broadcastTowerParts(x, z, h));
   }
 
   private stadium(c: SiteContent): void {

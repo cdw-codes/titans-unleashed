@@ -6,3 +6,6 @@ coverage
 
 # Dev screenshots (tools/tuningPlugin.ts)
 .dev-shots
+
+# Raw OpenStreetMap downloads (tools/osm/fetchCity.ts)
+tools/osm/cache

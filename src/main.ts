@@ -25,7 +25,8 @@ async function boot(): Promise<void> {
   if (import.meta.env.DEV) {
     const { createDevGui } = await import('./debug/DevGui');
     await createDevGui(game);
-    (window as unknown as { game: Game }).game = game;
+    const { terrain } = await import('./world/terrain/Terrain');
+    Object.assign(window, { game, terrain });
   }
 }
 

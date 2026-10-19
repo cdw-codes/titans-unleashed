@@ -26,6 +26,8 @@ import { Water } from '../world/Water';
 import { CityGenerator, GROUND_CELLS } from '../world/city/CityGenerator';
 import { WORLD } from '../config/world';
 import { BINDINGS } from '../config/input';
+import { CITY_MAPS, selectedMapId } from '../config/maps';
+import { CityMap } from '../world/maps/CityMap';
 import { CityPools } from '../world/city/CityPools';
 import { ChunkManager } from '../world/city/ChunkManager';
 import { DestructionState } from '../world/city/DestructionState';
@@ -66,6 +68,9 @@ import { GameOverScreen, PauseMenu, TitleScreen, type RunStats } from '../ui/men
 import { Crosshair } from '../ui/Crosshair';
 
 /** Composition root: builds systems, owns the update order. */
+/** How far inside a city map's data edge the player is held (m). */
+const MAP_EDGE = 250;
+
 export class Game {
   readonly events: GameEventBus = createEventBus();
   readonly loop: GameLoop;
@@ -160,7 +165,8 @@ export class Game {
     this.beamFx = new BeamFx(scene, this.fire);
     this.collapse = new CollapseSystem(this.chunks, this.cityPools, this.dust, this.smoke, this.debris);
 
-    const spawn = new THREE.Vector3(CITY.spawnX, terrain.heightAt(CITY.spawnX, CITY.spawnZ), CITY.spawnZ);
+    const { x: sx, z: sz } = terrain.spawn;
+    const spawn = new THREE.Vector3(sx, terrain.heightAt(sx, sz), sz);
     this.player = new Titan(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
     scene.add(this.player.model.object);
 
@@ -175,9 +181,9 @@ export class Game {
       void this.input.requestLock();
     };
     const newGame = () => location.reload();
-    this.pauseMenu = new PauseMenu(uiRoot, resume, newGame);
+    this.pauseMenu = new PauseMenu(uiRoot, terrain.map?.meta.attribution ?? null, resume, newGame);
     this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
-    this.title = new TitleScreen(uiRoot, () => {
+    this.title = new TitleScreen(uiRoot, CITY_MAPS.map((m) => ({ id: m.id, name: m.name })), terrain.map?.meta.id ?? null, terrain.map?.meta.attribution ?? null, () => {
       this.started = true;
       this.title.visible = false;
       resume();
@@ -317,6 +323,15 @@ export class Game {
    */
   static async create(container: HTMLElement, onProgress: (fraction: number, label: string) => void = () => {}): Promise<Game> {
     onProgress(0.02, 'Waking the beast');
+    const mapId = selectedMapId();
+    if (mapId) {
+      onProgress(0.05, 'Mapping the city');
+      try {
+        terrain.setMap(await CityMap.load(mapId));
+      } catch (err) {
+        console.warn(`[map] ${mapId} unavailable, using the open world`, err);
+      }
+    }
     const physics = await PhysicsSystem.create(1 / SIM.tickRate);
     onProgress(0.2, 'Tuning the roars');
     const game = new Game(container, physics);
@@ -534,6 +549,9 @@ export class Game {
     this.player.fixedUpdate(dt, intent, this.playerController.combat);
     this.director.fixedUpdateRival(dt);
     this.director.constrain();
+    // Real city maps end at their data: an invisible edge, well inside the fog.
+    const map = terrain.map;
+    if (map) this.player.constrainBox(map.meta.minX + MAP_EDGE, map.meta.minZ + MAP_EDGE, map.maxX - MAP_EDGE, map.maxZ - MAP_EDGE);
 
     const titans = this.director.titans;
     this.combatSystem.fixedUpdate(dt, titans);

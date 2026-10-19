@@ -2,6 +2,9 @@ import { clamp, hashCoords, lerp, noise2D } from '../../core/math';
 import { Random } from '../../core/random';
 import { TERRAIN, TERRAIN_COLORS as COL, type TerrainConfig } from '../../config/terrain';
 import { REGIONS, type RegionsConfig } from '../../config/regions';
+import { CITY } from '../../config/city';
+import { LAND } from '../maps/format';
+import type { CityMap } from '../maps/CityMap';
 
 /**
  * city: the main city · metro: river city · island: offshore supertall island ·
@@ -56,8 +59,12 @@ const _rgb = [0, 0, 0];
 export class Terrain {
   private readonly townCache = new Map<number, Town | null>();
   readonly main: Town;
-  /** Hand-placed towns and sites (regions.ts), checked before the satellite grid. */
-  readonly authored: readonly Town[];
+  /** Hand-placed towns and sites (regions.ts), checked before the satellite grid. Empty on city maps. */
+  authored: readonly Town[];
+  /** A real city map (OSM) replaces the procedural layout when set. */
+  map: CityMap | null = null;
+  /** Where the player starts. */
+  spawn: { x: number; z: number } = { x: CITY.spawnX, z: CITY.spawnZ };
   readonly island: Town;
   /** Per-river bounding boxes (with bank margin) to skip far rivers cheaply. */
   private readonly riverBoxes: { minX: number; maxX: number; minZ: number; maxZ: number }[];
@@ -83,6 +90,14 @@ export class Terrain {
     ];
   }
 
+  /** Switch to a real city map (call before any chunk is generated). */
+  setMap(map: CityMap): void {
+    this.map = map;
+    this.authored = [];
+    this.townCache.clear();
+    this.spawn = { ...map.meta.spawn };
+  }
+
   get waterLevel(): number {
     return this.c.waterLevel;
   }
@@ -96,6 +111,7 @@ export class Terrain {
 
   /** Westmost the coast can reach: safe inland bound for spawns. */
   get minCoastX(): number {
+    if (this.map) return Infinity;
     return this.c.coastX - this.c.coastWave * 1.2;
   }
 
@@ -127,6 +143,7 @@ export class Terrain {
   }
 
   private makeTown(i: number, j: number): Town | null {
+    if (this.map) return null;
     const c = this.c;
     const rng = new Random(hashCoords(i, j, c.seed + 101));
     if (!rng.chance(c.townChance)) return null;
@@ -174,6 +191,7 @@ export class Terrain {
 
   /** 1 on flat town ground, 0 in open country. */
   urbanWeight(x: number, z: number): number {
+    if (this.map) return this.mapUrban(x, z);
     const c = this.c;
     let u = 0;
     this.forTownsNear(x, z, (t, e) => {
@@ -194,6 +212,7 @@ export class Terrain {
 
   /** Named region at a point (authored places, the Alps), or null in open country. */
   regionAt(x: number, z: number): string | null {
+    if (this.map) return this.map.placeAt(x, z);
     for (const t of this.authored) if (t.name && this.townEdge(t, x, z) < 250) return t.name;
     if (this.alpsWeight(z) > 0.3) return this.r.alps.name;
     return null;
@@ -284,6 +303,7 @@ export class Terrain {
 
   /** Ground height (m) at a world position. */
   heightAt(x: number, z: number): number {
+    if (this.map) return this.mapHeight(this.map, x, z);
     const c = this.c;
     const u = this.urbanWeight(x, z);
     let h = u < 1 ? this.hills(x, z) * (1 - u) : 0;
@@ -309,17 +329,23 @@ export class Terrain {
   }
 
   isSea(x: number, z: number): boolean {
+    if (this.map) return this.map.classAt(x, z) === LAND.sea;
     return x > this.coastX(z) && this.islandWeight(x, z) < 0.5;
   }
 
   /** 0..1 forest density (0 in towns and water). */
   forestDensity(x: number, z: number): number {
+    if (this.map?.inside(x, z)) {
+      const k = this.map.classAt(x, z);
+      return k === LAND.forest ? 1 : k === LAND.park ? 0.6 : k === LAND.grass ? 0.1 : 0;
+    }
     const c = this.c;
     const f = fbm(x / c.forestSize + 70.1, z / c.forestSize - 33.3, c.seed + 31);
     return smoothstep(c.forestThreshold - 0.03, c.forestThreshold + 0.14, f);
   }
 
   farmWeight(x: number, z: number): number {
+    if (this.map?.inside(x, z)) return 0;
     const c = this.c;
     return smoothstep(c.farmThreshold, c.farmThreshold + 0.06, noise2D(x / c.farmSize - 50.5, z / c.farmSize + 8.8, c.seed + 41));
   }
@@ -328,6 +354,47 @@ export class Terrain {
     if (this.forestDensity(x, z) > 0.35) return 'forest';
     if (this.farmWeight(x, z) > 0.5) return 'farmland';
     return 'meadow';
+  }
+
+  // ---------------------------------------------------------------- city maps
+
+  /** Flat city at 0, channels under rivers and the sea; procedural hills rise outside the map. */
+  private mapHeight(map: CityMap, x: number, z: number): number {
+    const out = map.outsideDistance(x, z);
+    if (out > 0) return this.hills(x, z) * smoothstep(0, 900, out);
+    const w = map.waterWeight(x, z);
+    if (w <= 0) return 0;
+    const depth = map.classAt(x, z) === LAND.sea ? this.c.seaDepth : this.r.riverDepth;
+    return -depth * smoothstep(0.1, 0.9, w);
+  }
+
+  private mapUrban(x: number, z: number): number {
+    const k = this.map!.classAt(x, z);
+    if (k === -1) return 1 - smoothstep(0, 900, this.map!.outsideDistance(x, z));
+    return k === LAND.park || k === LAND.forest || k === LAND.grass ? 0 : 1;
+  }
+
+  private mapColor(map: CityMap, x: number, z: number, out: number[]): number[] {
+    const k = map.classAt(x, z);
+    const vary = noise2D(x / 90, z / 90, this.c.seed + 53);
+    switch (k) {
+      case LAND.forest:
+      case LAND.park: {
+        mixHex(COL.grass, COL.grassDark, vary, out);
+        const pick = COL.canopy[hashCoords(Math.floor(x / 16), Math.floor(z / 16), this.c.seed + 71) % COL.canopy.length]!;
+        mixInto(out, pick, k === LAND.forest ? 0.8 : 0.35);
+        return out;
+      }
+      case LAND.grass:
+        return mixHex(COL.grass, COL.meadow, vary * 0.6, out);
+      case LAND.airport:
+        return mixHex(COL.grass, COL.town, 0.3 + vary * 0.2, out);
+      case LAND.railway:
+        return mixHex(COL.rockDark, COL.road, 0.4, out);
+      default:
+        // Built-up ground between the lots: pale paving with a hint of green.
+        return mixHex(COL.paving, COL.town, 0.15 + vary * 0.15, out);
+    }
   }
 
   /**
@@ -364,6 +431,7 @@ export class Terrain {
       // Shore sand, darkening toward the bed under the water.
       return mixHex(COL.sand, COL.seabed, smoothstep(wl - 0.5, wl - 12, h), out);
     }
+    if (this.map?.inside(x, z)) return this.mapColor(this.map, x, z, out);
     const u = this.urbanWeight(x, z);
     const vary = noise2D(x / 260, z / 260, c.seed + 51);
     // Base: green grass blending into golden meadow (like late-summer hills).

@@ -55,17 +55,34 @@ abstract class Screen {
 
 /** First screen: title, controls, Start. */
 export class TitleScreen extends Screen {
-  constructor(parent: HTMLElement, onStart: () => void) {
+  /**
+   * `maps`: real cities to pick from (plus the procedural open world); picking one
+   * reloads the page with ?map=<id>. `current` is the loaded map id (null = open world).
+   */
+  constructor(parent: HTMLElement, maps: { id: string; name: string }[], current: string | null, credits: string | null, onStart: () => void) {
     super(parent, 'title-screen');
+    const choices = [...maps, { id: 'open', name: 'Open world' }]
+      .map((m) => `<button type="button" class="menu-choice${(m.id === 'open' ? current === null : m.id === current) ? ' active' : ''}" data-map="${m.id}">${m.name}</button>`)
+      .join('');
     this.el.innerHTML = `
       <div class="menu-card">
         <p class="menu-kicker">A city. A monster. No mercy.</p>
         <h1 class="menu-title">TITANS UNLEASHED</h1>
-        <button class="menu-primary" type="button">Begin the rampage</button>
+        <div class="menu-row menu-maps">${choices}</div>
+        <button class="menu-primary" data-act="start" type="button">Begin the rampage</button>
         <div class="title-controls">${controlsHtml()}</div>
         <p class="pause-hint">Esc pauses · F1 debug</p>
+        ${credits ? `<p class="menu-credits">Map data ${credits}</p>` : ''}
       </div>`;
-    this.el.querySelector('button')!.addEventListener('click', onStart);
+    this.el.querySelector('[data-act=start]')!.addEventListener('click', onStart);
+    for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-map]')) {
+      b.addEventListener('click', () => {
+        if (b.classList.contains('active')) return;
+        const q = new URLSearchParams(location.search);
+        q.set('map', b.dataset['map']!);
+        location.search = q.toString();
+      });
+    }
     this.visible = true;
   }
 }
@@ -74,7 +91,7 @@ export class TitleScreen extends Screen {
 export class PauseMenu extends Screen {
   private readonly statsEl: HTMLDivElement;
 
-  constructor(parent: HTMLElement, onResume: () => void, onNewGame: () => void) {
+  constructor(parent: HTMLElement, credits: string | null, onResume: () => void, onNewGame: () => void) {
     super(parent, 'pause-screen');
     this.el.innerHTML = `
       <div class="menu-card">
@@ -84,6 +101,7 @@ export class PauseMenu extends Screen {
           <button class="menu-secondary" data-act="new" type="button">New game</button>
         </div>
         <div class="menu-cols"><div class="menu-stats-slot"></div><div>${controlsHtml()}</div></div>
+        ${credits ? `<p class="menu-credits">Map data ${credits}</p>` : ''}
       </div>`;
     this.statsEl = this.el.querySelector('.menu-stats-slot')!;
     this.el.querySelector('[data-act=resume]')!.addEventListener('click', onResume);

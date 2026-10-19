@@ -1,6 +1,6 @@
 # Assets
 
-The game ships **no third-party assets**. Everything is generated in code:
+The game ships **no third-party art or sound**. Everything is generated in code:
 
 - **3D:** titans, buildings, terrain, trees, vehicles and military units are built from
   primitives at load time (`src/entities/titan`, `src/world`, `src/systems/military`).
@@ -18,3 +18,11 @@ The game ships **no third-party assets**. Everything is generated in code:
 
 There is no model loader. If you want authored models, ask first: it needs a glTF loader,
 an asset pipeline and instancing support again (removed on purpose to keep one style).
+
+## Map data (OpenStreetMap)
+
+Real cities come from OpenStreetMap through the Overpass API (`tools/osm/fetchCity.ts`,
+raw downloads cached in `tools/osm/cache/`, git-ignored) and are baked by
+`tools/osm/bakeCity.ts` into `public/maps/<id>.json` + `.bin`. License: ODbL — the game
+shows "Map data © OpenStreetMap contributors (ODbL)" on the title and pause screens, and
+the baked files are a derivative database under the ODbL. Keep both if you redistribute.
