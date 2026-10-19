@@ -1,5 +1,7 @@
 import { ACTION_LABELS, BINDINGS } from '../config/input';
 import { ACTIONS, codeLabel } from '../input/actions';
+import type { CityMapDef } from '../config/maps';
+import { openWorldPreview } from './openWorldPreview';
 
 /** Shared run stats shown on the pause and game-over screens. */
 export interface RunStats {
@@ -56,28 +58,52 @@ abstract class Screen {
 /** First screen: title, controls, Start. */
 export class TitleScreen extends Screen {
   /**
-   * `maps`: real cities to pick from (plus the procedural open world); picking one
-   * reloads the page with ?map=<id>. `current` is the loaded map id (null = open world).
+   * `maps`: real cities to pick from (plus the procedural open world), each shown as a
+   * top-view preview of its baked layout with a link to the real place on
+   * openstreetmap.org. Picking one reloads the page with ?map=<id>. `current` is the
+   * loaded map id (null = open world).
    */
-  constructor(parent: HTMLElement, maps: { id: string; name: string }[], current: string | null, credits: string | null, onStart: () => void) {
+  constructor(parent: HTMLElement, maps: readonly CityMapDef[], current: string | null, credits: string | null, onStart: () => void) {
     super(parent, 'title-screen');
-    const choices = [...maps, { id: 'open', name: 'Open world' }]
-      .map((m) => `<button type="button" class="menu-choice${(m.id === 'open' ? current === null : m.id === current) ? ' active' : ''}" data-map="${m.id}">${m.name}</button>`)
-      .join('');
+    const base = import.meta.env.BASE_URL;
+    const card = (id: string, name: string, img: string, real: string | null) => {
+      const active = id === 'open' ? current === null : id === current;
+      return `<div class="map-card${active ? ' active' : ''}">
+          <button type="button" class="map-pick" data-map="${id}" aria-pressed="${active}">
+            <img ${img ? `src="${img}"` : ''} alt="Top view of ${name}">
+            <span>${name}</span>
+          </button>
+          ${real ? `<a class="map-real" href="${real}" target="_blank" rel="noopener noreferrer">Real map ↗</a>` : '<span class="map-real">Invented</span>'}
+        </div>`;
+    };
+    const osm = (m: CityMapDef) => {
+      const [s, w, n, e] = m.bbox;
+      return `https://www.openstreetmap.org/?minlon=${w}&minlat=${s}&maxlon=${e}&maxlat=${n}`;
+    };
+    const choices = [
+      ...maps.map((m) => card(m.id, m.name, `${base}maps/${m.id}.png`, osm(m))),
+      card('open', 'Open world', '', null),
+    ].join('');
     this.el.innerHTML = `
       <div class="menu-card">
         <p class="menu-kicker">A city. A monster. No mercy.</p>
         <h1 class="menu-title">TITANS UNLEASHED</h1>
-        <div class="menu-row menu-maps">${choices}</div>
+        <div class="map-cards">${choices}</div>
         <button class="menu-primary" data-act="start" type="button">Begin the rampage</button>
         <div class="title-controls">${controlsHtml()}</div>
         <p class="pause-hint">Esc pauses · F1 debug</p>
         ${credits ? `<p class="menu-credits">Map data ${credits}</p>` : ''}
       </div>`;
     this.el.querySelector('[data-act=start]')!.addEventListener('click', onStart);
+    // The open world is invented: its preview is drawn from the terrain function.
+    const openImg = this.el.querySelector<HTMLImageElement>('[data-map=open] img')!;
+    setTimeout(() => (openImg.src = openWorldPreview(180)), 0);
+    for (const img of this.el.querySelectorAll<HTMLImageElement>('.map-card img')) {
+      img.addEventListener('error', () => img.closest('.map-card')?.classList.add('missing'));
+    }
     for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-map]')) {
       b.addEventListener('click', () => {
-        if (b.classList.contains('active')) return;
+        if (b.closest('.map-card')!.classList.contains('active')) return;
         const q = new URLSearchParams(location.search);
         q.set('map', b.dataset['map']!);
         location.search = q.toString();

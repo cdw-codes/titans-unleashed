@@ -183,7 +183,7 @@ export class Game {
     const newGame = () => location.reload();
     this.pauseMenu = new PauseMenu(uiRoot, terrain.map?.meta.attribution ?? null, resume, newGame);
     this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
-    this.title = new TitleScreen(uiRoot, CITY_MAPS.map((m) => ({ id: m.id, name: m.name })), terrain.map?.meta.id ?? null, terrain.map?.meta.attribution ?? null, () => {
+    this.title = new TitleScreen(uiRoot, CITY_MAPS, terrain.map?.meta.id ?? null, terrain.map?.meta.attribution ?? null, () => {
       this.started = true;
       this.title.visible = false;
       resume();

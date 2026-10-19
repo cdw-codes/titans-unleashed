@@ -70,7 +70,7 @@ const LAYERS: Record<string, Layer> = {
     out: 'out tags center;',
     tiles: 1,
   },
-  places: { body: (b) => `node["place"~"^(city|town|suburb|quarter)$"](${b});`, out: 'out;', tiles: 1 },
+  places: { body: (b) => `node["place"~"^(city|borough|town|suburb|quarter)$"](${b});`, out: 'out;', tiles: 1 },
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

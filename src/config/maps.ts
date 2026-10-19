@@ -36,6 +36,31 @@ export const CITY_MAPS: readonly CityMapDef[] = [
     majorPlaces: ['city', 'suburb'],
     towerHeights: { 'Tokyo Tower': 333 },
   },
+  {
+    id: 'newyork',
+    name: 'New York',
+    // Manhattan, Brooklyn, western Queens, Jersey City and the Upper Bay.
+    bbox: [40.6, -74.08, 40.84, -73.86],
+    compress: 3.5,
+    cell: 16,
+    seaSeeds: [[40.665, -74.04], [40.62, -74.03], [40.7, -74.02]],
+    // Times Square, among the Midtown towers.
+    spawn: [40.758, -73.9855],
+    majorPlaces: ['borough', 'city', 'suburb'],
+  },
+  {
+    id: 'london',
+    name: 'London',
+    // Central London both sides of the Thames, Westminster to Canary Wharf.
+    bbox: [51.45, -0.24, 51.56, 0.03],
+    compress: 3.5,
+    cell: 16,
+    // Inland: the Thames comes from the water polygons, there is no open sea.
+    seaSeeds: [],
+    // Trafalgar Square.
+    spawn: [51.508, -0.128],
+    majorPlaces: ['city', 'borough', 'suburb'],
+  },
 ];
 
 /** Map chosen with ?map=<id>; 'open' (or unknown) = the procedural open world. */

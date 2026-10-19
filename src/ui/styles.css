@@ -500,18 +500,27 @@ html, body {
 }
 
 .menu-credits { margin: 0; font-size: 11px; opacity: 0.55; }
-.menu-maps { gap: 8px; }
-.menu-choice {
-  padding: 6px 14px;
+.map-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+.map-card { display: grid; gap: 4px; justify-items: center; width: 168px; }
+.map-card.missing { display: none; }
+.map-pick {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 6px;
   font: inherit;
   font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--ui-fg);
   background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 3px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
   cursor: pointer;
 }
-.menu-choice:hover, .menu-choice:focus-visible { border-color: var(--ui-accent); outline: none; }
-.menu-choice.active { color: #0b1a14; background: var(--ui-accent); border-color: var(--ui-accent); cursor: default; }
+.map-pick img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 2px; background: rgba(255, 255, 255, 0.08); }
+.map-pick:hover, .map-pick:focus-visible { border-color: var(--ui-accent); outline: none; }
+.map-card.active .map-pick { border-color: var(--ui-accent); box-shadow: 0 0 0 2px rgba(88, 216, 255, 0.25); cursor: default; }
+.map-real { font-size: 11px; color: var(--ui-fg); opacity: 0.65; }
+a.map-real:hover { opacity: 1; }

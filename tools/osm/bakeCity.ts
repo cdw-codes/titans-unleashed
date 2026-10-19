@@ -11,6 +11,7 @@ import { gzipSync } from 'node:zlib';
 import { CITY_MAPS, type CityMapDef } from '../../src/config/maps.ts';
 import { LAND, metersPerDegree, project, type MapBuilding, type MapMeta, type MapPlace, type MapRoad, type MapTower, type Projection, type RoadKind } from '../../src/world/maps/format.ts';
 import { drawLines, fillPolygon, floodFill, makeGrid, simplify, type Grid, type Segments } from './raster.ts';
+import { encodePng } from './png.ts';
 
 interface LatLon {
   lat: number;
@@ -186,6 +187,8 @@ async function bake(def: CityMapDef): Promise<void> {
   };
   const out = resolve(root, 'public/maps');
   await mkdir(out, { recursive: true });
+  const png = preview(g, meta);
+  await writeFile(resolve(out, `${def.id}.png`), png);
   const bin = gzipSync(g.data, { level: 9 });
   await writeFile(resolve(out, `${def.id}.bin`), bin);
   const json = JSON.stringify(meta);
@@ -195,7 +198,64 @@ async function bake(def: CityMapDef): Promise<void> {
   const names = Object.fromEntries(Object.entries(LAND).map(([k, v]) => [v, k]));
   console.log(`  cover: ${[...counts].sort((a, b) => a[0] - b[0]).map(([k, v]) => `${names[k]} ${Math.round((100 * v) / g.data.length)}%`).join(', ')}`);
   console.log(`  roads ${roads.length}, tall buildings ${buildings.length}/${candidates.length}, towers ${towers.length}, places ${places.length}`);
-  console.log(`  wrote ${def.id}.bin (${Math.round(bin.length / 1024)} KB) and ${def.id}.json (${Math.round(json.length / 1024)} KB)`);
+  console.log(`  wrote ${def.id}.bin (${Math.round(bin.length / 1024)} KB), ${def.id}.json (${Math.round(json.length / 1024)} KB), ${def.id}.png (${Math.round(png.length / 1024)} KB)`);
+}
+
+/** Land-cover palette for the title-screen preview (sRGB). */
+const PREVIEW_COLORS: Record<number, [number, number, number]> = {
+  [LAND.urban]: [214, 208, 196],
+  [LAND.commercial]: [199, 186, 170],
+  [LAND.industrial]: [186, 182, 196],
+  [LAND.railway]: [178, 172, 164],
+  [LAND.port]: [176, 184, 196],
+  [LAND.airport]: [206, 220, 176],
+  [LAND.park]: [150, 190, 110],
+  [LAND.forest]: [96, 150, 86],
+  [LAND.grass]: [180, 206, 140],
+  [LAND.water]: [104, 158, 206],
+  [LAND.sea]: [74, 124, 178],
+};
+
+/** Top view of the baked map (max 360 px): land cover, roads, tall buildings and towers. */
+function preview(g: Grid, meta: MapMeta): Buffer {
+  const scale = 360 / Math.max(g.cols, g.rows);
+  const w = Math.round(g.cols * scale);
+  const h = Math.round(g.rows * scale);
+  const rgb = new Uint8Array(w * h * 3);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const c = PREVIEW_COLORS[g.data[Math.floor(y / scale) * g.cols + Math.floor(x / scale)]!] ?? [255, 0, 255];
+      rgb.set(c, (y * w + x) * 3);
+    }
+  }
+  const px = (wx: number) => ((wx - meta.minX) / meta.cell) * scale;
+  const pz = (wz: number) => ((wz - meta.minZ) / meta.cell) * scale;
+  const dot = (x: number, y: number, r: number, c: [number, number, number]) => {
+    for (let j = -r; j <= r; j++) {
+      for (let i = -r; i <= r; i++) {
+        const xx = Math.round(x) + i;
+        const yy = Math.round(y) + j;
+        if (xx >= 0 && yy >= 0 && xx < w && yy < h) rgb.set(c, (yy * w + xx) * 3);
+      }
+    }
+  };
+  const roadColor: Record<string, [number, number, number]> = {
+    motorway: [120, 96, 84], trunk: [132, 116, 104], primary: [150, 140, 130], secondary: [170, 162, 152], runway: [90, 92, 96],
+  };
+  for (const r of meta.roads) {
+    const c = roadColor[r.kind]!;
+    for (let i = 0; i + 3 < r.pts.length; i += 2) {
+      const x0 = px(r.pts[i]!);
+      const y0 = pz(r.pts[i + 1]!);
+      const x1 = px(r.pts[i + 2]!);
+      const y1 = pz(r.pts[i + 3]!);
+      const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0)));
+      for (let k = 0; k <= n; k++) dot(x0 + ((x1 - x0) * k) / n, y0 + ((y1 - y0) * k) / n, r.kind === 'runway' ? 1 : 0, c);
+    }
+  }
+  for (const b of meta.buildings) dot(px(b.x), pz(b.z), b.h > 150 ? 1 : 0, [70, 76, 92]);
+  for (const t of meta.towers) dot(px(t.x), pz(t.z), 2, [217, 81, 44]);
+  return encodePng(w, h, rgb);
 }
 
 const id = process.argv[2];
