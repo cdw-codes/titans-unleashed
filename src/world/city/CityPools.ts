@@ -51,7 +51,7 @@ export class CityPools {
 
     const { car, truck } = vehicleGeometries();
     // Landmark shapes (unit size, base at y = 0).
-    const cone = new THREE.CylinderGeometry(0.3, 0.5, 1, 12).translate(0, 0.5, 0);
+    const cone = new THREE.CylinderGeometry(0.3, 0.5, 1, 8).translate(0, 0.5, 0);
     const dome = new THREE.SphereGeometry(0.5, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).scale(1, 2, 1);
     // Cooling tower: a hyperboloid waist, open top.
     const cooling = new THREE.LatheGeometry(
@@ -73,9 +73,12 @@ export class CityPools {
       windowed: new InstancePool(scene, box, createBuildingMaterial(), 6000),
       plain: new InstancePool(scene, box, lambert(), 6000),
       roof: new InstancePool(scene, roof, lambert({ flatShading: true }), 6000),
-      cylinder: new InstancePool(scene, new THREE.CylinderGeometry(0.5, 0.5, 1, 12).translate(0, 0.5, 0), lambert(), 1000),
+      cylinder: new InstancePool(scene, new THREE.CylinderGeometry(0.5, 0.5, 1, 10).translate(0, 0.5, 0), lambert(), 1000),
       tree: new InstancePool(scene, tree, lambert({ vertexColors: true, flatShading: true }), 12000),
       pine: new InstancePool(scene, pine, lambert({ vertexColors: true, flatShading: true }), 8000),
+      // Unit-size bush (squashed blob) and boulder (half-buried dodecahedron); instance color tints.
+      bush: new InstancePool(scene, new THREE.IcosahedronGeometry(0.5, 0).scale(1, 0.7, 1).translate(0, 0.3, 0), lambert({ flatShading: true }), 6000),
+      rock: new InstancePool(scene, new THREE.DodecahedronGeometry(0.5, 0).scale(1, 0.75, 1.15).translate(0, 0.2, 0), lambert({ flatShading: true }), 3000),
       car: new InstancePool(scene, car, lambert({ vertexColors: true, flatShading: true }), 4000),
       truck: new InstancePool(scene, truck, lambert({ vertexColors: true, flatShading: true }), 1500),
       plane: new InstancePool(scene, airlinerGeometry(), lambert({ vertexColors: true, flatShading: true }), 200),
@@ -103,7 +106,7 @@ export class CityPools {
 
   /** Small-prop shadows on/off (quality preset). */
   setSmallShadows(on: boolean): void {
-    for (const id of ['tree', 'pine', 'roof', 'car', 'truck'] as const) (this.pools[id] as InstancePool).setCastShadow(on);
+    for (const id of ['tree', 'pine', 'bush', 'rock', 'roof', 'car', 'truck'] as const) (this.pools[id] as InstancePool).setCastShadow(on);
   }
 
   flush(): void {

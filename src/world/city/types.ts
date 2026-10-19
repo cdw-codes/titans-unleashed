@@ -10,12 +10,12 @@ export type StructureKind =
   | 'mast' | 'pylon' | 'reactor' | 'stadium' | 'terminal' // large landmarks
   | 'shop' | 'house' | 'barn' | 'bridge' // small: crushed on contact
   | 'plane'
-  | 'tree' | 'car' | 'container'; // prop (with 'plane'): crushed on contact, only near the player
+  | 'tree' | 'car' | 'container' | 'rock'; // prop (with 'plane'): crushed on contact, only near the player
 
 export type SizeClass = 'large' | 'small' | 'prop';
 
 /** Which shared instanced pool renders a part. */
-export type PoolId = 'windowed' | 'plain' | 'roof' | 'cylinder' | 'cone' | 'dome' | 'cooling' | 'tree' | 'pine' | 'car' | 'truck' | 'plane' | 'flat';
+export type PoolId = 'windowed' | 'plain' | 'roof' | 'cylinder' | 'cone' | 'dome' | 'cooling' | 'tree' | 'pine' | 'bush' | 'rock' | 'car' | 'truck' | 'plane' | 'flat';
 
 /** One instance in a pool. Position is the base center; scale is the full size. */
 export interface PartSpec {
@@ -75,6 +75,7 @@ export const SIZE_OF: Readonly<Record<StructureKind, SizeClass>> = {
   barn: 'small',
   bridge: 'small',
   plane: 'prop',
+  rock: 'prop',
   tree: 'prop',
   car: 'prop',
   container: 'prop',

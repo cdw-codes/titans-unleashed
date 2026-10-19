@@ -98,6 +98,7 @@ export const DESTRUCTION: DestructionConfig = {
     barn: 30,
     bridge: 20,
     plane: 15,
+    rock: 1,
     tree: 2,
     car: 5,
     container: 3,

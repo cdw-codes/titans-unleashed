@@ -66,6 +66,54 @@ export const CITY_MAPS: readonly CityMapDef[] = [
     spawn: [51.508, -0.128],
     majorPlaces: ['city', 'borough', 'suburb'],
   },
+  {
+    id: 'paris',
+    name: 'Paris',
+    blurb: 'Inside the ring road, both banks of the Seine, out to La Défense.',
+    bbox: [48.815, 2.215, 48.905, 2.42],
+    compress: 3,
+    cell: 16,
+    seaSeeds: [],
+    // Place de la Concorde.
+    spawn: [48.8656, 2.3212],
+    majorPlaces: ['suburb', 'city'],
+  },
+  {
+    id: 'sanfrancisco',
+    name: 'San Francisco',
+    blurb: 'The peninsula from the Golden Gate to the Bay Bridge.',
+    bbox: [37.705, -122.52, 37.832, -122.355],
+    compress: 3.5,
+    cell: 16,
+    seaSeeds: [[37.8, -122.37], [37.75, -122.515], [37.815, -122.47], [37.73, -122.36]],
+    // Union Square.
+    spawn: [37.788, -122.4075],
+    majorPlaces: ['suburb', 'neighbourhood'],
+  },
+  {
+    id: 'hongkong',
+    name: 'Hong Kong',
+    blurb: 'Victoria Harbour between Hong Kong Island and Kowloon.',
+    bbox: [22.245, 114.11, 22.345, 114.25],
+    compress: 2.5,
+    cell: 16,
+    seaSeeds: [[22.29, 114.17], [22.3, 114.2], [22.28, 114.13]],
+    // Tsim Sha Tsui, facing the harbour.
+    spawn: [22.2988, 114.1722],
+    majorPlaces: ['suburb', 'quarter', 'town'],
+  },
+  {
+    id: 'sydney',
+    name: 'Sydney',
+    blurb: 'The harbour, the CBD and the bridge, from Balmain to Bondi.',
+    bbox: [-33.925, 151.13, -33.825, 151.3],
+    compress: 3,
+    cell: 16,
+    seaSeeds: [[-33.852, 151.235], [-33.84, 151.27], [-33.89, 151.29]],
+    // Martin Place, in the CBD.
+    spawn: [-33.8679, 151.2108],
+    majorPlaces: ['suburb'],
+  },
 ];
 
 /** Map chosen with ?map=<id>; 'open' (or unknown) = the procedural open world. */

@@ -21,6 +21,13 @@ const COLORS = {
   rooftop: 0x8c8c88,
   alley: 0x8d8a83,
   park: 0x86ab55,
+  bushes: [0x5d8b37, 0x6f8f3a, 0x4f7a3a, 0x9b9a3e, 0xb07a32],
+  hedges: [0x4f7232, 0x5b7a36, 0x476a30],
+  rocks: [0x9b958e, 0x8a8680, 0xa8a39a, 0x7d7a80],
+  sidewalk: 0xb4b0a6,
+  centerLine: 0xd9cf9a,
+  storefronts: [0x3d4a52, 0x5a3d34, 0x2f4a44, 0x6b5a3a, 0x444650],
+  awnings: [0xb5452f, 0x2f6fa8, 0x3d8a4a, 0xd19a2b, 0x7a3d6b, 0xe8e2d0],
   pond: 0x5f8ea6,
   containers: [0xb0442f, 0x2f6fa8, 0x3d8a4a, 0xd19a2b, 0x7a7d80, 0x9b3f78],
   /** Tree crowns (instance colors; the tree pools keep trunks dark). */
@@ -97,11 +104,33 @@ export class CityGenerator {
         this.block(chunk, district, rng, minX, minZ, B);
       }
     }
+    if (district === 'fringe' || district === 'suburbs') this.streetTrees(chunk, rng, x0, z0);
     this.cars(chunk, district, rng, x0, z0);
     const dry = (x: number, z: number) => !this.terrain.isWater(x, z, 1);
     chunk.structures = chunk.structures.filter((s) => dry(s.x, s.z));
     chunk.flats = chunk.flats.filter((f) => dry(f.x, f.z));
     chunk.structures.push(...bridges);
+  }
+
+  /** Trees planted along the sidewalks, alternating sides, clear of the crossings. */
+  private streetTrees(chunk: ChunkSpec, rng: Random, x0: number, z0: number): void {
+    const S = this.chunkSize;
+    const W = this.c.streetWidth;
+    const step = 34;
+    for (const o of [0, this.pitch]) {
+      for (const alongX of [false, true]) {
+        let side = rng.chance(0.5) ? 1 : -1;
+        for (let t = W / 2 + 12; t < S - 8; t += step) {
+          if (Math.abs(t - this.pitch) < W / 2 + 10) continue;
+          side = -side;
+          const off = side * (W / 2 - 2);
+          const x = alongX ? x0 + t : x0 + o + off;
+          const z = alongX ? z0 + o + off : z0 + t;
+          const s = rng.range(0.8, 1.15);
+          this.add(chunk, 'tree', x, z, 2.2 * s, 2.2 * s, 8 * s, 0, [part('tree', x, 0, z, s, s, s, rng.range(0, Math.PI * 2), rng.pick(COLORS.autumn))]);
+        }
+      }
+    }
   }
 
   // ------------------------------------------------------------- countryside
@@ -141,7 +170,54 @@ export class CityGenerator {
     const fx = x0 + S / 2;
     const fz = z0 + S / 2;
     if (biome === 'farmland' && rng.chance(0.6) && !this.inSite(fx, fz)) this.farm(chunk, rng, x0 + rng.range(60, S - 60), z0 + rng.range(60, S - 60));
+    this.groundCover(chunk, biome, rng, x0, z0);
     if (biome === 'forest' && rng.chance(0.08)) this.house(chunk, rng, x0 + rng.range(40, S - 40), z0 + rng.range(40, S - 40), rng.next() * Math.PI);
+  }
+
+  /**
+   * Bushes, boulders (more on rocky slopes and in the mountains) and, on farmland,
+   * hedgerows along the field boundaries the ground colors already show.
+   */
+  private groundCover(chunk: ChunkSpec, biome: 'forest' | 'farmland' | 'meadow', rng: Random, x0: number, z0: number): void {
+    const S = this.chunkSize;
+    const t = this.terrain;
+    const ok = (x: number, z: number) => !this.inSite(x, z) && t.urbanWeight(x, z) < 0.5 && !t.isWater(x, z, 1.5);
+    for (let k = rng.int(biome === 'forest' ? 4 : 6, biome === 'forest' ? 10 : 14); k > 0; k--) {
+      const x = x0 + rng.range(8, S - 8);
+      const z = z0 + rng.range(8, S - 8);
+      if (!ok(x, z)) continue;
+      const s = rng.range(2.5, 5);
+      const y = t.heightAt(x, z) - 0.3;
+      this.add(chunk, 'tree', x, z, s / 2, s / 2, s * 0.7, 0, [part('bush', x, y, z, s * rng.range(1, 1.6), s, s, rng.range(0, Math.PI), rng.pick(COLORS.bushes))], y);
+    }
+    const cx = x0 + S / 2;
+    const cz = z0 + S / 2;
+    const h = t.heightAt(cx, cz);
+    const rocky = Math.min(1, t.alpsWeight(cz) + Math.max(0, (h - 100) / 150));
+    for (let k = rng.int(0, 3) + Math.round(rocky * 10); k > 0; k--) {
+      const x = x0 + rng.range(8, S - 8);
+      const z = z0 + rng.range(8, S - 8);
+      if (!ok(x, z)) continue;
+      const s = rng.range(3, 9) * (1 + rocky * 0.6);
+      const y = t.heightAt(x, z) - s * 0.15;
+      this.add(chunk, 'rock', x, z, s / 2, s / 2, s * 0.6, 0, [part('rock', x, y, z, s, s, s, rng.range(0, Math.PI * 2), rng.pick(COLORS.rocks))], y);
+    }
+    if (biome !== 'farmland') return;
+    const F = t.c.fieldSize;
+    const seg = 32;
+    for (const alongX of [true, false]) {
+      for (let line = Math.ceil((alongX ? z0 : x0) / F) * F; line < (alongX ? z0 : x0) + S; line += F) {
+        for (let u = 0; u < S; u += seg) {
+          const x = alongX ? x0 + u + seg / 2 : line;
+          const z = alongX ? line : z0 + u + seg / 2;
+          if (!ok(x, z) || t.farmWeight(x, z) < 0.5 || rng.chance(0.15)) continue;
+          const y = t.heightAt(x, z) - 0.5;
+          this.add(chunk, 'tree', x, z, alongX ? seg / 2 : 1.5, alongX ? 1.5 : seg / 2, 3.5, 0, [
+            part('plain', x, y, z, alongX ? seg + 3 : 3, 3.4, alongX ? 3 : seg + 3, 0, rng.pick(COLORS.hedges)),
+          ], y);
+        }
+      }
+    }
   }
 
   /** Inside an authored site (airport, power station, island) where nothing else may stand. */
@@ -199,7 +275,15 @@ export class CityGenerator {
     this.add(chunk, 'house', x, z, w / 2, d / 2, h * 1.55, rot, [
       part('windowed', x, y, z, w, h, d, rot, wall),
       part('roof', x, y + h, z, w * 1.08, h * 0.55, d * 1.05, rot, roof),
+      ...this.chimney(rng, x, y + h, z, w, rot),
     ], y);
+  }
+
+  /** A small brick chimney poking out of a pitched roof (half the time). */
+  private chimney(rng: Random, x: number, y: number, z: number, w: number, rot: number): PartSpec[] {
+    if (!rng.chance(0.5)) return [];
+    const off = w * rng.range(0.15, 0.3) * (rng.chance(0.5) ? 1 : -1);
+    return [part('plain', x + Math.cos(rot) * off, y, z - Math.sin(rot) * off, 1.4, 4.5, 1.4, rot, 0x8a4a3a)];
   }
 
   /** A tree on the ground at (x, z): pines on high or cold ground, broadleaf in autumn colors lower down. */
@@ -246,7 +330,13 @@ export class CityGenerator {
           const len = (end - run) * piece;
           // On real maps the grid streets are pale side streets; real roads (asphalt) are the main ones.
           const color = this.terrain.map ? COLORS.alley : COLORS.road;
-          chunk.flats.push(alongX ? flat(x0 + mid, z0 + o, len, W, color, 0.03) : flat(x0 + o, z0 + mid, W, len, color, 0.03));
+          const strip = (off: number, width: number, c: number, y: number) =>
+            chunk.flats.push(alongX ? flat(x0 + mid, z0 + o + off, len, width, c, y) : flat(x0 + o + off, z0 + mid, width, len, c, y));
+          strip(0, W, color, 0.03);
+          // Sidewalks along both edges and a center line, so streets read as streets from up high.
+          strip(-(W / 2 - 2), 4, COLORS.sidewalk, 0.034);
+          strip(W / 2 - 2, 4, COLORS.sidewalk, 0.034);
+          if (!this.terrain.map) strip(0, 0.7, COLORS.centerLine, 0.036);
           run = -1;
         };
         const flushWet = (open: boolean) => {
@@ -438,17 +528,52 @@ export class CityGenerator {
 
   private tower(chunk: ChunkSpec, rng: Random, x: number, z: number, w: number, d: number, h: number, color: number): void {
     const parts: PartSpec[] = [];
+    // Podium: a wider, darker base a few floors high under taller towers.
+    let base = 0;
+    if (h > 70 && rng.chance(0.6)) {
+      base = rng.range(10, 18);
+      parts.push(part('windowed', x, 0, z, Math.min(w + 8, 96), base, Math.min(d + 8, 96), 0, shade(color, 0.72)));
+    }
+    let top = h;
+    let topW = w;
+    let topD = d;
     if (h > 100 && rng.chance(0.55)) {
       const mainH = h * rng.range(0.65, 0.8);
-      parts.push(part('windowed', x, 0, z, w, mainH, d, 0, color));
+      parts.push(part('windowed', x, base, z, w, mainH - base, d, 0, color));
       parts.push(part('windowed', x, mainH, z, w * 0.68, h - mainH, d * 0.68, 0, color));
+      topW = w * 0.68;
+      topD = d * 0.68;
     } else {
-      parts.push(part('windowed', x, 0, z, w, h, d, 0, color));
+      parts.push(part('windowed', x, base, z, w, h - base, d, 0, color));
     }
-    if (rng.chance(0.7)) {
-      parts.push(part('plain', x + rng.range(-5, 5), h, z + rng.range(-5, 5), rng.range(8, 14), rng.range(3, 6), rng.range(8, 14), 0, COLORS.rooftop));
+    // Crowns on the tall ones: a tapered cap, sometimes a spire on top of it.
+    if (h > 150 && rng.chance(0.55)) {
+      const capH = rng.range(10, 22);
+      parts.push(part('cone', x, top, z, Math.min(topW, topD) * 0.95, capH, Math.min(topW, topD) * 0.95, 0, shade(color, 1.12)));
+      top += capH;
+      if (h > 200 && rng.chance(0.6)) parts.push(part('cylinder', x, top, z, 1.6, rng.range(18, 45), 1.6, 0, 0xd8d8d2));
+    } else {
+      this.rooftop(parts, rng, x, z, topW, topD, top);
     }
     this.add(chunk, 'tower', x, z, w / 2, d / 2, h, 0, parts);
+  }
+
+  /** Rooftop plant: machinery boxes, sometimes a water tank or a mast. */
+  private rooftop(parts: PartSpec[], rng: Random, x: number, z: number, w: number, d: number, y: number): void {
+    for (let k = rng.int(1, 3); k > 0; k--) {
+      const bw = rng.range(4, Math.max(5, w * 0.35));
+      const bd = rng.range(4, Math.max(5, d * 0.35));
+      parts.push(part('plain', x + rng.range(-1, 1) * (w / 2 - bw / 2 - 1), y, z + rng.range(-1, 1) * (d / 2 - bd / 2 - 1), bw, rng.range(2, 5), bd, 0, rng.chance(0.5) ? COLORS.rooftop : 0x9fa3a6));
+    }
+    if (rng.chance(0.25)) {
+      const r = rng.range(2.5, 4);
+      const tx = x + rng.range(-0.3, 0.3) * w;
+      const tz = z + rng.range(-0.3, 0.3) * d;
+      parts.push(part('cylinder', tx, y + 3, tz, r * 2, r * 1.6, r * 2, 0, 0x7a5c44));
+      parts.push(part('cone', tx, y + 3 + r * 1.6, tz, r * 2.1, r * 0.8, r * 2.1, 0, 0x5e4636));
+    } else if (rng.chance(0.2)) {
+      parts.push(part('cylinder', x + rng.range(-0.3, 0.3) * w, y, z + rng.range(-0.3, 0.3) * d, 0.8, rng.range(8, 16), 0.8, 0, 0xc8c8c4));
+    }
   }
 
   private midriseBlock(chunk: ChunkSpec, rng: Random, cx: number, cz: number, B: number): void {
@@ -467,8 +592,12 @@ export class CityGenerator {
         : rng.chance(0.8)
         ? hsl(rng.range(0.03, 0.12), rng.range(0.2, 0.42), rng.range(0.55, 0.8))
         : hsl(rng.range(0.3, 0.55), rng.range(0.15, 0.3), rng.range(0.55, 0.75));
-      const parts = [part('windowed', x, 0, z, w, h, d, 0, color)];
-      if (rng.chance(0.5)) parts.push(part('plain', x, h, z, rng.range(6, 10), 3, rng.range(6, 10), 0, COLORS.rooftop));
+      // Storefront band at street level, slightly proud of the facade.
+      const parts = [
+        part('windowed', x, 0, z, w + 1.2, 5, d + 1.2, 0, rng.pick(COLORS.storefronts)),
+        part('windowed', x, 5, z, w, h - 5, d, 0, color),
+      ];
+      this.rooftop(parts, rng, x, z, w, d, h);
       this.add(chunk, 'midrise', x, z, w / 2, d / 2, h, 0, parts);
     }
   }
@@ -484,7 +613,12 @@ export class CityGenerator {
         const z = cz + oz * (B / 2 - d / 2 - 3);
         const sx = x + w / 2;
         const color = hsl(rng.range(0, 1), rng.range(0.15, 0.35), rng.range(0.5, 0.75));
-        this.add(chunk, 'shop', sx, z, w / 2, d / 2, h, 0, [part('windowed', sx, 0, z, w, h, d, 0, color)]);
+        // Awning along the street side.
+        const front = z - oz * (d / 2 + 1);
+        this.add(chunk, 'shop', sx, z, w / 2, d / 2, h, 0, [
+          part('windowed', sx, 0, z, w, h, d, 0, color),
+          part('plain', sx, 3.2, front, w * 0.9, 0.6, 2.2, 0, rng.pick(COLORS.awnings)),
+        ]);
         x += w + rng.range(1, 4);
       }
     }
@@ -507,6 +641,7 @@ export class CityGenerator {
           this.add(chunk, 'house', x, z, w / 2, d / 2, h * 1.55, rot, [
             part('windowed', x, 0, z, w, h, d, rot, wall),
             part('roof', x, h, z, w * 1.08, h * 0.55, d * 1.05, rot, roof),
+            ...this.chimney(rng, x, h, z, w, rot),
           ]);
         }
         for (let t = 0; t < 2; t++) {
@@ -530,7 +665,11 @@ export class CityGenerator {
     const wz = cz - B / 2 + d / 2 + 4;
     const wx = cx + rng.range(-(B - w) / 2, (B - w) / 2);
     const color = hsl(rng.range(0.05, 0.6), rng.range(0.05, 0.2), rng.range(0.45, 0.65));
-    this.add(chunk, 'warehouse', wx, wz, w / 2, d / 2, h, 0, [part('plain', wx, 0, wz, w, h, d, 0, color)]);
+    const wparts = [part('plain', wx, 0, wz, w, h, d, 0, color)];
+    // Roof vents in a row, and a darker loading-dock strip.
+    for (let k = rng.int(2, 4), i = 0; i < k; i++) wparts.push(part('plain', wx - w / 2 + (w / (k + 1)) * (i + 1), h, wz, 4, 2.5, 4, 0, 0x8d9195));
+    wparts.push(part('plain', wx, 0, wz + d / 2, w * 0.7, 4.5, 1.5, 0, shade(color, 0.6)));
+    this.add(chunk, 'warehouse', wx, wz, w / 2, d / 2, h, 0, wparts);
 
     const backZ = cz + B / 4 + 4;
     if (rng.chance(0.6)) {
@@ -623,6 +762,12 @@ function onRoad(p: RoadPiece, x: number, z: number, margin: number): boolean {
   const along = rx * p.dx + rz * p.dz;
   const across = Math.abs(rx * p.dz - rz * p.dx);
   return Math.abs(along) <= p.length / 2 + margin && across <= p.width / 2 + margin;
+}
+
+/** Scale a color's brightness (0xRRGGBB). */
+function shade(hex: number, k: number): number {
+  const c = (v: number) => Math.min(255, Math.round(v * k));
+  return (c((hex >> 16) & 255) << 16) | (c((hex >> 8) & 255) << 8) | c(hex & 255);
 }
 
 function withY([x, z]: [number, number], y: number): [number, number, number] {

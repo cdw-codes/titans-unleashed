@@ -49,7 +49,8 @@ describe('CityGenerator', () => {
         if (!URBAN.has(chunk.district)) continue;
         for (const s of chunk.structures) {
           // Cars park on streets; bridges and landmarks are placed by hand.
-          if (['car', 'bridge', 'mast', 'stadium', 'pylon'].includes(s.kind)) continue;
+          // ...and street trees stand on the sidewalks.
+          if (['car', 'tree', 'bridge', 'mast', 'stadium', 'pylon'].includes(s.kind)) continue;
           // Distance from the center to the nearest street line, per axis.
           for (const [v, half] of [[s.x, s.rotY ? s.halfD : s.halfW], [s.z, s.rotY ? s.halfW : s.halfD]] as const) {
             const local = ((v % pitch) + pitch) % pitch;

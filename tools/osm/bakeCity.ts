@@ -164,9 +164,10 @@ async function bake(def: CityMapDef): Promise<void> {
   for (const el of await layer(def.id, 'places')) {
     const t = el.tags ?? {};
     const name = t['name:en'] ?? t['name'];
-    if (!name || el.lat === undefined) continue;
+    // Only announced places are kept (the rest would only grow the file).
+    if (!name || el.lat === undefined || !def.majorPlaces.includes(t['place'] ?? '')) continue;
     const [x, z] = project(p, el.lat, el.lon!);
-    places.push({ name, x: Math.round(x), z: Math.round(z), rank: def.majorPlaces.includes(t['place'] ?? '') ? 'major' : 'minor' });
+    places.push({ name, x: Math.round(x), z: Math.round(z), rank: 'major' });
   }
 
   const [sx, sz] = project(p, def.spawn[0], def.spawn[1]);
