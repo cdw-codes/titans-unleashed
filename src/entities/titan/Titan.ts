@@ -8,7 +8,7 @@ import type { GameEventBus } from '../../core/events';
 import { ALL_GROUPS, collisionGroups, GROUP, type PhysicsSystem } from '../../systems/PhysicsSystem';
 import { constrainToCircle } from '../../systems/encounters/EncounterSystem';
 import { Gait } from './Gait';
-import { TitanModel, MODEL_DESIGN_HEIGHT, MOUTH_DESIGN } from './TitanModel';
+import { TitanModel, MODEL_DESIGN_HEIGHT } from './TitanModel';
 import { TitanCombat, type CombatInput, type EnergyPool, type MoveId } from './TitanCombat';
 import { TitanMotor, type MoveIntent } from './TitanMotor';
 import { locomotionState, type TitanState } from './locomotion';
@@ -130,8 +130,13 @@ export class Titan {
         get yaw() {
           return titan.motor.yaw;
         },
-        mouthHeight: MOUTH_DESIGN.height * this.scale,
-        mouthForward: MOUTH_DESIGN.forward * this.scale,
+        // Read from the model, so a new design (title screen) moves the beam origin too.
+        get mouthHeight() {
+          return titan.model.mouthRest.height * titan.scale;
+        },
+        get mouthForward() {
+          return titan.model.mouthRest.forward * titan.scale;
+        },
         get state() {
           return titan.fsm.state;
         },

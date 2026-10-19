@@ -20,8 +20,6 @@ type BoneName =
 
 /** Height the primitives are authored at; the entity scales the model to TITAN_BODY.height. */
 export const MODEL_DESIGN_HEIGHT = 80;
-/** Approximate mouth position in the bind pose (design units), for sim-side beam origins. */
-export const MOUTH_DESIGN = { height: 77, forward: 33 };
 
 const TAIL_SEGMENTS = 7;
 const BASE_TAIL_STEP = new THREE.Vector3(0, -3.8, -9.5);
@@ -60,6 +58,12 @@ function movePhases(t: number, m: { windup: number; active: number; recovery: nu
   if (t < m.windup + m.active + m.recovery) return ['recovery', (t - m.windup - m.active) / m.recovery];
   return ['done', 1];
 }
+
+const REST_POSE: TitanPoseInput = {
+  phase: 0, speedRatio: 0, stepping: false, sprinting: false, turnVelocity: 0, strideAngle: 0, time: 0, dt: 1,
+  action: { kind: 'idle', t: 0, side: 1, charge: 0, move: null, staggerSeconds: 0 },
+  beamPitch: 0,
+};
 
 /** Most a foot is raised or lowered to meet the ground (design units). */
 const MAX_PLANT = 9;
@@ -108,7 +112,7 @@ export class TitanModel {
     this.mesh.add(root);
     this.mesh.updateMatrixWorld(true);
     this.mesh.bind(new THREE.Skeleton([...this.bones.values()]));
-    this.mouth.position.set(0, 0.5, design.head === 'croc' ? 21 : design.head === 'blunt' ? 11 : 15);
+    this.mouth.position.set(0, 0.5, (design.head === 'croc' ? 21 : design.head === 'blunt' ? 11 : 15) * (design.headScale ?? 1));
     this.bone('head').add(this.mouth);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
@@ -116,7 +120,15 @@ export class TitanModel {
     this.object.add(this.mesh);
 
     this.legLength = Math.abs(this.bindPos.get('shinL')!.y + this.bindPos.get('footL')!.y);
+    // Where the mouth sits standing at rest (design units): the sim fires the beam from here.
+    this.pose(REST_POSE);
+    this.object.updateMatrixWorld(true);
+    const m = this.mouth.getWorldPosition(new THREE.Vector3());
+    this.mouthRest = { height: m.y, forward: m.z };
   }
+
+  /** Mouth position at rest in design units (height above the soles, distance ahead). */
+  readonly mouthRest: { height: number; forward: number };
 
   /** Free GPU resources (the model is being replaced). */
   dispose(): void {
@@ -159,10 +171,11 @@ export class TitanModel {
 
     // Arms: counter-swing to the legs, claws held forward.
     const swing = 0.22 * m;
-    b('upperArmL').rotation.set(-0.15 + swing * Math.cos(th), 0, 0.15);
-    b('upperArmR').rotation.set(-0.15 - swing * Math.cos(th), 0, -0.15);
-    b('forearmL').rotation.x = -0.5 + 0.1 * breathe - swing * 0.5 * Math.cos(th);
-    b('forearmR').rotation.x = -0.5 + 0.1 * breathe + swing * 0.5 * Math.cos(th);
+    const raise = this.design.armRaise ?? 0;
+    b('upperArmL').rotation.set(-0.15 - raise * 0.7 + swing * Math.cos(th), 0, 0.15);
+    b('upperArmR').rotation.set(-0.15 - raise * 0.7 - swing * Math.cos(th), 0, -0.15);
+    b('forearmL').rotation.x = -0.5 - raise + 0.1 * breathe - swing * 0.5 * Math.cos(th);
+    b('forearmR').rotation.x = -0.5 - raise + 0.1 * breathe + swing * 0.5 * Math.cos(th);
 
     // Tail: a lagging wave down the chain, swings out opposite to turns, lifts for balance when sprinting.
     for (let i = 0; i < TAIL_SEGMENTS; i++) {
@@ -171,7 +184,7 @@ export class TitanModel {
       const walkWave = 0.07 * m * Math.sin(th - i * 0.55) * k;
       const idleWave = 0.05 * Math.sin(p.time * 0.6 - i * 0.45) * (1 - m * 0.5);
       t.rotation.y = walkWave + idleWave - this.turnLean * 0.05 * k;
-      t.rotation.x = 0.035 * this.sprintBlend + 0.015 * m * Math.cos(2 * th - i * 0.5);
+      t.rotation.x = 0.035 * this.sprintBlend + 0.015 * m * Math.cos(2 * th - i * 0.5) - (i === 0 ? (this.design.tailLift ?? 0) : 0);
     }
 
     // Plates pulse faintly at rest; the beam drives them hard.
@@ -497,21 +510,25 @@ export class TitanModel {
   }
 
   private buildSkeleton(): void {
-    this.addBone('root', null, 0, 0, 0);
-    this.addBone('pelvis', 'root', 0, 32, 0);
-    this.addBone('spine', 'pelvis', 0, 3, 2);
-    this.addBone('chest', 'spine', 0, 20, 4);
     const d = this.design;
-    this.addBone('neck', 'chest', 0, 15, 5);
+    const L = d.legLength ?? 1;
+    const T = d.torsoLength ?? 1;
+    const W = d.shoulderWidth ?? 1;
+    this.addBone('root', null, 0, 0, 0);
+    // Hips sit as high as the legs are long: soles stay on the ground at y = 0.
+    this.addBone('pelvis', 'root', 0, 5 + 27 * L, 0);
+    this.addBone('spine', 'pelvis', 0, 3, 2);
+    this.addBone('chest', 'spine', 0, 20 * T, 4);
+    this.addBone('neck', 'chest', 0, 15 * T, 5);
     this.addBone('head', 'neck', 0, 8 * d.neckScale, 6 * d.neckScale);
     this.addBone('jaw', 'head', 0, -2, 4);
     for (const [s, x] of [['L', 1], ['R', -1]] as const) {
-      this.addBone(`upperArm${s}`, 'chest', 11 * x, 7, 6);
+      this.addBone(`upperArm${s}`, 'chest', 11 * x * W, 7, 6);
       this.addBone(`forearm${s}`, `upperArm${s}`, 2 * x * d.armScale, -11 * d.armScale, 5 * d.armScale);
       this.addBone(`hand${s}`, `forearm${s}`, 0, -9 * d.armScale, 4 * d.armScale);
       this.addBone(`thigh${s}`, 'pelvis', 9 * x, -2, 0);
-      this.addBone(`shin${s}`, `thigh${s}`, 0, -15, 4);
-      this.addBone(`foot${s}`, `shin${s}`, 0, -12, -4);
+      this.addBone(`shin${s}`, `thigh${s}`, 0, -15 * L, 4 * L);
+      this.addBone(`foot${s}`, `shin${s}`, 0, -12 * L, -4 * L);
     }
     this.addBone('tail0', 'pelvis', 0, -1, -11);
     const ts = this.tailStep;
@@ -523,12 +540,15 @@ export class TitanModel {
     const d = this.design;
     const C = d.palette;
     const A = d.armScale;
+    const T = d.torsoLength ?? 1;
+    const W = d.shoulderWidth ?? 1;
     // Torso
     this.part('pelvis', ellipsoid(11, 10, 13), C.skin, at(0, 0, -2));
-    this.part('spine', ellipsoid(13 * d.bulk, 15, 12 * d.bulk), C.skin, at(0, 10, 1));
-    this.part('spine', ellipsoid(9.5 * d.bulk, 13, 5), C.belly, at(0, 9, 8.5));
-    this.part('chest', ellipsoid(14 * d.bulk, 12, 11.5 * d.bulk), C.skin, at(0, 4, 3));
-    this.part('chest', ellipsoid(10 * d.bulk, 9, 4.5), C.belly, at(0, 1, 10.5));
+    this.part('spine', ellipsoid(13 * d.bulk, 15 * T, 12 * d.bulk), C.skin, at(0, 10 * T, 1));
+    this.part('spine', ellipsoid(9.5 * d.bulk, 13 * T, 5), C.belly, at(0, 9 * T, 8.5));
+    this.part('chest', ellipsoid(14 * d.bulk * W, 12 * T, 11.5 * d.bulk), C.skin, at(0, 4, 3));
+    this.part('chest', ellipsoid(10 * d.bulk * W, 9 * T, 4.5), C.belly, at(0, 1, 10.5));
+    if (d.wings) this.buildWings();
     // Neck + head
     this.part('neck', limb(v(0, -3, -1), v(0, 9 * d.neckScale, 6 * d.neckScale), 8.5, 6.5 / Math.sqrt(d.neckScale)), C.skin);
     const head = d.head ?? 'lizard';
@@ -605,7 +625,9 @@ export class TitanModel {
     const L = d.legScale ?? 1;
     for (const s of ['L', 'R'] as const) {
       this.part(`thigh${s}`, ellipsoid(7.5 * d.bulk * L, 10, 8.5 * d.bulk * L), C.skin, at(0, -6, 2));
-      this.part(`shin${s}`, limb(v(0, 1, 0), v(0, -12, -4), 5 * L, 3.8 * L), C.skin);
+      const LL = d.legLength ?? 1;
+      this.part(`thigh${s}`, limb(v(0, -2, 1), v(0, -15 * LL + 2, 4 * LL), 6 * d.bulk * L, 5 * L), C.skin);
+      this.part(`shin${s}`, limb(v(0, 1, 0), v(0, -12 * LL, -4 * LL), 5 * L, 3.8 * L), C.skin);
       this.part(`foot${s}`, box(9 * Math.sqrt(L), 4, 13), C.skinDark, at(0, -1, 4.5));
       for (const cx of [-3, 0, 3]) {
         this.part(`foot${s}`, spike(1.1, 4, 1.1), C.claw, rotX(at(cx, -2, 11.5), 1.75));
@@ -629,6 +651,21 @@ export class TitanModel {
       this.part(last, spike(6, 16, 0.8), C.plate, rotX(at(tip.x, tip.y, tip.z + 3), -1.75), 0.9);
     }
     this.buildBack();
+  }
+
+  /**
+   * Great membrane wings folded along the back: three long finger spines per side
+   * with thin webbing between, edges faintly lit.
+   */
+  private buildWings(): void {
+    const C = this.design.palette;
+    for (const x of [-1, 1]) {
+      for (const [len, spread, web] of [[46, 0.35, 15], [40, 0.6, 13], [32, 0.85, 10]] as const) {
+        const m = rotX(rotZ(at(7 * x, 9, -6), -x * spread), -0.55);
+        this.part('chest', spike(1.6, len, 1.6), C.skinDark, m.clone());
+        this.part('chest', spike(web, len * 0.92, 0.35), C.plate, rotZ(m, -x * 0.12), 0.45);
+      }
+    }
   }
 
   /** The back silhouette is the quickest way to tell titan apart at distance. */
@@ -699,6 +736,8 @@ export class TitanModel {
   /** Add a primitive in bone-local space, rigidly skinned to that bone. */
   private part(boneName: BoneName, g: THREE.BufferGeometry, color: number, local?: THREE.Matrix4, glow = 0): void {
     if (local) g.applyMatrix4(local);
+    const hs = this.design.headScale ?? 1;
+    if (hs !== 1 && (boneName === 'head' || boneName === 'jaw')) g.scale(hs, hs, hs);
     // glow <= 1: fades in toward the part's local top (plates). glow > 1: uniform (eyes).
     g.computeBoundingBox();
     const bb = g.boundingBox!;
