@@ -3,6 +3,7 @@ import { ACTIONS, codeLabel } from '../input/actions';
 import { randomSeed, reloadWith, type CityMapDef } from '../config/maps';
 import { ROSTER, rosterTitan, type TitanChoice } from '../entities/titan/roster';
 import { openWorldPreview } from './openWorldPreview';
+import logoSvg from './logo.svg?raw';
 
 /** Shared run stats shown on the pause and game-over screens. */
 export interface RunStats {
@@ -78,37 +79,8 @@ interface Location {
   img: string | null;
 }
 
-/**
- * Logo mark: a single flame-leaf dorsal plate (original drawing): a tall central
- * tip, flame tongues along both edges, flowing grooves, lit from inside.
- */
-const LOGO_MARK = `<svg class="title-mark" viewBox="0 0 104 132" aria-hidden="true">
-  <defs>
-    <linearGradient id="plateFill" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="currentColor" stop-opacity="0.3"/>
-      <stop offset="0.55" stop-color="currentColor" stop-opacity="0.75"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0.95"/>
-    </linearGradient>
-  </defs>
-  <path fill="url(#plateFill)" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" d="
-    M49 128
-    C46 116 40 106 30 98 C34 95 35 92 33 88
-    C24 84 16 78 12 66 C19 69 25 69 28 66
-    C20 58 16 46 19 34 C24 41 29 45 33 46
-    C31 36 31 26 36 14 C39 22 41 27 44 30
-    C43 20 46 10 53 1 C55 10 57 19 58 26
-    C62 19 67 13 73 9 C72 19 70 28 68 36
-    C74 33 80 28 86 22 C84 34 80 43 76 49
-    C82 50 88 52 93 56 C88 64 82 68 76 71
-    C79 80 74 92 64 102 C58 108 52 116 49 128 Z"/>
-  <g fill="none" stroke="#ffffff" stroke-linecap="round" opacity="0.7">
-    <path stroke-width="1.6" d="M49 120 C45 100 55 84 51 64 C48 46 54 30 53 12"/>
-    <path stroke-width="1.2" d="M42 104 C34 92 36 80 27 70 C22 62 22 54 22 44"/>
-    <path stroke-width="1.2" d="M58 104 C66 92 64 80 73 70 C78 62 79 56 82 48"/>
-    <path stroke-width="1" d="M45 82 C40 72 42 60 36 50 C34 44 34 38 36 28"/>
-    <path stroke-width="1" d="M56 80 C61 70 59 58 65 48 C67 42 68 36 69 30"/>
-  </g>
-</svg>`;
+/** Logo mark: the titan dorsal plates artwork (src/ui/logo.svg), cropped to the plates. */
+const LOGO_MARK = logoSvg;
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
 
