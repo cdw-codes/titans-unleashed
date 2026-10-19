@@ -1,7 +1,7 @@
 /**
  * Action -> input codes. Keyboard codes are KeyboardEvent.code values;
  * mouse buttons are `Mouse0` (left), `Mouse1` (middle), `Mouse2` (right).
- * These are the defaults; players can remap (input/bindingsStore.ts persists overrides).
+ * Fixed bindings (no remapping): the controls lists in the menus read from here.
  */
 export const BINDINGS = {
   moveForward: ['KeyW'],

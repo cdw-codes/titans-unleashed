@@ -56,7 +56,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - `src/input` — InputState (pure, tested) + Input (DOM, pointer lock)
 - `src/ui` — HUD, menus, overlays, styles.css
 - `src/config` — ALL tunable values, typed (sim, quality, camera, input, environment, world, …)
-- `src/debug` — F1 debug system, DebugDraw, DebugLabels, dev GUI + tunables registry, test tools
+- `src/debug` — F1 debug system, DebugDraw, DebugLabels, dev GUI (tuning, region teleports,
+  spawners) + tunables registry, test tools
 - `tools` — dev-only Node code: Vite plugin (tuning save + `/__dev/shot` screenshots into
   `.dev-shots/`), config source patcher (tested)
 - Tests sit next to code as `*.test.ts`; keep tested modules DOM-free.
@@ -141,8 +142,9 @@ Known issues:
 Decisions:
 - Linear fog (not exp) so fog end exactly matches draw distance / chunk streaming radius.
 - F1 debug ships in production builds (needed for M8 perf checks); lil-gui is dev-only.
-- No graphics settings UI: medium preset + AutoQuality step-down, 30 FPS cap. Only key
-  bindings persist (localStorage `titan.bindings`).
+- No settings UI at all: medium preset + AutoQuality step-down, 30 FPS cap; no key
+  remapping (fixed `BINDINGS` in config/input.ts, shown read-only in the menus). Nothing
+  is saved to localStorage.
 - Movement is facing-based (turn-limited, heavy); lock-on switches to strafing.
 - Defeat: Respawn beyond the fog from the rival, on dry ground at a street-grid point, 5 s
   invulnerable; barrier drops at once. Rivals also spawn beyond the fog.

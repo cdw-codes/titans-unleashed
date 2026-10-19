@@ -10,13 +10,7 @@ export class InputState {
   private readonly pressedBuffer = new Set<string>();
   private readonly releasedBuffer = new Set<string>();
 
-  constructor(private bindings: Bindings) {}
-
-  /** Swap in remapped bindings; held keys are released to avoid stuck inputs. */
-  setBindings(b: Bindings): void {
-    this.bindings = b;
-    this.releaseAll();
-  }
+  constructor(private readonly bindings: Bindings) {}
 
   press(code: string): void {
     if (!this.held.has(code)) this.pressedBuffer.add(code);

@@ -25,6 +25,7 @@ import { terrain } from '../world/terrain/Terrain';
 import { Water } from '../world/Water';
 import { CityGenerator, GROUND_CELLS } from '../world/city/CityGenerator';
 import { WORLD } from '../config/world';
+import { BINDINGS } from '../config/input';
 import { CityPools } from '../world/city/CityPools';
 import { ChunkManager } from '../world/city/ChunkManager';
 import { DestructionState } from '../world/city/DestructionState';
@@ -62,8 +63,6 @@ import { PlayerController } from '../entities/titan/PlayerController';
 import { DebugSystem } from '../debug/DebugSystem';
 import { TestCrates } from '../debug/TestCrates';
 import { GameOverScreen, PauseMenu, TitleScreen, type RunStats } from '../ui/menus';
-import { ControlsPanel } from '../ui/ControlsPanel';
-import { clearBindings, defaultBindings, loadBindings, rebind, saveBindings } from '../input/bindingsStore';
 import { Crosshair } from '../ui/Crosshair';
 
 /** Composition root: builds systems, owns the update order. */
@@ -165,8 +164,7 @@ export class Game {
     this.player = new Titan(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
     scene.add(this.player.model.object);
 
-    let bindings = loadBindings();
-    this.input = new Input(this.render.canvas, bindings);
+    this.input = new Input(this.render.canvas, BINDINGS);
     this.camera = new CameraSystem(this.render.camera, physics);
     this.camera.setTarget(this.player.body, this.player.yaw);
     this.debug = new DebugSystem(scene, this.render.renderer, this.render.camera, physics, uiRoot);
@@ -177,28 +175,9 @@ export class Game {
       void this.input.requestLock();
     };
     const newGame = () => location.reload();
-    const applyBindings = (b: typeof bindings) => {
-      bindings = b;
-      this.input.state.setBindings(b);
-      controls.setBindings(b);
-      this.title.setBindings(b);
-    };
-    const controls = new ControlsPanel(
-      bindings,
-      (action, slot, code) => {
-        const next = rebind(bindings, action, slot, code);
-        if (!next) return controls.setBindings(bindings);
-        saveBindings(next);
-        applyBindings(next);
-      },
-      () => {
-        clearBindings();
-        applyBindings(defaultBindings());
-      },
-    );
-    this.pauseMenu = new PauseMenu(uiRoot, controls, resume, newGame);
+    this.pauseMenu = new PauseMenu(uiRoot, resume, newGame);
     this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
-    this.title = new TitleScreen(uiRoot, bindings, () => {
+    this.title = new TitleScreen(uiRoot, () => {
       this.started = true;
       this.title.visible = false;
       resume();
@@ -488,6 +467,31 @@ export class Game {
   /** Debug: fill beam energy. */
   fillEnergy(): void {
     this.progress.energy = DESTRUCTION.maxEnergy;
+  }
+
+  /**
+   * Debug: jump to (x, z), landing on the nearest dry street intersection (never inside a
+   * building), facing `yaw`. The world around is streamed in at once (a short hitch).
+   */
+  teleportTo(x: number, z: number, yaw = 0): void {
+    const pitch = CITY.blockSize + CITY.streetWidth;
+    let tx = Math.round(x / pitch) * pitch;
+    let tz = Math.round(z / pitch) * pitch;
+    search: for (let ring = 1; ring <= 8 && terrain.isWater(tx, tz, 3); ring++) {
+      for (let i = -ring; i <= ring; i++) {
+        for (const [dx, dz] of [[i, -ring], [i, ring], [-ring, i], [ring, i]] as const) {
+          if (!terrain.isWater(tx + dx * pitch, tz + dz * pitch, 3)) {
+            tx += dx * pitch;
+            tz += dz * pitch;
+            break search;
+          }
+        }
+      }
+    }
+    this.player.teleport(tx, tz, yaw);
+    this.camera.snap(yaw);
+    this.chunks.update(tx, tz, QUALITY_PRESETS[this.qualityLevel].drawDistance, Infinity);
+    this.cityPools.flush();
   }
 
   private respawn(): void {

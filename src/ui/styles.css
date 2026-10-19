@@ -479,25 +479,6 @@ html, body {
 .loading-screen.failed .loading-track { display: none; }
 .loading-screen.failed .loading-label { max-width: 520px; text-align: center; color: #ffb3a6; opacity: 1; }
 
-.controls-panel { display: grid; gap: 4px; min-width: 330px; }
-.bind-title { margin: 0 0 6px; font-size: 16px; letter-spacing: 0.08em; }
-.bind-title small { display: block; font-size: 11px; font-weight: 500; opacity: 0.6; letter-spacing: 0; }
-.bind-row { display: grid; grid-template-columns: 1fr 74px 74px; gap: 6px; align-items: center; font-size: 13px; }
-.bind-slot {
-  padding: 4px 6px;
-  font: inherit;
-  font-weight: 800;
-  color: var(--ui-fg);
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 3px;
-  cursor: pointer;
-}
-.bind-slot.empty { opacity: 0.45; }
-.bind-slot:hover, .bind-slot:focus-visible { border-color: var(--ui-accent); outline: none; }
-.bind-slot.capturing { color: #0b1a14; background: var(--ui-accent); }
-.bind-reset { justify-self: start; margin-top: 8px; padding: 6px 14px; font-size: 12px; }
-
 .hud-toast {
   position: fixed;
   top: 64px;
