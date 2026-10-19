@@ -59,31 +59,22 @@ abstract class Screen {
 export class TitleScreen extends Screen {
   /**
    * `maps`: real cities to pick from (plus the procedural open world), each shown as a
-   * top-view preview of its baked layout with a link to the real place on
-   * openstreetmap.org. Picking one reloads the page with ?map=<id>. `current` is the
-   * loaded map id (null = open world).
+   * top-view preview of its baked layout. Picking one reloads the page with ?map=<id>.
+   * `current` is the loaded map id (null = open world).
    */
   constructor(parent: HTMLElement, maps: readonly CityMapDef[], current: string | null, credits: string | null, onStart: () => void) {
     super(parent, 'title-screen');
     const base = import.meta.env.BASE_URL;
-    const card = (id: string, name: string, img: string, real: string | null) => {
+    const card = (id: string, name: string, img: string) => {
       const active = id === 'open' ? current === null : id === current;
       return `<div class="map-card${active ? ' active' : ''}">
           <button type="button" class="map-pick" data-map="${id}" aria-pressed="${active}">
             <img ${img ? `src="${img}"` : ''} alt="Top view of ${name}">
             <span>${name}</span>
           </button>
-          ${real ? `<a class="map-real" href="${real}" target="_blank" rel="noopener noreferrer">Real map ↗</a>` : '<span class="map-real">Invented</span>'}
         </div>`;
     };
-    const osm = (m: CityMapDef) => {
-      const [s, w, n, e] = m.bbox;
-      return `https://www.openstreetmap.org/?minlon=${w}&minlat=${s}&maxlon=${e}&maxlat=${n}`;
-    };
-    const choices = [
-      ...maps.map((m) => card(m.id, m.name, `${base}maps/${m.id}.png`, osm(m))),
-      card('open', 'Open world', '', null),
-    ].join('');
+    const choices = [...maps.map((m) => card(m.id, m.name, `${base}maps/${m.id}.png`)), card('open', 'Open world', '')].join('');
     this.el.innerHTML = `
       <div class="menu-card">
         <p class="menu-kicker">A city. A monster. No mercy.</p>
