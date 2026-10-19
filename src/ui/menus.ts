@@ -79,27 +79,34 @@ interface Location {
 }
 
 /**
- * Logo mark: Tidecaller's own dorsal plates (as built in TitanModel), three
- * faceted shards rising from the curve of the back, the middle one tallest,
- * glowing from the inside like the in-game plates.
+ * Logo mark: a single flame-leaf dorsal plate (original drawing): a tall central
+ * tip, flame tongues along both edges, flowing grooves, lit from inside.
  */
-const LOGO_MARK = `<svg class="title-mark" viewBox="0 0 120 64" aria-hidden="true">
+const LOGO_MARK = `<svg class="title-mark" viewBox="0 0 104 132" aria-hidden="true">
   <defs>
     <linearGradient id="plateFill" x1="0" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="currentColor" stop-opacity="0.25"/>
-      <stop offset="1" stop-color="currentColor" stop-opacity="0.9"/>
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.3"/>
+      <stop offset="0.55" stop-color="currentColor" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.95"/>
     </linearGradient>
   </defs>
-  <path d="M4 62 Q60 46 116 62" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" opacity="0.55"/>
-  <g fill="url(#plateFill)" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round">
-    <path d="M14 58 L17 46 L13 44 L20 33 L17 31 L27 20 L37 31 L34 33 L41 44 L37 46 L40 58 Z"/>
-    <path d="M42 50 L46 34 L41 31 L50 17 L46 14 L60 1 L74 14 L70 17 L79 31 L74 34 L78 50 Z"/>
-    <path d="M80 58 L83 46 L79 44 L86 33 L83 31 L93 20 L103 31 L100 33 L107 44 L103 46 L106 58 Z"/>
-  </g>
-  <g fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" opacity="0.7">
-    <path d="M27 52 L27 27"/>
-    <path d="M60 45 L60 9"/>
-    <path d="M93 52 L93 27"/>
+  <path fill="url(#plateFill)" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" d="
+    M49 128
+    C46 116 40 106 30 98 C34 95 35 92 33 88
+    C24 84 16 78 12 66 C19 69 25 69 28 66
+    C20 58 16 46 19 34 C24 41 29 45 33 46
+    C31 36 31 26 36 14 C39 22 41 27 44 30
+    C43 20 46 10 53 1 C55 10 57 19 58 26
+    C62 19 67 13 73 9 C72 19 70 28 68 36
+    C74 33 80 28 86 22 C84 34 80 43 76 49
+    C82 50 88 52 93 56 C88 64 82 68 76 71
+    C79 80 74 92 64 102 C58 108 52 116 49 128 Z"/>
+  <g fill="none" stroke="#ffffff" stroke-linecap="round" opacity="0.7">
+    <path stroke-width="1.6" d="M49 120 C45 100 55 84 51 64 C48 46 54 30 53 12"/>
+    <path stroke-width="1.2" d="M42 104 C34 92 36 80 27 70 C22 62 22 54 22 44"/>
+    <path stroke-width="1.2" d="M58 104 C66 92 64 80 73 70 C78 62 79 56 82 48"/>
+    <path stroke-width="1" d="M45 82 C40 72 42 60 36 50 C34 44 34 38 36 28"/>
+    <path stroke-width="1" d="M56 80 C61 70 59 58 65 48 C67 42 68 36 69 30"/>
   </g>
 </svg>`;
 

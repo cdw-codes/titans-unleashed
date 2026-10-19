@@ -165,4 +165,4 @@ Decisions:
 - Look reference: the user's "Quiet Ridge" screenshot (stylized autumn valley); Neutral tone
   mapping. Beam = hold to charge/fire, release cancels.
 - UI palette: atomic blue on deep navy (CSS tokens in `:root`, styles.css). Logo is our own
-  dorsal-plate mark + wordmark; never use a film's logo or branding (user asked; declined).
+  flame-leaf dorsal-plate mark (original drawing) + wordmark; never use a film's logo or branding (user asked; declined).

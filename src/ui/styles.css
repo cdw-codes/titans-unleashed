@@ -524,7 +524,7 @@ html, body {
   box-sizing: border-box;
 }
 .title-brand { display: grid; gap: 6px; }
-.title-mark { width: 104px; color: var(--ui-accent); filter: drop-shadow(0 0 10px var(--ui-accent)) drop-shadow(0 0 22px var(--ui-glow)); }
+.title-mark { width: 60px; color: var(--ui-accent); filter: drop-shadow(0 0 10px var(--ui-accent)) drop-shadow(0 0 22px var(--ui-glow)); }
 .title-logo {
   margin: 0;
   font-size: clamp(40px, 5.2vw, 60px);
