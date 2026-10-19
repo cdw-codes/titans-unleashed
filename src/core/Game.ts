@@ -4,6 +4,7 @@ import { SIM } from '../config/sim';
 import { TITAN_FEEDBACK } from '../config/titan';
 import RAPIER from '@dimforge/rapier3d-compat';
 import { DUST, FIRE, PLASMA_TRAIL, SHOCKWAVE, SMOKE } from '../config/effects';
+import { WaterFx } from '../systems/effects/WaterFx';
 import { ENCOUNTERS } from '../config/encounters';
 import type { RivalId } from '../config/rivals';
 import { COMBAT } from '../config/combat';
@@ -67,6 +68,8 @@ import { formatDrop, openUv, openWorld, parseDrop, rectUv, rectWorld, type Uv } 
 
 const _camDir = new THREE.Vector3();
 const _trackTop = new THREE.Vector3();
+const _mouth = new THREE.Vector3();
+const _fxTitans: Titan[] = [];
 const _trackBottom = new THREE.Vector3();
 const _aimRay = new RAPIER.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 });
 const COOLDOWN_IDS: PlayerAbility[] = ['claw', 'tail', 'stomp', 'beam', 'roar', 'pulse'];
@@ -84,15 +87,14 @@ const NO_INTENT = { x: 0, z: 0, sprint: false };
 /** A drop point picked on the title map → a dry street corner in the loaded world (inside a city's edge). */
 function dropToWorld(uv: Uv): { x: number; z: number } {
   const map = terrain.map;
-  if (!map) {
-    const [x, z] = openWorld(uv);
-    return terrain.dryStreetNear(x, z);
+  let [x, z] = map ? rectWorld(map.meta.minX, map.meta.minZ, map.maxX, map.maxZ, uv) : openWorld(uv);
+  if (map) {
+    const inset = MAP_EDGE + 150;
+    x = Math.min(map.maxX - inset, Math.max(map.meta.minX + inset, x));
+    z = Math.min(map.maxZ - inset, Math.max(map.meta.minZ + inset, z));
   }
-  const inset = MAP_EDGE + 150;
-  const [x, z] = rectWorld(map.meta.minX, map.meta.minZ, map.maxX, map.maxZ, uv);
-  const cx = Math.min(map.maxX - inset, Math.max(map.meta.minX + inset, x));
-  const cz = Math.min(map.maxZ - inset, Math.max(map.meta.minZ + inset, z));
-  return terrain.dryStreetNear(cx, cz);
+  // In the water the titan stands on the seabed and wades out; on land, a street corner.
+  return terrain.isWater(x, z, -1.5) ? { x, z } : terrain.dryStreetNear(x, z);
 }
 
 function worldToDrop(x: number, z: number): Uv {
@@ -135,6 +137,7 @@ export class Game {
   private readonly smoke = new DustSystem(SMOKE);
   private readonly fire = new DustSystem(FIRE);
   private readonly shockwaves: ShockwaveFx;
+  private readonly waterFx: WaterFx;
   private readonly beamFx: BeamFx;
   private readonly combatSystem: CombatSystem;
   private readonly projectiles: ProjectileSystem;
@@ -180,7 +183,7 @@ export class Game {
     extra: (): string[] => [
       `chunks     ${this.chunks.chunks.size}  (instances ${this.cityPools.totalInstances})`,
       `debris     ${this.debris.count}/${QUALITY_PRESETS[this.qualityLevel].debrisCap}  collapsing ${this.collapse.activeCount}`,
-      `particles  dust ${this.dust.count}  smoke ${this.smoke.count}`,
+      `particles  dust ${this.dust.count}  smoke ${this.smoke.count}  water ${this.waterFx.count}`,
       `score      ${this.progress.score}  energy ${this.progress.energy.toFixed(0)}`,
       `player     hp ${this.player.combat.health.health.toFixed(0)}  poise ${this.player.combat.health.poise.toFixed(0)}  ${this.player.combat.currentMove ?? ''}`,
       `encounter  ${this.director.encounter.phase} ${this.director.encounter.t.toFixed(0)}s  (next in ${Math.max(0, this.director.encounter.roamingDelay - this.director.encounter.t).toFixed(0)}s)`,
@@ -206,7 +209,7 @@ export class Game {
     this.environment = new Environment(scene, preset);
     this.terrainTiles = new TerrainRenderer(scene, WORLD.chunkSize, GROUND_CELLS, 900);
     this.terrainTiles.nearRadius = preset.propRadius;
-    this.water = new Water(scene, preset.drawDistance);
+    this.water = new Water(scene, preset.drawDistance, Math.min(8, this.render.renderer.capabilities.getMaxAnisotropy()));
     this.cityPools = new CityPools(scene);
     this.chunks = new ChunkManager(CITY, new CityGenerator(CITY), this.cityPools, physics, new DestructionState(), this.terrainTiles);
     this.chunks.propRadius = preset.propRadius;
@@ -215,6 +218,7 @@ export class Game {
     this.debris = new DebrisSystem(scene, physics, preset.debrisCap);
     scene.add(this.dust.mesh, this.smoke.mesh, this.fire.mesh, this.plasmaTrail.mesh);
     this.shockwaves = new ShockwaveFx(scene);
+    this.waterFx = new WaterFx(scene);
     this.beamFx = new BeamFx(scene, this.fire);
     this.collapse = new CollapseSystem(this.chunks, this.cityPools, this.dust, this.smoke, this.debris);
 
@@ -336,6 +340,7 @@ export class Game {
       inEncounter: () => this.director.encounter.phase === 'approaching' || this.director.encounter.phase === 'arena',
       threatLevel: () => this.threat.level,
       heliPositions: (out) => this.military.heliPositions(out),
+      steaming: () => this.waterFx.steaming,
     });
     this.combatSystem.military = this.military;
     this.threatHud = new ThreatHud(uiRoot);
@@ -350,14 +355,16 @@ export class Game {
       if (e.type === 'victory') this.progress.rivalsDefeated++;
     });
     this.events.on('combat:impact', (e) => {
+      const wet = this.waterFx.depthAt(e.x, e.z) > 0;
+      if (wet && (e.move === 'stomp' || e.move === 'pulse' || e.move === 'tail')) this.waterFx.slam(e.x, e.z, e.radius);
       if (e.move === 'pulse') {
-        const gy = terrain.heightAt(e.x, e.z);
+        const gy = Math.max(terrain.heightAt(e.x, e.z), terrain.waterLevel);
         this.shockwaves.spawn(e.x, gy + 3, e.z, e.radius * 1.2, SHOCKWAVE.duration, SHOCKWAVE.pulseColor, SHOCKWAVE.pulseOpacity);
         this.shockwaves.spawn(e.x, gy + 30, e.z, e.radius * 0.8, SHOCKWAVE.duration * 0.7, SHOCKWAVE.pulseColor, SHOCKWAVE.pulseOpacity * 0.6);
         this.military.blastUnits(e.x, e.z, e.radius, true);
       } else if (e.move === 'stomp') {
-        this.shockwaves.spawn(e.x, terrain.heightAt(e.x, e.z) + 1, e.z, e.radius * 1.15, SHOCKWAVE.duration, SHOCKWAVE.stompColor, SHOCKWAVE.stompOpacity);
-      } else if (e.move === 'tail') {
+        if (!wet) this.shockwaves.spawn(e.x, terrain.heightAt(e.x, e.z) + 1, e.z, e.radius * 1.15, SHOCKWAVE.duration, SHOCKWAVE.stompColor, SHOCKWAVE.stompOpacity);
+      } else if (e.move === 'tail' && !wet) {
         // Dust kicked up along the sweep behind the titan.
         for (const off of [-1.1, -0.5, 0, 0.5, 1.1]) {
           const a = e.yaw + Math.PI + off;
@@ -368,12 +375,14 @@ export class Game {
       }
     });
     this.events.on('titan:roar', (e) => {
-      const gy = terrain.heightAt(e.x, e.z);
+      const gy = Math.max(terrain.heightAt(e.x, e.z), terrain.waterLevel);
       this.shockwaves.spawn(e.x, gy + 2, e.z, SHOCKWAVE.roarRadius, SHOCKWAVE.duration * 1.8, SHOCKWAVE.roarColor, SHOCKWAVE.roarOpacity);
-      this.dust.burst(e.x, gy, e.z, DUST.collapse, DUST.maxBurstScale);
+      if (this.waterFx.depthAt(e.x, e.z) > 0) this.waterFx.roar(e.x, e.z, SHOCKWAVE.roarRadius * 0.8);
+      else this.dust.burst(e.x, gy, e.z, DUST.collapse, DUST.maxBurstScale);
     });
     this.events.on('titan:footstep', (e) => {
-      this.dust.burst(e.x, e.y, e.z, e.sprinting ? DUST.sprintStep : DUST.walkStep, e.scale);
+      if (this.waterFx.depthAt(e.x, e.z) > 0) this.waterFx.footstep(e.x, e.z, e.depth, e.scale, e.sprinting);
+      else this.dust.burst(e.x, e.y, e.z, e.sprinting ? DUST.sprintStep : DUST.walkStep, e.scale);
       if (e.isPlayer) {
         this.military.crushAt(e.x, e.z, DESTRUCTION.footCrushRadius * e.scale);
         this.camera.shake.addTrauma(e.sprinting ? TITAN_FEEDBACK.sprintStepTrauma : TITAN_FEEDBACK.walkStepTrauma);
@@ -879,6 +888,8 @@ export class Game {
     this.smoke.update(fxDt);
     this.fire.update(fxDt);
     this.shockwaves.update(fxDt);
+    // The title showcase is paused but its water stays alive.
+    this.updateWater(this.started ? fxDt : Math.min(frameDelta, 0.1));
     this.beamFx.update(this.player, fxDt);
     this.projectiles.render(alpha, fxDt);
     this.military.render(alpha, fxDt);
@@ -937,6 +948,25 @@ export class Game {
     this.debug.postRender(info);
   }
 
+  /** Wading foam and wakes for every titan, steam where beams cut the water. */
+  private updateWater(dt: number): void {
+    _fxTitans.length = 0;
+    _fxTitans.push(this.player);
+    const rival = this.director.rival?.titan;
+    if (rival) _fxTitans.push(rival);
+    if (this.versus) for (const t of this.versus.titans(_titans)) if (t !== this.player) _fxTitans.push(t);
+    if (dt > 0) {
+      for (const t of _fxTitans) {
+        this.waterFx.wade(t, dt);
+        const c = t.combat;
+        if (!c.isBeamFiring) continue;
+        const o = t.model.mouth.getWorldPosition(_mouth);
+        this.waterFx.beam(o.x, o.y, o.z, c.beamEnd.x, c.beamEnd.y, c.beamEnd.z, dt);
+      }
+    }
+    this.waterFx.update(dt);
+  }
+
   /** Crosshair → world point the beam aims at (raycast from the camera, ignoring the player). */
   private updateAim(): void {
     const cam = this.render.camera;
@@ -969,7 +999,10 @@ export class Game {
       const yaw = this.player.yaw;
       // The body lands behind the feet.
       const d = 55 * this.player.scale;
-      this.dust.burst(p.x - Math.sin(yaw) * d, p.y, p.z - Math.cos(yaw) * d, DUST.collapse, DUST.maxBurstScale);
+      const bx = p.x - Math.sin(yaw) * d;
+      const bz = p.z - Math.cos(yaw) * d;
+      if (this.waterFx.depthAt(bx, bz) > 0) this.waterFx.slam(bx, bz, 90);
+      else this.dust.burst(bx, p.y, bz, DUST.collapse, DUST.maxBurstScale);
       this.camera.shake.addTrauma(0.7);
       this.camera.shake.addKick(20);
     }

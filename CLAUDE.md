@@ -97,7 +97,12 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   swap live via `Titan.setDesign`; choice is cosmetic (same moves), kept in `?titan=&color=`;
   rivals exclude the player's look-alike. A different location loads on "Travel to …".
   Drop point: click/drag on the location map (`?spawn=u,v`, preview fractions, world/dropPoint.ts),
-  snapped to the nearest dry street (`terrain.dryStreetNear`).
+  snapped to the nearest dry street (`terrain.dryStreetNear`) on land; a point in the sea is
+  kept (the titan stands on the seabed, sea is shallower than a titan, and wades out).
+- Water: `Water` = one transparent plane (fresnel, two drifting chop layers). `WaterFx`
+  (spray with gravity, mist, foam rings: 3 draw calls) replaces dust for anything in water:
+  footsteps (`depth` on `titan:footstep`), wading collar + wake, slams, roars, beam steam.
+  Camera never goes below the water surface.
 - Every titan (player or rival) is the same `Titan` class built from a `TitanSpec` (body,
   movement, gait, combat config, design). Controllers only produce MoveIntent + CombatInput:
   PlayerController from input, RivalAI from perception. Never special-case rivals in Titan.

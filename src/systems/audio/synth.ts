@@ -6,7 +6,7 @@
 export type SynthId =
   | 'thud' | 'crunch' | 'rumble' | 'boom' | 'whoosh' | 'roar' | 'growl'
   | 'charge' | 'hum' | 'zapDown' | 'pulse' | 'cannon' | 'rocket' | 'rotor'
-  | 'fanfare' | 'lament' | 'padMusic' | 'drumMusic' | 'wind';
+  | 'fanfare' | 'lament' | 'padMusic' | 'drumMusic' | 'wind' | 'splash' | 'sizzle';
 
 export interface SynthResult {
   readonly samples: Float32Array;
@@ -66,6 +66,35 @@ function makeLoop(s: Float32Array, fadeSeconds: number): Float32Array {
 }
 
 const RECIPES: Record<SynthId, () => Float32Array> = {
+  // A foot or fist hitting water: a deep plunge, a bright sheet of spray, then
+  // the tail of droplets raining back down.
+  splash: () => {
+    const n = noiseGen(31);
+    const lp = lowpass();
+    const hp = lowpass();
+    let ph = 0;
+    return render(2.2, (t) => {
+      ph += (TAU * (60 - 30 * Math.min(1, t / 0.3))) / RATE;
+      const plunge = Math.sin(ph) * env(t, 0.004, 0.16);
+      const sheet = lp(n(), 4200 - 3000 * Math.min(1, t / 0.5));
+      const bright = (sheet - hp(sheet, 500)) * env(t, 0.02, 0.28);
+      const drops = (n() > 0.985 ? n() : 0) * Math.max(0, Math.sin(Math.PI * Math.min(1, Math.max(0, t - 0.25) / 1.9)));
+      return plunge * 0.9 + bright * 1.6 + drops * 0.5;
+    });
+  },
+  // Beam into water: a hissing boil.
+  sizzle: () => {
+    const n = noiseGen(32);
+    const lp = lowpass();
+    const hp = lowpass();
+    return makeLoop(
+      render(2, (t) => {
+        const x = lp(n(), 6000);
+        return (x - hp(x, 1800)) * (0.7 + 0.3 * Math.sin(t * 23) * Math.sin(t * 7)) * (n() > 0.995 ? 2 : 1);
+      }),
+      0.2,
+    );
+  },
   // Heavy footfall: a falling sub sine plus a dull noise slap.
   thud: () => {
     const n = noiseGen(1);

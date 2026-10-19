@@ -10,6 +10,8 @@ export interface ParticleConfig {
   readonly additive?: boolean;
   /** Color multiplier; > 1 pushes additive particles into bloom. */
   readonly brightness?: number;
+  /** Downward acceleration (m/s²), e.g. water spray; 0 = floats. */
+  readonly gravity?: number;
 }
 
 /**
@@ -85,6 +87,7 @@ export class DustSystem {
   update(dt: number): void {
     if (dt <= 0 && this.live === 0) return;
     const drag = Math.pow(this.cfg.drag, dt);
+    const fall = (this.cfg.gravity ?? 0) * dt;
     let i = 0;
     while (i < this.live) {
       this.age[i]! += dt;
@@ -94,7 +97,7 @@ export class DustSystem {
       }
       const o = i * 3;
       this.vel[o]! *= drag;
-      this.vel[o + 1]! *= drag;
+      this.vel[o + 1]! = this.vel[o + 1]! * drag - fall;
       this.vel[o + 2]! *= drag;
       this.pos[o]! += this.vel[o]! * dt;
       this.pos[o + 1]! += this.vel[o + 1]! * dt;

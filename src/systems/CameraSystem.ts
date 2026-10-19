@@ -93,7 +93,7 @@ export class CameraSystem {
     this.distance = damp(this.distance, allowed, halfLife, dt);
 
     _desired.copy(this.pivot).addScaledVector(_dir, this.distance);
-    _desired.y = Math.max(_desired.y, this.focus.y + C.groundClearance, terrain.heightAt(_desired.x, _desired.z) + C.groundClearance + 6);
+    _desired.y = Math.max(_desired.y, this.focus.y + C.groundClearance, Math.max(terrain.heightAt(_desired.x, _desired.z), terrain.waterLevel) + C.groundClearance + 6);
 
     this.shake.update(dt);
     const o = this.shake.offset;

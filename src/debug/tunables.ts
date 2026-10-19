@@ -1,7 +1,7 @@
 import { TITAN_BODY, TITAN_CONTROLLER, TITAN_FEEDBACK, TITAN_GAIT, TITAN_MOVEMENT } from '../config/titan';
 import { CAMERA, SHAKE } from '../config/camera';
 import { MOUSE } from '../config/input';
-import { BEAM_VISUAL, DUST, FIRE, SHOCKWAVE, SMOKE } from '../config/effects';
+import { BEAM_VISUAL, DUST, FIRE, SHOCKWAVE, SMOKE, WATER_FX } from '../config/effects';
 import { COMBAT } from '../config/combat';
 import { POSTFX } from '../config/postfx';
 import { RIVALS } from '../config/rivals';
@@ -60,6 +60,7 @@ export const TUNABLES: Tunable[] = [
   { folder: 'Destruction', file: 'destruction.ts', exportName: 'DESTRUCTION', obj: DESTRUCTION },
   { folder: 'Dust', file: 'effects.ts', exportName: 'DUST', obj: DUST, exclude: ['capacity'] },
   { folder: 'Smoke', file: 'effects.ts', exportName: 'SMOKE', obj: SMOKE, exclude: ['capacity'] },
+  { folder: 'Water FX', file: 'effects.ts', exportName: 'WATER_FX', obj: WATER_FX, exclude: ['sprayCapacity', 'mistCapacity', 'rippleCapacity'] },
   { folder: 'Environment', file: 'environment.ts', exportName: 'ENVIRONMENT', obj: ENVIRONMENT, reloadOnly: true, ranges: { sunElevation: [5, 85, 1], sunAzimuth: [0, 360, 1] } },
   { folder: 'City generation', file: 'city.ts', exportName: 'CITY', obj: CITY, reloadOnly: true, exclude: ['seed'] },
   { folder: 'Terrain', file: 'terrain.ts', exportName: 'TERRAIN', obj: TERRAIN, reloadOnly: true, exclude: ['seed'] },

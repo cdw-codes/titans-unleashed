@@ -3,6 +3,7 @@ import type { GameEventBus } from '../../core/events';
 import type { Titan } from '../../entities/titan/Titan';
 import type { AudioSystem, Voice } from './AudioSystem';
 import { terrain } from '../../world/terrain/Terrain';
+import { WATER_FX } from '../../config/effects';
 
 export interface AudioDirectorDeps {
   player: Titan;
@@ -11,6 +12,8 @@ export interface AudioDirectorDeps {
   inEncounter(): boolean;
   threatLevel(): number;
   heliPositions(out: { x: number; y: number; z: number }[]): number;
+  /** A beam is boiling the water somewhere near. */
+  steaming(): boolean;
 }
 
 const _p = new THREE.Vector3();
@@ -27,6 +30,7 @@ export class AudioDirector {
   private readonly heliVoices: (Voice | null)[] = [];
   private readonly heliPos: { x: number; y: number; z: number }[] = [];
   private ambience: Voice | null = null;
+  private steamVoice: Voice | null = null;
 
   constructor(
     private readonly audio: AudioSystem,
@@ -35,8 +39,14 @@ export class AudioDirector {
   ) {
     const at = (x: number, y: number, z: number) => _p.set(x, y, z);
     events.on('titan:footstep', (e) => {
-      if (e.isPlayer) this.audio.play(e.sprinting ? 'footstepSprint' : 'footstep');
-      else this.audio.play('rivalFootstep', at(e.x, e.y, e.z));
+      // In water the splash carries the step; the thud underneath is muffled.
+      const wet = e.depth > WATER_FX.minDepth;
+      if (e.isPlayer) {
+        this.audio.play(e.sprinting ? 'footstepSprint' : 'footstep', undefined, wet ? { volume: 0.35 } : undefined);
+        if (wet) this.audio.play('splash');
+      } else {
+        this.audio.play(wet ? 'rivalSplash' : 'rivalFootstep', at(e.x, Math.max(e.y, terrain.waterLevel), e.z));
+      }
     });
     events.on('structure:destroyed', (e) => {
       const pos = at(e.x, terrain.heightAt(e.x, e.z), e.z);
@@ -49,6 +59,8 @@ export class AudioDirector {
         if (e.move === 'claw' || e.move === 'tail' || e.move === 'stomp' || e.move === 'pulse') this.audio.play(e.move);
       }
       if (e.hits > 0) this.audio.play('impact', at(e.x, 20, e.z));
+      const wet = terrain.waterLevel - terrain.heightAt(e.x, e.z) > WATER_FX.minDepth;
+      if (wet && (e.move === 'stomp' || e.move === 'pulse' || e.move === 'tail')) this.audio.play('splashBig', at(e.x, terrain.waterLevel, e.z));
     });
     events.on('titan:roar', (e) => {
       if (e.isPlayer) this.audio.play('roar');
@@ -73,6 +85,12 @@ export class AudioDirector {
     const a = this.audio;
     if (!a.ready) return;
     a.updateListener(this.d.camera);
+    const steaming = this.d.steaming();
+    if (steaming && !this.steamVoice) this.steamVoice = a.play('steam');
+    else if (!steaming && this.steamVoice) {
+      a.stop(this.steamVoice, 0.3);
+      this.steamVoice = null;
+    }
     this.updateBeam();
     this.updateHelis();
     a.setMusic(this.d.inEncounter() || this.d.threatLevel() >= 3 ? 'musicCombat' : 'musicExplore');

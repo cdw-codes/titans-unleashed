@@ -3,7 +3,7 @@ import type { SynthId } from '../systems/audio/synth';
 export type Bus = 'sfx' | 'music' | 'ambience';
 
 export type SoundId =
-  | 'footstep' | 'footstepSprint' | 'rivalFootstep'
+  | 'footstep' | 'footstepSprint' | 'rivalFootstep' | 'splash' | 'rivalSplash' | 'splashBig' | 'steam'
   | 'collapseSmall' | 'collapseLarge' | 'crush' | 'impact'
   | 'explosion' | 'explosionBig'
   | 'claw' | 'tail' | 'stomp' | 'pulse'
@@ -65,6 +65,10 @@ export const AUDIO: AudioConfig = {
     footstep: sfx('thud', 0.9, [0.8, 0.95], 3, false),
     footstepSprint: sfx('thud', 1, [0.85, 1], 3, false),
     rivalFootstep: sfx('thud', 1, [0.7, 0.8], 3),
+    splash: sfx('splash', 0.9, [0.75, 0.95], 3, false),
+    rivalSplash: sfx('splash', 1, [0.65, 0.8], 3),
+    splashBig: sfx('splash', 1, [0.45, 0.55], 2),
+    steam: { ...sfx('sizzle', 0.5, [0.9, 1.1], 1, false), loop: true },
     collapseSmall: sfx('crunch', 0.8, [0.8, 1.1], 5),
     collapseLarge: sfx('rumble', 1, [0.8, 1], 4),
     crush: sfx('crunch', 0.6, [1, 1.3], 6),

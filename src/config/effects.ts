@@ -222,3 +222,152 @@ export const SMOKE: SmokeConfig = {
   duration: 10,
   interval: 0.6,
 };
+
+export interface WaterFxConfig {
+  /** Water shallower than this (m) at a foot or the body counts as dry ground. */
+  readonly minDepth: number;
+  /** Spray: droplets thrown up and falling back (real gravity reads as heavy at titan scale). */
+  readonly sprayCapacity: number;
+  readonly sprayColor: number;
+  readonly sprayDrag: number;
+  readonly sprayGravity: number;
+  /** Mist: fine drifting haze around splashes and beam steam. */
+  readonly mistCapacity: number;
+  readonly mistColor: number;
+  readonly mistDrag: number;
+  readonly stepSpray: DustBurstConfig;
+  readonly stepMist: DustBurstConfig;
+  /** Stomp / pulse / tail / knockdown into water. */
+  readonly slamSpray: DustBurstConfig;
+  readonly slamMist: DustBurstConfig;
+  /** Bow wave thrown ahead of a wading titan (per wake tick, scaled by speed). */
+  readonly bowSpray: DustBurstConfig;
+  /** Steam where a beam crosses the water (per steam tick). */
+  readonly steam: DustBurstConfig;
+  readonly steamInterval: number;
+  /** Foam rings on the surface: pool size, color, opacity. */
+  readonly rippleCapacity: number;
+  readonly rippleColor: number;
+  readonly rippleOpacity: number;
+  /** Ring radius (m, before titan scale) and seconds to expand, per source. */
+  readonly stepRipple: number;
+  readonly stepRippleSeconds: number;
+  readonly slamRippleScale: number;
+  readonly slamRippleSeconds: number;
+  /** Wake: rings left behind a wading titan, every this many seconds while moving. */
+  readonly wakeInterval: number;
+  readonly wakeRipple: number;
+  readonly wakeRippleSeconds: number;
+  /** Foam collar at the waterline around a wading body (radius = capsule radius x this). */
+  readonly collarInterval: number;
+  readonly collarScale: number;
+  readonly collarSeconds: number;
+  /** Water surface: base opacity looking straight down (grazing angles turn opaque), fresnel strength. */
+  readonly surfaceOpacity: number;
+  readonly fresnel: number;
+}
+
+export const WATER_FX: WaterFxConfig = {
+  minDepth: 1.5,
+  sprayCapacity: 700,
+  sprayColor: 0xeef6f8,
+  sprayDrag: 0.55,
+  sprayGravity: 9.8,
+  mistCapacity: 260,
+  mistColor: 0xdfeaee,
+  mistDrag: 0.3,
+  stepSpray: {
+    count: 14,
+    ringRadius: 6,
+    speedMin: 4,
+    speedMax: 11,
+    riseMin: 12,
+    riseMax: 26,
+    sizeStart: 7,
+    sizeEnd: 16,
+    lifeMin: 2,
+    lifeMax: 3.2,
+    opacity: 0.85,
+  },
+  stepMist: {
+    count: 5,
+    ringRadius: 8,
+    speedMin: 3,
+    speedMax: 8,
+    riseMin: 2,
+    riseMax: 6,
+    sizeStart: 18,
+    sizeEnd: 50,
+    lifeMin: 2.5,
+    lifeMax: 4,
+    opacity: 0.35,
+  },
+  slamSpray: {
+    count: 40,
+    ringRadius: 18,
+    speedMin: 8,
+    speedMax: 24,
+    riseMin: 24,
+    riseMax: 48,
+    sizeStart: 10,
+    sizeEnd: 26,
+    lifeMin: 3,
+    lifeMax: 5,
+    opacity: 0.9,
+  },
+  slamMist: {
+    count: 14,
+    ringRadius: 22,
+    speedMin: 6,
+    speedMax: 16,
+    riseMin: 3,
+    riseMax: 10,
+    sizeStart: 30,
+    sizeEnd: 90,
+    lifeMin: 3.5,
+    lifeMax: 6,
+    opacity: 0.4,
+  },
+  bowSpray: {
+    count: 3,
+    ringRadius: 4,
+    speedMin: 3,
+    speedMax: 8,
+    riseMin: 5,
+    riseMax: 12,
+    sizeStart: 6,
+    sizeEnd: 14,
+    lifeMin: 1.4,
+    lifeMax: 2.2,
+    opacity: 0.75,
+  },
+  steam: {
+    count: 2,
+    ringRadius: 6,
+    speedMin: 1,
+    speedMax: 4,
+    riseMin: 10,
+    riseMax: 20,
+    sizeStart: 16,
+    sizeEnd: 60,
+    lifeMin: 2.5,
+    lifeMax: 4,
+    opacity: 0.5,
+  },
+  steamInterval: 0.08,
+  rippleCapacity: 120,
+  rippleColor: 0xf4fbff,
+  rippleOpacity: 0.75,
+  stepRipple: 34,
+  stepRippleSeconds: 2.4,
+  slamRippleScale: 1.6,
+  slamRippleSeconds: 3.2,
+  wakeInterval: 0.35,
+  wakeRipple: 30,
+  wakeRippleSeconds: 3,
+  collarInterval: 0.5,
+  collarScale: 1.6,
+  collarSeconds: 1.8,
+  surfaceOpacity: 0.8,
+  fresnel: 0.35,
+};

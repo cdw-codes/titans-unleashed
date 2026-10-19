@@ -140,7 +140,8 @@ export class CombatSystem {
       this.feedback.addKick(c.kick);
       if (connected && c.hitPause > 0) this.feedback.hitPause(titanHits > 0 ? c.hitPause * 1.5 : c.hitPause);
     }
-    if (a.move === 'stomp' || a.move === 'pulse') this.dust.burst(a.x, terrain.heightAt(a.x, a.z), a.z, DUST.collapse, DUST.maxBurstScale);
+    // In water, WaterFx splashes instead (Game, on combat:impact).
+    if ((a.move === 'stomp' || a.move === 'pulse') && !terrain.isWater(a.x, a.z, -1.5)) this.dust.burst(a.x, terrain.heightAt(a.x, a.z), a.z, DUST.collapse, DUST.maxBurstScale);
     this.events.emit('combat:impact', { move: a.move, x: a.x, z: a.z, yaw: a.yaw, radius, hits, isPlayer: byPlayer });
   }
 

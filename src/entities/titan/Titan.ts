@@ -361,10 +361,12 @@ export class Titan {
     const c = Math.cos(this.motor.yaw);
     const fx = this.position.x + lx * c + lz * s;
     const fz = this.position.z - lx * s + lz * c;
+    const ground = terrain.heightAt(fx, fz);
     this.events.emit('titan:footstep', {
       x: fx,
-      y: terrain.heightAt(fx, fz),
+      y: ground,
       z: fz,
+      depth: Math.max(0, terrain.waterLevel - ground),
       foot,
       sprinting: this.motor.sprinting,
       isPlayer: this.isPlayer,

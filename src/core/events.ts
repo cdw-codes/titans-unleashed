@@ -14,6 +14,8 @@ export interface GameEvents {
     x: number; y: number; z: number; foot: Foot; sprinting: boolean; isPlayer: boolean;
     /** A network player's titan: felt and seen, but its owner settles what it crushes. */
     remote: boolean;
+    /** Water depth (m) at the foot; 0 on dry ground. */
+    depth: number;
     /** Body size relative to the model's design height; scales dust and impact effects. */
     scale: number;
   };

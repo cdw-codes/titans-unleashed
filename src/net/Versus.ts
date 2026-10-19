@@ -318,7 +318,7 @@ export class Versus {
 
   /** Effects of another player's area attack (its damage to us comes as `hit`). */
   private remoteImpact(move: string, x: number, z: number, yaw: number, radius: number): void {
-    if (move === 'stomp' || move === 'pulse') this.d.dust.burst(x, terrain.heightAt(x, z), z, DUST.collapse, DUST.maxBurstScale);
+    if ((move === 'stomp' || move === 'pulse') && !terrain.isWater(x, z, -1.5)) this.d.dust.burst(x, terrain.heightAt(x, z), z, DUST.collapse, DUST.maxBurstScale);
     this.d.events.emit('combat:impact', { move: MOVES.includes(move as MoveId) ? (move as MoveId) : 'claw', x, z, yaw, radius, hits: 0, isPlayer: false });
   }
 
