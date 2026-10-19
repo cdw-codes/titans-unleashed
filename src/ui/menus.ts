@@ -1,6 +1,7 @@
 import { ACTION_LABELS, BINDINGS } from '../config/input';
 import { ACTIONS, codeLabel } from '../input/actions';
 import { randomSeed, reloadWith, type CityMapDef } from '../config/maps';
+import { ROSTER, rosterTitan, type TitanChoice } from '../entities/titan/roster';
 import { openWorldPreview } from './openWorldPreview';
 
 /** Shared run stats shown on the pause and game-over screens. */
@@ -55,68 +56,195 @@ abstract class Screen {
   }
 }
 
-/** First screen: title, controls, Start. */
+export interface TitleOptions {
+  /** Cities with baked map files (the open world is always offered after them). */
+  maps: readonly CityMapDef[];
+  /** Loaded map id, or null for the open world. */
+  currentMap: string | null;
+  /** Loaded open-world seed (null while a city is loaded). */
+  openSeed: number | null;
+  /** Map data attribution for the loaded city. */
+  credits: string | null;
+  choice: TitanChoice;
+  onStart: () => void;
+  /** Titan or colorway changed: applies live to the titan on the right. */
+  onTitan: (choice: TitanChoice) => void;
+}
+
+interface Location {
+  id: string;
+  name: string;
+  blurb: string;
+  img: string | null;
+}
+
+const LOGO_MARK = `<svg class="title-mark" viewBox="0 0 120 40" aria-hidden="true">
+  <path d="M4 36 L22 20 L30 26 L46 6 L60 22 L74 6 L90 26 L98 20 L116 36" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>`;
+
+const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
+
+/**
+ * Start screen: a left column (logo, start, controls, then location / titan /
+ * colorway pickers) over the live scene, where a showcase camera frames the titan
+ * on the right. Titan and colorway apply live; a different location loads when
+ * the player presses the main button ("Travel to ...").
+ */
 export class TitleScreen extends Screen {
-  /**
-   * `maps`: real cities to pick from (plus the procedural open world), each shown as a
-   * top-view preview of its baked layout. Picking one reloads the page with ?map=<id>.
-   * `current` is the loaded map id (null = open world), `openSeed` the loaded open
-   * world's seed. The open-world card previews a seed and can reroll it ("New world").
-   */
-  constructor(parent: HTMLElement, maps: readonly CityMapDef[], current: string | null, openSeed: number | null, credits: string | null, onStart: () => void) {
+  private choice: TitanChoice;
+  private loc = 0;
+  private pendingSeed: number;
+  private readonly locations: Location[];
+
+  constructor(parent: HTMLElement, private readonly o: TitleOptions) {
     super(parent, 'title-screen');
+    this.choice = { ...o.choice };
+    this.pendingSeed = o.openSeed ?? randomSeed();
     const base = import.meta.env.BASE_URL;
-    const card = (id: string, name: string, img: string) => {
-      const active = id === 'open' ? current === null : id === current;
-      return `<div class="map-card${active ? ' active' : ''}">
-          <button type="button" class="map-pick" data-map="${id}" aria-pressed="${active}">
-            <img ${img ? `src="${img}"` : ''} alt="Top view of ${name}">
-            <span>${name}</span>
-          </button>
-          ${id === 'open' ? '<button type="button" class="map-reroll" data-act="reroll">↻ New world</button>' : ''}
-        </div>`;
-    };
-    const choices = [...maps.map((m) => card(m.id, m.name, `${base}maps/${m.id}.png`)), card('open', 'Open world', '')].join('');
+    this.locations = [
+      ...o.maps.map((m) => ({ id: m.id, name: m.name, blurb: m.blurb, img: `${base}maps/${m.id}.png` })),
+      { id: 'open', name: 'Open world', blurb: 'An invented world of towns, rivers and mountains, new every game.', img: null },
+    ];
+    this.loc = Math.max(0, this.locations.findIndex((l) => (l.id === 'open' ? o.currentMap === null : l.id === o.currentMap)));
+
     this.el.innerHTML = `
-      <div class="menu-card">
-        <p class="menu-kicker">A city. A monster. No mercy.</p>
-        <h1 class="menu-title">TITANS UNLEASHED</h1>
-        <div class="map-cards">${choices}</div>
-        <button class="menu-primary" data-act="start" type="button">Begin the rampage</button>
-        <div class="title-controls">${controlsHtml()}</div>
-        <p class="pause-hint">Esc pauses · F1 debug</p>
-        ${credits ? `<p class="menu-credits">Map data ${credits}</p>` : ''}
+      <div class="title-panel">
+        <header class="title-brand">
+          ${LOGO_MARK}
+          <h1 class="title-logo">TITANS<br>UNLEASHED</h1>
+          <p class="title-tagline">A city. A titan. No mercy.</p>
+        </header>
+        <div class="title-actions">
+          <button type="button" class="title-btn primary" data-act="start"></button>
+          <button type="button" class="title-btn" data-act="controls" aria-expanded="false">Controls</button>
+          <div class="title-controls" hidden>${controlsHtml()}</div>
+        </div>
+
+        <section class="title-pick" aria-label="Location">
+          <h2>Location</h2>
+          <div class="picker">
+            <button type="button" class="pick-arrow" data-loc="-1" aria-label="Previous location">‹</button>
+            <div class="pick-body">
+              <img class="pick-preview" data-role="loc-img" alt="">
+              <div class="pick-text">
+                <p class="pick-name"><span data-role="loc-name"></span> <small data-role="loc-count"></small></p>
+                <p class="pick-blurb" data-role="loc-blurb"></p>
+                <button type="button" class="pick-link" data-act="reroll" hidden>↻ New world</button>
+              </div>
+            </div>
+            <button type="button" class="pick-arrow" data-loc="1" aria-label="Next location">›</button>
+          </div>
+        </section>
+
+        <section class="title-pick" aria-label="Titan">
+          <h2>Titan</h2>
+          <div class="picker">
+            <button type="button" class="pick-arrow" data-titan="-1" aria-label="Previous titan">‹</button>
+            <div class="pick-text">
+              <p class="pick-name"><span data-role="titan-name"></span> <small data-role="titan-count"></small></p>
+              <p class="pick-blurb" data-role="titan-blurb"></p>
+            </div>
+            <button type="button" class="pick-arrow" data-titan="1" aria-label="Next titan">›</button>
+          </div>
+          <div class="swatches" role="radiogroup" aria-label="Colors"></div>
+          <p class="swatch-name" data-role="color-name"></p>
+        </section>
+
+        <footer class="title-foot">
+          <p>Single player · no account · nothing is saved</p>
+          ${o.credits ? `<p>Map data ${o.credits}</p>` : ''}
+          <p class="pause-hint">Esc pauses · F1 debug</p>
+        </footer>
       </div>`;
-    this.el.querySelector('[data-act=start]')!.addEventListener('click', onStart);
-    // The open world is invented: its preview is drawn from the terrain for the pending seed.
-    let pending = openSeed ?? randomSeed();
-    const openCard = this.el.querySelector<HTMLDivElement>('[data-map=open]')!.closest('.map-card')!;
-    const openImg = openCard.querySelector('img')!;
-    const openLabel = openCard.querySelector('span')!;
-    const showPending = () => {
-      openLabel.textContent = `Open world #${pending}`;
-      openImg.removeAttribute('src');
-      setTimeout(() => (openImg.src = openWorldPreview(180, pending)), 0);
-      const loaded = current === null && pending === openSeed;
-      openCard.classList.toggle('active', loaded);
-      openCard.querySelector('.map-pick')!.setAttribute('aria-pressed', String(loaded));
-    };
-    showPending();
-    this.el.querySelector('[data-act=reroll]')!.addEventListener('click', () => {
-      pending = randomSeed();
-      showPending();
+
+    const q = <T extends Element>(sel: string) => this.el.querySelector<T>(sel)!;
+    q<HTMLButtonElement>('[data-act=start]').addEventListener('click', () => this.start());
+    const controlsBtn = q<HTMLButtonElement>('[data-act=controls]');
+    controlsBtn.addEventListener('click', () => {
+      const panel = q<HTMLDivElement>('.title-controls');
+      panel.hidden = !panel.hidden;
+      controlsBtn.setAttribute('aria-expanded', String(!panel.hidden));
     });
-    for (const img of this.el.querySelectorAll<HTMLImageElement>('.map-card img')) {
-      img.addEventListener('error', () => img.closest('.map-card')?.classList.add('missing'));
-    }
-    for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-map]')) {
+    for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-loc]')) {
       b.addEventListener('click', () => {
-        if (b.closest('.map-card')!.classList.contains('active')) return;
-        const id = b.dataset['map']!;
-        reloadWith(id === 'open' ? { map: 'open', seed: String(pending) } : { map: id });
+        this.loc = (this.loc + Number(b.dataset['loc']) + this.locations.length) % this.locations.length;
+        this.renderLocation();
       });
     }
+    q<HTMLButtonElement>('[data-act=reroll]').addEventListener('click', () => {
+      this.pendingSeed = randomSeed();
+      this.renderLocation();
+    });
+    for (const b of this.el.querySelectorAll<HTMLButtonElement>('[data-titan]')) {
+      b.addEventListener('click', () => {
+        const i = ROSTER.findIndex((t) => t.id === this.choice.titan);
+        const next = ROSTER[(i + Number(b.dataset['titan']) + ROSTER.length) % ROSTER.length]!;
+        this.setChoice({ titan: next.id, color: 0 });
+      });
+    }
+    this.renderLocation();
+    this.renderTitan();
     this.visible = true;
+  }
+
+  private get location(): Location {
+    return this.locations[this.loc]!;
+  }
+
+  /** Does the main button play the loaded world, or travel to another one? */
+  private get isLoaded(): boolean {
+    const l = this.location;
+    return l.id === 'open' ? this.o.currentMap === null && this.pendingSeed === this.o.openSeed : l.id === this.o.currentMap;
+  }
+
+  private start(): void {
+    if (this.isLoaded) return this.o.onStart();
+    const l = this.location;
+    reloadWith(l.id === 'open' ? { map: 'open', seed: String(this.pendingSeed) } : { map: l.id });
+  }
+
+  private renderLocation(): void {
+    const l = this.location;
+    const set = (role: string, text: string) => (this.el.querySelector(`[data-role=${role}]`)!.textContent = text);
+    set('loc-name', l.id === 'open' ? `Open world #${this.pendingSeed}` : l.name);
+    set('loc-count', `${this.loc + 1}/${this.locations.length}`);
+    set('loc-blurb', l.blurb);
+    const img = this.el.querySelector<HTMLImageElement>('[data-role=loc-img]')!;
+    img.alt = `Top view of ${l.name}`;
+    if (l.img) img.src = l.img;
+    else {
+      img.removeAttribute('src');
+      const seed = this.pendingSeed;
+      setTimeout(() => {
+        if (this.location.id === 'open' && this.pendingSeed === seed) img.src = openWorldPreview(160, seed);
+      }, 0);
+    }
+    this.el.querySelector<HTMLButtonElement>('[data-act=reroll]')!.hidden = l.id !== 'open';
+    const start = this.el.querySelector<HTMLButtonElement>('[data-act=start]')!;
+    start.textContent = this.isLoaded ? 'Begin the rampage' : `Travel to ${l.id === 'open' ? 'a new world' : l.name}`;
+  }
+
+  private setChoice(choice: TitanChoice): void {
+    this.choice = choice;
+    this.renderTitan();
+    this.o.onTitan(choice);
+  }
+
+  private renderTitan(): void {
+    const t = rosterTitan(this.choice.titan);
+    const set = (role: string, text: string) => (this.el.querySelector(`[data-role=${role}]`)!.textContent = text);
+    set('titan-name', t.name);
+    set('titan-count', `${ROSTER.indexOf(t) + 1}/${ROSTER.length}`);
+    set('titan-blurb', t.blurb);
+    set('color-name', t.colors[this.choice.color]?.name ?? '');
+    const sw = this.el.querySelector<HTMLDivElement>('.swatches')!;
+    sw.innerHTML = t.colors
+      .map((c, i) => `<button type="button" class="swatch" role="radio" aria-checked="${i === this.choice.color}" aria-label="${c.name}" title="${c.name}"
+          data-color="${i}" style="--skin:${hex(c.palette.skin)};--glow:${hex(c.glow)}"></button>`)
+      .join('');
+    for (const b of sw.querySelectorAll<HTMLButtonElement>('[data-color]')) {
+      b.addEventListener('click', () => this.setChoice({ titan: this.choice.titan, color: Number(b.dataset['color']) }));
+    }
   }
 }
 

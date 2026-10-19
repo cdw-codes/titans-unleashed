@@ -26,7 +26,9 @@ import { Water } from '../world/Water';
 import { CityGenerator, GROUND_CELLS } from '../world/city/CityGenerator';
 import { WORLD } from '../config/world';
 import { BINDINGS } from '../config/input';
-import { CITY_MAPS, randomSeed, reloadWith, selectedMapId, selectedSeed } from '../config/maps';
+import { damp } from './math';
+import { availableMaps, randomSeed, reloadWith, selectedMapId, selectedSeed, updateUrl, type CityMapDef } from '../config/maps';
+import { colorwayFor, designFor, parseChoice, rosterTitan, type TitanChoice } from '../entities/titan/roster';
 import { CityMap } from '../world/maps/CityMap';
 import { CityPools } from '../world/city/CityPools';
 import { ChunkManager } from '../world/city/ChunkManager';
@@ -139,7 +141,8 @@ export class Game {
     ],
   };
 
-  private constructor(container: HTMLElement, private readonly physics: PhysicsSystem) {
+  private constructor(container: HTMLElement, private readonly physics: PhysicsSystem, maps: readonly CityMapDef[]) {
+    const choice = parseChoice(location.search);
     this.qualityLevel = loadQualityLevel();
     const preset = QUALITY_PRESETS[this.qualityLevel];
 
@@ -167,7 +170,7 @@ export class Game {
 
     const { x: sx, z: sz } = terrain.spawn;
     const spawn = new THREE.Vector3(sx, terrain.heightAt(sx, sz), sz);
-    this.player = new Titan(physics, this.events, spawn, true, this.progress, PLAYER_SPEC);
+    this.player = new Titan(physics, this.events, spawn, true, this.progress, { ...PLAYER_SPEC, design: designFor(choice) });
     scene.add(this.player.model.object);
 
     this.input = new Input(this.render.canvas, BINDINGS);
@@ -184,10 +187,18 @@ export class Game {
     const newGame = () => (terrain.map ? location.reload() : reloadWith({ seed: String(randomSeed()) }));
     this.pauseMenu = new PauseMenu(uiRoot, terrain.map?.meta.attribution ?? null, resume, newGame);
     this.gameOver = new GameOverScreen(uiRoot, () => this.respawn(), newGame);
-    this.title = new TitleScreen(uiRoot, CITY_MAPS, terrain.map?.meta.id ?? null, terrain.map ? null : terrain.seed, terrain.map?.meta.attribution ?? null, () => {
-      this.started = true;
-      this.title.visible = false;
-      resume();
+    this.title = new TitleScreen(uiRoot, {
+      maps,
+      currentMap: terrain.map?.meta.id ?? null,
+      openSeed: terrain.map ? null : terrain.seed,
+      credits: terrain.map?.meta.attribution ?? null,
+      choice,
+      onStart: () => {
+        this.started = true;
+        this.title.visible = false;
+        resume();
+      },
+      onTitan: (c) => this.applyTitan(c),
     });
 
     this.loop = new GameLoop({
@@ -314,6 +325,9 @@ export class Game {
     });
 
     this.render.prewarmPostFx();
+    // The chosen titan's beam color, and rivals that don't share its look.
+    this.beamFx.setColors(colorwayFor(choice).beam);
+    this.director.encounter.excludeRival(rosterTitan(choice.titan).rival);
     this.setPaused(true);
   }
 
@@ -339,7 +353,7 @@ export class Game {
     }
     const physics = await PhysicsSystem.create(1 / SIM.tickRate);
     onProgress(0.2, 'Tuning the roars');
-    const game = new Game(container, physics);
+    const game = new Game(container, physics, await availableMaps(import.meta.env.BASE_URL));
     await game.audio.prepare((done, total) => onProgress(0.2 + 0.25 * (done / total), 'Tuning the roars'));
     await game.buildCity((f) => onProgress(0.45 + 0.55 * f, 'Raising the city'));
     onProgress(1, 'Ready');
@@ -484,6 +498,59 @@ export class Game {
     this.threat.addDestruction(Math.max(1, next - this.threat.heat));
   }
 
+  private showcaseTime = 0;
+  private showcaseLift = 0;
+
+  /** Is the line from the titan's chest to a showcase camera spot blocked by a building? */
+  private showcaseBlocked(x: number, y: number, z: number, a: number, dist: number, camY: number): boolean {
+    const dx = Math.sin(a) * dist;
+    const dy = camY - y;
+    const dz = Math.cos(a) * dist;
+    const len = Math.hypot(dx, dy, dz);
+    _aimRay.origin.x = x;
+    _aimRay.origin.y = y;
+    _aimRay.origin.z = z;
+    _aimRay.dir.x = dx / len;
+    _aimRay.dir.y = dy / len;
+    _aimRay.dir.z = dz / len;
+    return !!this.physics.world.castRay(_aimRay, len, true, RAPIER.QueryFilterFlags.EXCLUDE_DYNAMIC, undefined, undefined, this.player.body);
+  }
+
+  /**
+   * Start screen: a slow orbit framing the titan to the right of the left panel,
+   * idling (the simulation is paused until the player begins).
+   */
+  private showcase(dt: number, alpha: number): void {
+    this.showcaseTime += dt;
+    this.player.previewTick(dt);
+    this.player.render(alpha, dt);
+    const cam = this.render.camera;
+    const p = this.player.renderPosition;
+    const h = this.player.spec.body.height;
+    const a = this.player.yaw + 0.55 + Math.sin(this.showcaseTime * 0.12) * 0.35;
+    const dist = h * 2.3;
+    // Rise until nothing stands between the camera and the titan's chest (dense downtowns).
+    let lift = h * 0.55;
+    const blocked = (y: number) => this.showcaseBlocked(p.x, p.y + h * 0.6, p.z, a, dist, y) || this.showcaseBlocked(p.x, p.y + h * 0.2, p.z, a, dist, y);
+    for (let k = 0; k < 8 && blocked(p.y + lift); k++) lift += h * 0.35;
+    this.showcaseLift = damp(this.showcaseLift || lift, lift, 0.4, dt);
+    cam.position.set(p.x + Math.sin(a) * dist, p.y + this.showcaseLift, p.z + Math.cos(a) * dist);
+    // Aim left of the titan on wide screens so it stands clear of the panel.
+    const wide = cam.aspect > 1.1;
+    const rx = Math.cos(a);
+    const rz = -Math.sin(a);
+    const off = wide ? h * 0.75 : 0;
+    cam.lookAt(p.x - rx * off, p.y + h * 0.5, p.z - rz * off);
+  }
+
+  /** Title-screen titan / colorway choice: live model swap, beam color, rival rotation, URL. */
+  private applyTitan(c: TitanChoice): void {
+    this.player.setDesign(designFor(c));
+    this.beamFx.setColors(colorwayFor(c).beam);
+    this.director.encounter.excludeRival(rosterTitan(c.titan).rival);
+    updateUrl({ titan: c.titan, color: String(c.color) });
+  }
+
   /** Debug: fill beam energy. */
   fillEnergy(): void {
     this.progress.energy = DESTRUCTION.maxEnergy;
@@ -612,6 +679,7 @@ export class Game {
     this.camera.applyMouse(dx, dy);
     const motor = this.player.motor;
     this.camera.update(this.player.renderPosition, visualDt, this.player.state === 'sprint' ? 1 : 0);
+    if (!this.started) this.showcase(Math.min(frameDelta, 0.1), alpha);
     this.updateAim();
     const focus = this.player.renderPosition;
     this.environment.follow(focus, this.render.camera.position, visualDt);

@@ -118,6 +118,13 @@ export class TitanModel {
     this.legLength = Math.abs(this.bindPos.get('shinL')!.y + this.bindPos.get('footL')!.y);
   }
 
+  /** Free GPU resources (the model is being replaced). */
+  dispose(): void {
+    this.mesh.geometry.dispose();
+    (this.mesh.material as THREE.Material).dispose();
+    this.mesh.skeleton.dispose();
+  }
+
   /** Procedural pose from gait + motor state. Call every render frame. */
   pose(p: TitanPoseInput): void {
     const b = (n: BoneName) => this.bone(n);

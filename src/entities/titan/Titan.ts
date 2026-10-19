@@ -15,6 +15,7 @@ import { locomotionState, type TitanState } from './locomotion';
 import type { TitanSpec } from './TitanSpec';
 import type { TitanModifiers } from '../../systems/progression/Upgrades';
 import { terrain } from '../../world/terrain/Terrain';
+import type { TitanDesign } from './designs';
 
 const _desired = { x: 0, y: 0, z: 0 };
 const _scaledIntent: MoveIntent = { x: 0, z: 0, sprint: false };
@@ -26,7 +27,7 @@ const NO_COMBAT: CombatInput = { claw: false, tail: false, stomp: false, roar: f
  * Controlled through MoveIntent, so rivals can reuse it with an AI controller.
  */
 export class Titan {
-  readonly model: TitanModel;
+  model: TitanModel;
   readonly motor: TitanMotor;
   readonly gait: Gait;
   readonly fsm: StateMachine<TitanState, Titan>;
@@ -230,6 +231,24 @@ export class Titan {
     this.motor.speed *= 0.5;
     this.body.setNextKinematicTranslation({ x: p.x, y: p.y + this.centerOffset, z: p.z });
     return true;
+  }
+
+  /** Swap the look (title-screen titan / colorway choice): rebuilds the model in place. */
+  setDesign(design: TitanDesign): void {
+    const old = this.model;
+    const parent = old.object.parent;
+    this.model = new TitanModel(design, this.spec.combat);
+    this.model.object.scale.setScalar(this.scale);
+    this.model.object.position.copy(old.object.position);
+    this.model.object.rotation.copy(old.object.rotation);
+    parent?.remove(old.object);
+    parent?.add(this.model.object);
+    old.dispose();
+  }
+
+  /** Advance idle animation time while the simulation is paused (title showcase). */
+  previewTick(dt: number): void {
+    this.time += dt;
   }
 
   render(alpha: number, frameDt: number): void {

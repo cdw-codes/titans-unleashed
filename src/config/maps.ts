@@ -7,6 +7,8 @@
 export interface CityMapDef {
   readonly id: string;
   readonly name: string;
+  /** One line for the title screen. */
+  readonly blurb: string;
   /** [south, west, north, east] in degrees. */
   readonly bbox: readonly [number, number, number, number];
   readonly compress: number;
@@ -26,6 +28,7 @@ export const CITY_MAPS: readonly CityMapDef[] = [
   {
     id: 'tokyo',
     name: 'Tokyo',
+    blurb: 'The 23 wards, Tokyo Bay and Haneda. Skytree included.',
     // The 23 special wards and the inner bay, Haneda included.
     bbox: [35.52, 139.6, 35.79, 139.92],
     compress: 3.5,
@@ -39,6 +42,7 @@ export const CITY_MAPS: readonly CityMapDef[] = [
   {
     id: 'newyork',
     name: 'New York',
+    blurb: 'Manhattan, Brooklyn and the Upper Bay, Midtown to the Narrows.',
     // Manhattan, Brooklyn, western Queens, Jersey City and the Upper Bay.
     bbox: [40.6, -74.08, 40.84, -73.86],
     compress: 3.5,
@@ -51,6 +55,7 @@ export const CITY_MAPS: readonly CityMapDef[] = [
   {
     id: 'london',
     name: 'London',
+    blurb: 'Both banks of the Thames, Westminster to Canary Wharf.',
     // Central London both sides of the Thames, Westminster to Canary Wharf.
     bbox: [51.45, -0.24, 51.56, 0.03],
     compress: 3.5,
@@ -89,6 +94,25 @@ export function selectedSeed(): number | null {
   q.set('seed', String(seed));
   history.replaceState(null, '', `${location.pathname}?${q}`);
   return seed;
+}
+
+/** Change URL parameters without reloading (choices that apply live, e.g. the titan). */
+export function updateUrl(params: Record<string, string>): void {
+  const q = new URLSearchParams(location.search);
+  for (const [k, v] of Object.entries(params)) q.set(k, v);
+  history.replaceState(null, '', `${location.pathname}?${q}`);
+}
+
+/** Cities whose baked files are present (the dev server answers missing files with HTML). */
+export async function availableMaps(base: string): Promise<CityMapDef[]> {
+  const ok = await Promise.all(
+    CITY_MAPS.map((m) =>
+      fetch(`${base}maps/${m.id}.json`, { method: 'HEAD' })
+        .then((r) => r.ok && (r.headers.get('content-type') ?? '').includes('json'))
+        .catch(() => false),
+    ),
+  );
+  return CITY_MAPS.filter((_, i) => ok[i]);
 }
 
 /** Reload into a URL with these parameters changed (map / seed). */

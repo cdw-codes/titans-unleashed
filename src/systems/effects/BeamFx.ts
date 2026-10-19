@@ -56,6 +56,14 @@ export class BeamFx {
     scene.add(this.group);
   }
 
+  /** Recolor the beam (the player's colorway). */
+  setColors(colors: { core: number; glow: number }): void {
+    (this.core.material as THREE.MeshBasicMaterial).color.setHex(colors.core).multiplyScalar(3);
+    const glow = new THREE.Color(colors.glow).multiplyScalar(1.4);
+    (this.sheath.material as THREE.ShaderMaterial).uniforms['uColor']!.value.copy(glow);
+    for (const f of [this.mouthFlare, this.impactFlare]) f.material.color.copy(glow);
+  }
+
   /** True while anything bright is on screen (drives the bloom pass). */
   get glowing(): boolean {
     return this.group.visible;

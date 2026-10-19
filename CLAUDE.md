@@ -88,6 +88,10 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   set pieces come from `Sites`; streets bridge rivers on every other street.
 - Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops/barns,
   crushed on contact, no collider), `prop` (cars/trees/containers, near-player only, crushed).
+- Start screen (`TitleScreen`): left panel (start, controls, location / titan / colorway
+  pickers), live scene right (showcase camera, sim paused). Titan + colorway (`roster.ts`)
+  swap live via `Titan.setDesign`; choice is cosmetic (same moves), kept in `?titan=&color=`;
+  rivals exclude the player's look-alike. A different location loads on "Travel to …".
 - Every titan (player or rival) is the same `Titan` class built from a `TitanSpec` (body,
   movement, gait, combat config, design). Controllers only produce MoveIntent + CombatInput:
   PlayerController from input, RivalAI from perception. Never special-case rivals in Titan.

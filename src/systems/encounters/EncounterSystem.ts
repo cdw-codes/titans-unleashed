@@ -44,10 +44,21 @@ export class EncounterSystem {
   private nextTremor = 0;
   private victory = false;
 
+  /** Rivals in the order they arrive (the player's own titan is left out). */
+  private rotation: readonly RivalId[];
+
+  /** Leave a rival out of the rotation (the one the player looks like), if others remain. */
+  excludeRival(id: RivalId | undefined): void {
+    const rest = this.cfg.rotation.filter((r) => r !== id);
+    this.rotation = rest.length ? rest : this.cfg.rotation;
+  }
+
   constructor(
     private readonly cfg: EncounterConfig,
     private readonly rand: () => number = Math.random,
-  ) {}
+  ) {
+    this.rotation = cfg.rotation;
+  }
 
   get roamingDelay(): number {
     return this.count === 0 ? this.cfg.firstDelay : this.cfg.interval;
@@ -66,7 +77,7 @@ export class EncounterSystem {
       case 'roaming': {
         const triggered = this.t >= this.roamingDelay || w.score - this.scoreAtLast >= c.destructionThreshold;
         if (triggered) {
-          this.rival = c.rotation[this.count % c.rotation.length]!;
+          this.rival = this.rotation[this.count % this.rotation.length]!;
           const a = this.rand() * Math.PI * 2;
           this.dir.x = Math.sin(a);
           this.dir.z = Math.cos(a);
