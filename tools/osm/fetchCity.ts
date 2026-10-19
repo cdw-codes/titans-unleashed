@@ -75,9 +75,9 @@ const LAYERS: Record<string, Layer> = {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function overpass(query: string): Promise<{ elements: { type: string; id: number }[] }> {
+async function overpass(query: string, attempts = 8): Promise<{ elements: { type: string; id: number }[] }> {
   let lastError = '';
-  for (let attempt = 0; attempt < 8; attempt++) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
     const url = ENDPOINTS[attempt % ENDPOINTS.length]!;
     try {
       const res = await fetch(url, {
@@ -99,6 +99,22 @@ async function overpass(query: string): Promise<{ elements: { type: string; id: 
     await sleep(3000 + attempt * 4000);
   }
   throw new Error(`Overpass failed: ${lastError}`);
+}
+
+type Elements = { elements: { type: string; id: number }[] };
+
+/** Fetch one tile; if the servers keep failing on it (too dense), split it into four and retry. */
+async function fetchTile(layer: Layer, t: BBox, depth: number): Promise<Elements> {
+  const bb = t.map((v) => v.toFixed(5)).join(',');
+  try {
+    return await overpass(`[out:json][timeout:180];(${layer.body(bb)});${layer.out}`, depth < 2 ? 4 : 8);
+  } catch (e) {
+    if (depth >= 2) throw e;
+    console.log(`  splitting tile (depth ${depth + 1})`);
+    const merged: Elements = { elements: [] };
+    for (const sub of tiles(t, 2)) merged.elements.push(...(await fetchTile(layer, sub, depth + 1)).elements);
+    return merged;
+  }
 }
 
 function tiles(bbox: BBox, n: number): BBox[] {
@@ -137,9 +153,8 @@ async function main(): Promise<void> {
         json = JSON.parse(await readFile(tileFile, 'utf8'));
         console.log(`${name}: tile ${k + 1}/${parts.length} (cached)`);
       } catch {
-        const bb = t.map((v) => v.toFixed(5)).join(',');
         console.log(`${name}: tile ${k + 1}/${parts.length}`);
-        json = await overpass(`[out:json][timeout:180];(${layer.body(bb)});${layer.out}`);
+        json = await fetchTile(layer, t, 0);
         await writeFile(tileFile, JSON.stringify(json));
         await sleep(1500);
       }

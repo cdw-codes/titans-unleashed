@@ -126,11 +126,13 @@ async function bake(def: CityMapDef): Promise<void> {
   for (const el of await layer(def.id, 'buildings')) {
     const t = el.tags ?? {};
     const h = parseHeight(t);
-    if (h < 45 || !el.center || !el.bounds) continue;
-    const mpd = metersPerDegree(el.center.lat);
+    if (h < 45 || !el.bounds) continue;
+    // Overpass gives `bounds` but drops `center` when both are asked for: use the box middle.
+    const center = el.center ?? { lat: (el.bounds.minlat + el.bounds.maxlat) / 2, lon: (el.bounds.minlon + el.bounds.maxlon) / 2 };
+    const mpd = metersPerDegree(center.lat);
     const hw = Math.min(45, Math.max(10, ((el.bounds.maxlon - el.bounds.minlon) * mpd.lon) / 2));
     const hd = Math.min(45, Math.max(10, ((el.bounds.maxlat - el.bounds.minlat) * mpd.lat) / 2));
-    const [x, z] = project(p, el.center.lat, el.center.lon);
+    const [x, z] = project(p, center.lat, center.lon);
     candidates.push({ x: Math.round(x), z: Math.round(z), hw: Math.round(hw), hd: Math.round(hd), h: Math.round(h) });
   }
   candidates.sort((a, b) => b.h - a.h);
@@ -149,6 +151,12 @@ async function bake(def: CityMapDef): Promise<void> {
     if (h < 100 || !at) continue;
     const [x, z] = project(p, at.lat, at.lon);
     towers.push({ x: Math.round(x), z: Math.round(z), h: Math.round(h), ...(name ? { name } : {}) });
+  }
+
+  // Towers are often also tagged as buildings: keep only the mast version.
+  for (let i = buildings.length - 1; i >= 0; i--) {
+    const b = buildings[i]!;
+    if (towers.some((t) => Math.hypot(t.x - b.x, t.z - b.z) < 60)) buildings.splice(i, 1);
   }
 
   const places: MapPlace[] = [];
