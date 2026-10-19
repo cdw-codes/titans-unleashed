@@ -78,8 +78,10 @@ interface Location {
   img: string | null;
 }
 
-const LOGO_MARK = `<svg class="title-mark" viewBox="0 0 120 40" aria-hidden="true">
-  <path d="M4 36 L22 20 L30 26 L46 6 L60 22 L74 6 L90 26 L98 20 L116 36" fill="none" stroke="currentColor" stroke-width="5" stroke-linejoin="round" stroke-linecap="round"/>
+const LOGO_MARK = `<svg class="title-mark" viewBox="0 0 120 52" aria-hidden="true">
+  <path d="M14 50 L26 22 L34 34 L46 6 L60 30 L74 6 L86 34 L94 22 L106 50 Z" fill="currentColor" opacity="0.18"/>
+  <path d="M14 50 L26 22 L34 34 L46 6 L60 30 L74 6 L86 34 L94 22 L106 50" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M40 50 L46 30 L52 50 M68 50 L74 30 L80 50" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>
 </svg>`;
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
