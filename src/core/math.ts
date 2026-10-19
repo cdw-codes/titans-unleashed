@@ -99,9 +99,14 @@ export class Spring {
 
   update(dt: number): number {
     const w = TAU * this.frequency;
-    const accel = -2 * this.zeta * w * this.velocity - w * w * (this.value - this.target);
-    this.velocity += accel * dt;
-    this.value += this.velocity * dt;
+    // Explicit integration diverges on long frames (a throttled tab): substep.
+    const steps = Math.min(64, Math.ceil(dt * 120));
+    const h = dt / Math.max(1, steps);
+    for (let i = 0; i < steps; i++) {
+      const accel = -2 * this.zeta * w * this.velocity - w * w * (this.value - this.target);
+      this.velocity += accel * h;
+      this.value += this.velocity * h;
+    }
     return this.value;
   }
 }

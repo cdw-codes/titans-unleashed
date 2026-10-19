@@ -36,4 +36,11 @@ describe('math', () => {
     for (let i = 0; i < 600; i++) s.update(1 / 60);
     expect(Math.abs(s.value)).toBeLessThan(0.01);
   });
+
+  it('Spring stays stable on long frames (throttled tab)', () => {
+    const s = new Spring(2.2, 0.5);
+    s.impulse(-20);
+    for (let i = 0; i < 40; i++) s.update(0.25);
+    expect(Math.abs(s.value)).toBeLessThan(0.01);
+  });
 });
