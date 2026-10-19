@@ -1,7 +1,8 @@
 import type { RivalId } from '../../config/rivals';
-import { PLAYER_DESIGN, THORNMAW_DESIGN, VESPERION_DESIGN, type TitanDesign } from './designs';
+import { FULGURAX_DESIGN, PLAYER_DESIGN, TESTUDRAX_DESIGN, THORNMAW_DESIGN, VELACOR_DESIGN, VESPERION_DESIGN, type TitanDesign } from './designs';
 
-export type TitanId = 'tidecaller' | 'thornmaw' | 'vesperion';
+/** Stable ids (URLs, multiplayer); the display name is the Titanus designation. */
+export type TitanId = 'tidecaller' | 'thornmaw' | 'vesperion' | 'velacor' | 'testudrax' | 'fulgurax';
 
 export interface TitanColorway {
   readonly name: string;
@@ -13,7 +14,10 @@ export interface TitanColorway {
 
 export interface RosterTitan {
   readonly id: TitanId;
+  /** Designation in the field taxonomy: "Titanus <Name>" (original names only). */
   readonly name: string;
+  /** Common name, "the ...". */
+  readonly epithet: string;
   readonly blurb: string;
   readonly design: TitanDesign;
   /** The rival that shares this look (kept out of the rival rotation when picked). */
@@ -35,7 +39,8 @@ const way = (name: string, skin: number, skinDark: number, belly: number, plate:
 export const ROSTER: readonly RosterTitan[] = [
   {
     id: 'tidecaller',
-    name: 'Tidecaller',
+    name: 'Titanus Aegirax',
+    epithet: 'The Tidecaller',
     blurb: 'Atomic lizard risen from the deep: glowing dorsal plates and a charged breath beam.',
     design: PLAYER_DESIGN,
     colors: [
@@ -44,11 +49,13 @@ export const ROSTER: readonly RosterTitan[] = [
       way('Coral', 0x8a5a4a, 0x5e3c31, 0xc8a78a, 0xf0d2c0, 0xff8a5c, 0xffe4d6),
       way('Glacier', 0x8fa3b0, 0x657783, 0xd8dde0, 0xe9f6ff, 0x9fd8ff, 0xf2fbff),
       way('Moss', 0x5b6b2f, 0x404b20, 0xa59a62, 0xd8e08a, 0xd6ff5c, 0xf6ffd8),
+      way('Crimson Tide', 0x3a2a30, 0x271c21, 0x7a5a5e, 0xd88a96, 0xff4a6a, 0xffd6de),
     ],
   },
   {
     id: 'thornmaw',
-    name: 'Thornmaw',
+    name: 'Titanus Ignicorn',
+    epithet: 'The Horned Brawler',
     blurb: 'Hunched, horned brawler with huge arms and ember-lit spikes.',
     design: THORNMAW_DESIGN,
     rival: 'thornmaw',
@@ -58,11 +65,13 @@ export const ROSTER: readonly RosterTitan[] = [
       way('Sandstorm', 0x9a7b4f, 0x6e5636, 0xd2b98a, 0x4a3a26, 0xffc23a, 0xfff0c4, 0xf2e6c8, 0xffe7a0),
       way('Toxic', 0x4d5a2b, 0x323c1b, 0x8c8a52, 0x1e2412, 0xb6ff3a, 0xf0ffd0, 0xe8e2b8, 0xe6ff7a),
       way('Bloodmoon', 0x5a1f22, 0x3c1416, 0x8a5a54, 0x1c0e0e, 0xff2a4a, 0xffd0d8, 0xe8d0c8, 0xff9aa8),
+      way('Cinderfrost', 0x4a5560, 0x323a42, 0x8e9aa4, 0x1a2026, 0x5ad2ff, 0xd6f6ff, 0xe2e8ee, 0xa6e8ff),
     ],
   },
   {
     id: 'vesperion',
-    name: 'Vesperion',
+    name: 'Titanus Vesperion',
+    epithet: 'The Crested Siege-Beast',
     blurb: 'Tall, long-necked titan with a fan crest and plasma orbs on its shoulders.',
     design: VESPERION_DESIGN,
     rival: 'vesperion',
@@ -72,6 +81,52 @@ export const ROSTER: readonly RosterTitan[] = [
       way('Pearl', 0x8c8794, 0x625e6a, 0xd6d2dc, 0xffffff, 0xffb8ec, 0xfff0fa, 0xf0ecf6, 0xffd6f4),
       way('Nightglass', 0x1d1f2e, 0x12131d, 0x4a4c66, 0x8890ff, 0x5c6cff, 0xdce0ff, 0xc8ccf0, 0xa6b0ff),
       way('Solar', 0x6a4a1e, 0x4a3214, 0xb08a52, 0xffe08a, 0xffb02a, 0xfff2cc, 0xf6e6c0, 0xffe2a0),
+      way('Verdigris', 0x3a5a4e, 0x284036, 0x8ab0a0, 0xd8b06a, 0x5affb0, 0xe0fff0, 0xe0ecd8, 0x9affd0),
+    ],
+  },
+  {
+    id: 'velacor',
+    name: 'Titanus Velacor',
+    epithet: 'The Sail Stalker',
+    blurb: 'Lean river hunter: a towering spined sail, a crocodile snout and a tail that ends in a blade.',
+    design: VELACOR_DESIGN,
+    colors: [
+      way('Riverbed', 0x5a5a3e, 0x3f3f2a, 0xa59a74, 0xb4573a, 0xffa23a, 0xfff0d0, 0xe6dcc0, 0xffe08a),
+      way('Mangrove', 0x34483a, 0x233228, 0x7f9478, 0x3f7a6a, 0x4affc2, 0xdcfff2, 0xd8e6cc, 0xb4ffe0),
+      way('Delta Mud', 0x6e5a44, 0x4e3f2f, 0xb8a080, 0x8a3a2a, 0xff5a2a, 0xffe0d0, 0xeadcc4, 0xffb08a),
+      way('Monsoon', 0x40485a, 0x2c3240, 0x8890a6, 0x5a78b4, 0x6ab0ff, 0xe0eeff, 0xdde2ee, 0xb0d4ff),
+      way('Saffron', 0x7a6a3a, 0x564a28, 0xc8b482, 0xe0a030, 0xffd23a, 0xfff6d0, 0xf2e6c4, 0xfff0a0),
+      way('Nightwater', 0x22262a, 0x16191c, 0x4e555c, 0x6a2a5a, 0xff4ad2, 0xffd8f6, 0xd6d2dc, 0xff9ae8),
+    ],
+  },
+  {
+    id: 'testudrax',
+    name: 'Titanus Testudrax',
+    epithet: 'The Living Bastion',
+    blurb: 'Shell-backed juggernaut with tree-trunk legs, a blunt armored skull and a club tail.',
+    design: TESTUDRAX_DESIGN,
+    colors: [
+      way('Old Growth', 0x56604f, 0x3c4437, 0x9d9478, 0x6f5a42, 0x8dff5c, 0xeaffd8, 0xd8ceb4, 0xb6ff7a),
+      way('Granite', 0x5e5e60, 0x424244, 0xa09e98, 0x7a7670, 0xffb43a, 0xfff0d0, 0xe0dcd0, 0xffd48a),
+      way('Magma Shell', 0x3e3432, 0x2a2322, 0x7a6660, 0x2a1a16, 0xff5a1a, 0xffdcc8, 0xe0d0c4, 0xffa070),
+      way('Reef', 0x4a6670, 0x33484f, 0x9ab4b4, 0xd88a6a, 0x5ae6ff, 0xdcfaff, 0xe4ecea, 0xa6f2ff),
+      way('Ivory', 0xa8a294, 0x7e796e, 0xe0dacb, 0xc8bc9c, 0xffd06a, 0xfff6dc, 0xf6f0e0, 0xffe6a6),
+      way('Jade', 0x2e5a48, 0x1f4032, 0x7aa490, 0x3a8a6a, 0x6affb0, 0xe0fff0, 0xd6eadc, 0xaaffd4),
+    ],
+  },
+  {
+    id: 'fulgurax',
+    name: 'Titanus Fulgurax',
+    epithet: 'The Storm Herald',
+    blurb: 'Crystal-quilled striker: a flared frill, forearm blades and quills that crackle with stored charge.',
+    design: FULGURAX_DESIGN,
+    colors: [
+      way('Thunderhead', 0x2f3a4a, 0x202834, 0x6f7f93, 0xbfe6ff, 0x6fd0ff, 0xe8f8ff, 0xdde8f2, 0xe8f8ff),
+      way('Amethyst', 0x3a2e4a, 0x281f34, 0x857094, 0xe0c0ff, 0xc07aff, 0xf4e6ff, 0xe8def2, 0xf0d8ff),
+      way('Citrine', 0x4a4230, 0x342e20, 0x988a6a, 0xfff0a0, 0xffe04a, 0xfffadc, 0xf2ecd6, 0xfff4b0),
+      way('Rose Quartz', 0x5a3e48, 0x3e2a32, 0xa88894, 0xffd0e0, 0xff7ab0, 0xffe6f0, 0xf2e2e8, 0xffc8dc),
+      way('Emerald', 0x24443a, 0x182e28, 0x6a9484, 0xb0ffd8, 0x3affa0, 0xdcfff0, 0xd6ece2, 0xb0ffd8),
+      way('Obsidian Storm', 0x1a1a20, 0x101014, 0x44444e, 0xffffff, 0xf0f4ff, 0xffffff, 0xe0e0e8, 0xffffff),
     ],
   },
 ];

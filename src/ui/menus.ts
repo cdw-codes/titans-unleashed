@@ -502,8 +502,13 @@ export class TitleScreen extends Screen {
   private renderTitan(): void {
     const t = rosterTitan(this.choice.titan);
     const set = (role: string, text: string) => (this.el.querySelector(`[data-role=${role}]`)!.textContent = text);
-    set('titan-name', t.name);
-    set('titan-code', `SPECIMEN TN-${String(ROSTER.indexOf(t) + 1).padStart(2, '0')}`);
+    // "Titanus" as a small genus line over the species name, so long names fit.
+    const [genus, ...species] = t.name.split(' ');
+    const nameEl = this.el.querySelector('[data-role=titan-name]')!;
+    const g = document.createElement('small');
+    g.textContent = genus ?? '';
+    nameEl.replaceChildren(g, species.join(' '));
+    set('titan-code', `TN-${String(ROSTER.indexOf(t) + 1).padStart(2, '0')} · ${t.epithet.toUpperCase()}`);
     set('track-name', t.name.toUpperCase());
     set('titan-count', `${ROSTER.indexOf(t) + 1}/${ROSTER.length}`);
     set('titan-blurb', t.blurb);

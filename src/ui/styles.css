@@ -649,6 +649,7 @@ html, body {
 
 /* Specimen dossier. */
 .tt-dossier { min-width: 0; padding: 4px 0; }
+.tt-dossier .pick-name small { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.3em; opacity: 0.6; }
 .tt-code { margin: 0 0 2px; font-family: var(--tt-mono); font-size: 10px; letter-spacing: 0.16em; color: var(--sig); }
 .tt-signal { display: flex; align-items: center; gap: 10px; font-family: var(--tt-mono); font-size: 10px; letter-spacing: 0.12em; }
 .tt-trace { flex: 1; height: 20px; overflow: hidden; }

@@ -66,7 +66,7 @@ const noBeam: BeamConfig = {
 
 export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
   thornmaw: {
-    name: 'THORNMAW',
+    name: 'TITANUS IGNICORN',
     title: 'The Horned Brawler',
     body: { height: 90, capsuleRadius: 15, capsuleHalfHeight: 26, footSpread: 10 },
     movement: {
@@ -176,7 +176,7 @@ export const RIVALS: Readonly<Record<RivalId, RivalConfig>> = {
     },
   },
   vesperion: {
-    name: 'VESPERION',
+    name: 'TITANUS VESPERION',
     title: 'The Crested Siege-Beast',
     body: { height: 105, capsuleRadius: 14, capsuleHalfHeight: 33, footSpread: 10 },
     movement: {

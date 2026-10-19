@@ -95,6 +95,8 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
 - Start screen (`TitleScreen`): left panel (start, controls, location / titan / colorway
   pickers), live scene right (showcase camera, sim paused). Titan + colorway (`roster.ts`)
   swap live via `Titan.setDesign`; choice is cosmetic (same moves), kept in `?titan=&color=`;
+  six specimens named "Titanus <Name>" + epithet (original names only, never the films'), each a
+  distinct silhouette (back/head/tail-tip/frill/blades in `designs.ts`) with 6 colorways;
   rivals exclude the player's look-alike. A different location loads on "Travel to …".
   Drop point: click/drag on the location map (`?spawn=u,v`, preview fractions, world/dropPoint.ts),
   snapped to the nearest dry street (`terrain.dryStreetNear`) on land; a point in the sea is

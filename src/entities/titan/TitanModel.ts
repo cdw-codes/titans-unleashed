@@ -108,7 +108,7 @@ export class TitanModel {
     this.mesh.add(root);
     this.mesh.updateMatrixWorld(true);
     this.mesh.bind(new THREE.Skeleton([...this.bones.values()]));
-    this.mouth.position.set(0, 0.5, 15);
+    this.mouth.position.set(0, 0.5, design.head === 'croc' ? 21 : design.head === 'blunt' ? 11 : 15);
     this.bone('head').add(this.mouth);
     this.mesh.castShadow = true;
     this.mesh.receiveShadow = true;
@@ -531,11 +531,40 @@ export class TitanModel {
     this.part('chest', ellipsoid(10 * d.bulk, 9, 4.5), C.belly, at(0, 1, 10.5));
     // Neck + head
     this.part('neck', limb(v(0, -3, -1), v(0, 9 * d.neckScale, 6 * d.neckScale), 8.5, 6.5 / Math.sqrt(d.neckScale)), C.skin);
-    this.part('head', ellipsoid(6.5, 6, 7.5), C.skin, at(0, 2, 2));
-    this.part('head', box(8, 5.5, 10), C.skin, at(0, 1.2, 9.5));
-    this.part('head', box(9.5, 1.6, 6), C.skinDark, at(0, 4.6, 5.5)); // brow ridge
+    const head = d.head ?? 'lizard';
+    if (head === 'croc') {
+      // Long, flat snout with eyes riding high and a row of teeth.
+      this.part('head', ellipsoid(6.2, 5, 7), C.skin, at(0, 2, 1));
+      this.part('head', box(6.5, 3.6, 17), C.skin, at(0, 0.8, 12.5));
+      this.part('head', box(8, 1.4, 5), C.skinDark, at(0, 4.4, 3.5));
+      this.part('jaw', box(6, 2, 15), C.skinDark, at(0, -1.5, 9.5));
+      for (const x of [-1, 1]) {
+        for (const z of [7, 10.5, 14, 17.5]) this.part('jaw', spike(0.6, 1.8, 0.6), C.claw, at(2.6 * x, -0.6, z));
+      }
+    } else if (head === 'blunt') {
+      // Short, wide skull under a heavy brow: all jaw and armor.
+      this.part('head', ellipsoid(8, 7, 7), C.skin, at(0, 2, 2));
+      this.part('head', box(10, 6, 7), C.skin, at(0, 0.8, 7));
+      this.part('head', box(11.5, 2.6, 5.5), C.skinDark, at(0, 4.8, 5));
+      this.part('jaw', box(9.5, 3.2, 7.5), C.skinDark, at(0, -1.9, 5));
+    } else {
+      this.part('head', ellipsoid(6.5, 6, 7.5), C.skin, at(0, 2, 2));
+      this.part('head', box(8, 5.5, 10), C.skin, at(0, 1.2, 9.5));
+      this.part('head', box(9.5, 1.6, 6), C.skinDark, at(0, 4.6, 5.5)); // brow ridge
+    }
+    const eye = head === 'croc' ? at(2.7, 4.2, 4.5) : head === 'blunt' ? at(4.6, 3.4, 7.2) : at(3.9, 3.4, 7.8);
+    if (d.frill) {
+      // Spines fanning out from the back of the skull, webbed and glowing at the tips.
+      // A collar: spines radiate up and out around the skull, tilted back.
+      for (let i = -4; i <= 4; i++) {
+        const a = i * 0.4;
+        this.part('head', spike(5.5, 21 - Math.abs(i) * 1.6, 0.7), C.plate, rotX(rotZ(at(0, 1.5, -2.5), a), -0.45), 1.15);
+      }
+    }
     for (const x of [-1, 1]) {
-      this.part('head', box(1.4, 0.9, 1.6), C.eye, at(3.9 * x, 3.4, 7.8), 1.6);
+      const e = eye.clone();
+      e.elements[12] *= x;
+      this.part('head', box(1.4, 0.9, 1.6), C.eye, e, 1.6);
       if (d.horns) {
         // Big swept horns curling back over the skull.
         this.part('head', spike(2.4, 11, 2.4), C.claw, rotZ(rotX(at(4 * x, 5, 1), -1.1), -0.5 * x));
@@ -551,8 +580,10 @@ export class TitanModel {
         this.part('head', spike(h * 0.5, h, h * 0.08), C.plate, rotX(at(0, y, z), a), 1);
       }
     }
-    this.part('jaw', box(7, 2.6, 9), C.skinDark, at(0, -1.4, 5.5));
-    this.part('jaw', box(6, 1, 8), C.belly, at(0, -2.8, 5));
+    if (head === 'lizard') {
+      this.part('jaw', box(7, 2.6, 9), C.skinDark, at(0, -1.4, 5.5));
+      this.part('jaw', box(6, 1, 8), C.belly, at(0, -2.8, 5));
+    }
     // Arms
     for (const [s, x] of [['L', 1], ['R', -1]] as const) {
       this.part(`upperArm${s}`, limb(v(0, 2, 0), v(2 * x * A, -11 * A, 5 * A), 4.5 * A, 3.3 * A), C.skin);
@@ -561,15 +592,21 @@ export class TitanModel {
       for (const cx of [-1.6, 0, 1.6]) {
         this.part(`hand${s}`, spike(0.8 * A, 4.5 * d.clawLength, 0.8 * A), C.claw, rotX(at(cx * A, -2.2 * A, 3.2 * A), 1.9));
       }
+      if (d.armBlades) {
+        // Crystal blades sweeping back from each forearm, past the elbow.
+        this.part(`forearm${s}`, spike(0.8 * A, 13 * A, 4 * A), C.plate, rotX(at(0, -3 * A, -1.5 * A), -0.5), 1.25);
+        this.part(`forearm${s}`, spike(0.6 * A, 7 * A, 2.5 * A), C.plate, rotX(at(0, -6.5 * A, -0.5 * A), -0.7), 1.25);
+      }
       if (d.shoulderOrbs) {
         this.part(`upperArm${s}`, ellipsoid(3.4, 3.4, 3.4), C.plate, at(1.5 * x, 3.5, -1), 1.6);
       }
     }
     // Legs
+    const L = d.legScale ?? 1;
     for (const s of ['L', 'R'] as const) {
-      this.part(`thigh${s}`, ellipsoid(7.5 * d.bulk, 10, 8.5 * d.bulk), C.skin, at(0, -6, 2));
-      this.part(`shin${s}`, limb(v(0, 1, 0), v(0, -12, -4), 5, 3.8), C.skin);
-      this.part(`foot${s}`, box(9, 4, 13), C.skinDark, at(0, -1, 4.5));
+      this.part(`thigh${s}`, ellipsoid(7.5 * d.bulk * L, 10, 8.5 * d.bulk * L), C.skin, at(0, -6, 2));
+      this.part(`shin${s}`, limb(v(0, 1, 0), v(0, -12, -4), 5 * L, 3.8 * L), C.skin);
+      this.part(`foot${s}`, box(9 * Math.sqrt(L), 4, 13), C.skinDark, at(0, -1, 4.5));
       for (const cx of [-3, 0, 3]) {
         this.part(`foot${s}`, spike(1.1, 4, 1.1), C.claw, rotX(at(cx, -2, 11.5), 1.75));
       }
@@ -578,6 +615,18 @@ export class TitanModel {
     for (let i = 0; i < TAIL_SEGMENTS; i++) {
       const end = this.tailStep.clone().multiplyScalar(1.15);
       this.part(`tail${i}`, limb(v(0, 0, 1.5), end, this.tailRadii[i]!, this.tailRadii[i + 1]!), C.skin);
+    }
+    const last = `tail${TAIL_SEGMENTS - 1}` as const;
+    const tip = this.tailStep.clone().multiplyScalar(1.1);
+    if (d.tailTip === 'club') {
+      // A bony club, studded with knobs.
+      this.part(last, ellipsoid(6.5, 5, 7.5), C.plate, at(tip.x, tip.y, tip.z));
+      for (const [x, y] of [[1, 0], [-1, 0], [0, 1]] as const) {
+        this.part(last, spike(2.4, 4.5, 2.4), C.claw, rotZ(at(tip.x + x * 5, tip.y + y * 4, tip.z), -x * 1.4), 0.4);
+      }
+    } else if (d.tailTip === 'blade') {
+      // A glowing blade fin: the tail ends in a spear point.
+      this.part(last, spike(6, 16, 0.8), C.plate, rotX(at(tip.x, tip.y, tip.z + 3), -1.75), 0.9);
     }
     this.buildBack();
   }
@@ -601,6 +650,22 @@ export class TitanModel {
         this.part(bn, spike(h * 0.45, h, h * 0.12), C.plate, rotX(at(0, y, z), -0.75), 1);
         this.part(bn, spike(h * 0.3, h * 0.65, h * 0.1), C.plate, rotZ(rotX(at(3.2, y - 1, z + 1), -0.6), -0.45), 1);
         this.part(bn, spike(h * 0.3, h * 0.65, h * 0.1), C.plate, rotZ(rotX(at(-3.2, y - 1, z + 1), -0.6), 0.45), 1);
+      } else if (d.back === 'sail') {
+        // A towering sail of spines: tall, thin, overlapping, lit along the edge.
+        const h = h0 * 2.3;
+        this.part(bn, spike(h * 0.55, h, h * 0.035), C.plate, rotX(at(0, y, z), -0.35), 0.7);
+      } else if (d.back === 'shell') {
+        // An armored carapace: overlapping domes with a row of glowing knobs.
+        this.part(bn, ellipsoid(15 * d.bulk, h0 * 0.72, 12), C.plate, at(0, y - 2.5, z + 1.5));
+        this.part(bn, spike(h0 * 0.35, h0 * 0.45, h0 * 0.35), C.claw, rotX(at(0, y + h0 * 0.35, z), -0.6), 0.6);
+        for (const x of [-1, 1]) this.part(bn, spike(h0 * 0.25, h0 * 0.35, h0 * 0.25), C.claw, rotZ(rotX(at(x * 9 * d.bulk, y - 2, z + 1), -0.4), -x * 0.9), 0.4);
+      } else if (d.back === 'quills') {
+        // Clusters of crystal quills fanning out, glowing all over.
+        // Crystal shards: thick at the base, lit through.
+        for (let k = -2; k <= 2; k++) {
+          const h = h0 * (1.8 - Math.abs(k) * 0.3);
+          this.part(bn, spike(h * 0.22, h, h * 0.22), C.plate, rotZ(rotX(at(k * 2.6, y, z), -0.6 - Math.abs(k) * 0.12), -k * 0.42), 1.25);
+        }
       } else if (d.back === 'spikes') {
         // Rows of thick, short horns: armored and menacing, faint ember glow.
         const h = h0 * 0.7;
@@ -613,8 +678,21 @@ export class TitanModel {
     }
     for (let i = 0; i < TAIL_SEGMENTS - 1; i++) {
       const h = (7.5 - i * 1.0) * Math.sqrt(d.tailScale);
-      const glow = d.back === 'spikes' ? 0.35 : 1;
-      this.part(`tail${i}`, spike(h * 0.45, h, d.back === 'spikes' ? h * 0.35 : h * 0.12), C.plate, rotX(at(0, this.tailRadii[i]! * 0.75, -3), -1.0), glow);
+      const r = this.tailRadii[i]!;
+      const bone = `tail${i}` as const;
+      if (d.back === 'shell') {
+        // Armored tail: paired knobs.
+        for (const x of [-1, 1]) this.part(bone, spike(h * 0.3, h * 0.45, h * 0.3), C.plate, rotZ(rotX(at(x * r * 0.5, r * 0.6, -3), -0.8), -x * 0.5), 0.4);
+        continue;
+      }
+      if (d.back === 'quills') {
+        for (const x of [-1, 1]) this.part(bone, spike(h * 0.2, h * 1.3, h * 0.2), C.plate, rotZ(rotX(at(x * r * 0.35, r * 0.7, -3), -0.9), -x * 0.45), 1.25);
+        continue;
+      }
+      const tall = d.back === 'sail' ? 1.5 : 1;
+      const glow = d.back === 'spikes' ? 0.35 : d.back === 'sail' ? 0.7 : 1;
+      const thick = d.back === 'spikes' ? h * 0.35 : d.back === 'sail' ? h * 0.05 : h * 0.12;
+      this.part(bone, spike(h * 0.45 * tall, h * tall, thick), C.plate, rotX(at(0, r * 0.75, -3), d.back === 'sail' ? -0.7 : -1.0), glow);
     }
   }
 

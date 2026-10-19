@@ -51,8 +51,8 @@ export async function createDevGui(game: Game): Promise<GUI> {
   dbg.add(state, 'kill').name('Defeat player');
   const enc = gui.addFolder('Encounters').close();
   enc.add(state, 'encounter').name('Start encounter now');
-  enc.add(state, 'thornmaw').name('Spawn Thornmaw (300 m)');
-  enc.add(state, 'vesperion').name('Spawn Vesperion (300 m)');
+  enc.add(state, 'thornmaw').name('Spawn Titanus Ignicorn (300 m)');
+  enc.add(state, 'vesperion').name('Spawn Titanus Vesperion (300 m)');
   enc.add(state, 'defeatRival').name('Defeat rival');
   // Teleport: one button per region, landing near its center.
   const tp = gui.addFolder('Teleport').close();

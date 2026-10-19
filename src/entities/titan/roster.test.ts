@@ -10,6 +10,20 @@ describe('titan roster', () => {
     expect(parseChoice('?titan=thornmaw&color=-1')).toEqual({ titan: 'thornmaw', color: 0 });
   });
 
+  it('names every titan Titanus <Name>, uniquely, with six colorways each', () => {
+    const names = new Set(ROSTER.map((t) => t.name));
+    expect(names.size).toBe(ROSTER.length);
+    for (const t of ROSTER) {
+      expect(t.name).toMatch(/^Titanus [A-Z][a-z]+$/);
+      expect(t.colors).toHaveLength(6);
+    }
+  });
+
+  it('gives every titan its own silhouette', () => {
+    const looks = new Set(ROSTER.map((t) => `${t.design.back}/${t.design.head ?? 'lizard'}/${t.design.tailTip ?? 'none'}`));
+    expect(looks.size).toBe(ROSTER.length);
+  });
+
   it('applies the colorway to the design', () => {
     const t = ROSTER[1]!;
     const d = designFor({ titan: t.id, color: 2 });
