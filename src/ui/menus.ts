@@ -78,10 +78,29 @@ interface Location {
   img: string | null;
 }
 
-const LOGO_MARK = `<svg class="title-mark" viewBox="0 0 120 52" aria-hidden="true">
-  <path d="M14 50 L26 22 L34 34 L46 6 L60 30 L74 6 L86 34 L94 22 L106 50 Z" fill="currentColor" opacity="0.18"/>
-  <path d="M14 50 L26 22 L34 34 L46 6 L60 30 L74 6 L86 34 L94 22 L106 50" fill="none" stroke="currentColor" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <path d="M40 50 L46 30 L52 50 M68 50 L74 30 L80 50" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" opacity="0.7"/>
+/**
+ * Logo mark: Tidecaller's own dorsal plates (as built in TitanModel), three
+ * faceted shards rising from the curve of the back, the middle one tallest,
+ * glowing from the inside like the in-game plates.
+ */
+const LOGO_MARK = `<svg class="title-mark" viewBox="0 0 120 64" aria-hidden="true">
+  <defs>
+    <linearGradient id="plateFill" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="currentColor" stop-opacity="0.25"/>
+      <stop offset="1" stop-color="currentColor" stop-opacity="0.9"/>
+    </linearGradient>
+  </defs>
+  <path d="M4 62 Q60 46 116 62" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" opacity="0.55"/>
+  <g fill="url(#plateFill)" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round">
+    <path d="M14 58 L17 46 L13 44 L20 33 L17 31 L27 20 L37 31 L34 33 L41 44 L37 46 L40 58 Z"/>
+    <path d="M42 50 L46 34 L41 31 L50 17 L46 14 L60 1 L74 14 L70 17 L79 31 L74 34 L78 50 Z"/>
+    <path d="M80 58 L83 46 L79 44 L86 33 L83 31 L93 20 L103 31 L100 33 L107 44 L103 46 L106 58 Z"/>
+  </g>
+  <g fill="none" stroke="#ffffff" stroke-width="1.4" stroke-linecap="round" opacity="0.7">
+    <path d="M27 52 L27 27"/>
+    <path d="M60 45 L60 9"/>
+    <path d="M93 52 L93 27"/>
+  </g>
 </svg>`;
 
 const hex = (n: number) => `#${n.toString(16).padStart(6, '0')}`;
