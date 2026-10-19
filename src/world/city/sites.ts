@@ -95,12 +95,29 @@ export class Sites {
   /** Suspension bridge across the strait from the main city to the island. */
   private bridge(c: SiteContent): void {
     const t = this.terrain;
-    const z = this.r.island.bridgeZ;
-    const xa = t.coastX(z) - 40;
-    let xb = xa + 100;
-    while (xb < xa + 4000 && t.islandWeight(xb, z) < 0.97) xb += 10;
-    xb += 40;
-    const L = xb - xa;
+    const isl = this.r.island;
+    // End points: given (generated worlds, any angle) or found east of the classic coast.
+    let ax: number;
+    let az: number;
+    let bx: number;
+    let bz: number;
+    if (isl.bridge) {
+      [ax, az, bx, bz] = isl.bridge;
+    } else {
+      az = bz = isl.bridgeZ;
+      ax = t.coastX(az) - 40;
+      bx = ax + 100;
+      while (bx < ax + 4000 && t.islandWeight(bx, az) < 0.97) bx += 10;
+      bx += 40;
+    }
+    const L = Math.hypot(bx - ax, bz - az);
+    const dx = (bx - ax) / L;
+    const dz = (bz - az) / L;
+    // Local z runs along the bridge; local x across it.
+    const rot = Math.atan2(dx, dz);
+    const sx = dz;
+    const sz = -dx;
+    const at = (u: number, across = 0): [number, number] => [ax + dx * u + sx * across, az + dz * u + sz * across];
     const deckH = 42;
     const ramp = Math.min(240, L * 0.3);
     const deckY = (u: number) => 1 + deckH * smoothstep(0, ramp, u) * smoothstep(L, L - ramp, u);
@@ -121,34 +138,37 @@ export class Sites {
       const u0 = i * seg;
       const u1 = Math.min(L, u0 + seg);
       const um = (u0 + u1) / 2;
-      const x = xa + um;
+      const [x, z] = at(um);
       const y0 = deckY(u0);
       const y1 = deckY(u1);
-      const tilt = -Math.atan2(y1 - y0, u1 - u0);
       const parts: PartSpec[] = [
-        part('plain', x, (y0 + y1) / 2 - 2.5, z, W, 2.5, u1 - u0 + 0.6, Math.PI / 2, COL.deck, tilt),
+        part('plain', x, (y0 + y1) / 2 - 2.5, z, W, 2.5, u1 - u0 + 0.6, rot, COL.deck, -Math.atan2(y1 - y0, u1 - u0)),
       ];
       for (const side of [-1, 1]) {
-        const zc = z + side * (W / 2 - 1);
+        const [cx, cz] = at(um, side * (W / 2 - 1));
         const c0 = cableY(u0);
         const c1 = cableY(u1);
         const len = Math.hypot(u1 - u0, c1 - c0);
-        parts.push(part('plain', x, (c0 + c1) / 2 - 0.8, zc, 1.6, 1.6, len + 0.4, Math.PI / 2, COL.cable, -Math.atan2(c1 - c0, u1 - u0)));
+        parts.push(part('plain', cx, (c0 + c1) / 2 - 0.8, cz, 1.6, 1.6, len + 0.4, rot, COL.cable, -Math.atan2(c1 - c0, u1 - u0)));
         const hang = cableY(um) - deckY(um);
-        if (hang > 3) parts.push(part('plain', x, deckY(um), zc, 0.6, hang, 0.6, 0, COL.cable));
+        if (hang > 3) parts.push(part('plain', cx, deckY(um), cz, 0.6, hang, 0.6, 0, COL.cable));
       }
-      this.add(c, 'bridge', x, z, deckY(um) - 2.5, (u1 - u0) / 2, W / 2, Math.max(4, cableY(um) - deckY(um) + 4), 0, parts);
+      this.add(c, 'bridge', x, z, deckY(um) - 2.5, W / 2, (u1 - u0) / 2, Math.max(4, cableY(um) - deckY(um) + 4), rot, parts);
     }
     for (const u of [p1, p2]) {
-      const x = xa + u;
+      const [x, z] = at(u);
       const base = Math.min(t.heightAt(x, z), 0);
       const h = top + 6 - base;
       const parts: PartSpec[] = [];
-      for (const side of [-1, 1]) parts.push(part('plain', x, base, z + side * 15, 8, h, 8, 0, COL.steel));
-      for (const yy of [deckH - 6, top - 30, top - 2]) parts.push(part('plain', x, yy, z, 6, 6, 36, 0, COL.steel));
-      this.add(c, 'pylon', x, z, base, 5, 19, h, 0, parts);
+      for (const side of [-1, 1]) {
+        const [lx, lz] = at(u, side * 15);
+        parts.push(part('plain', lx, base, lz, 8, h, 8, rot, COL.steel));
+      }
+      for (const yy of [deckH - 6, top - 30, top - 2]) parts.push(part('plain', x, yy, z, 36, 6, 6, rot, COL.steel));
+      this.add(c, 'pylon', x, z, base, 19, 5, h, rot, parts);
     }
   }
+
 
   // ------------------------------------------------------------ airport
 

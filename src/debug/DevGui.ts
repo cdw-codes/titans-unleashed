@@ -67,11 +67,12 @@ export async function createDevGui(game: Game): Promise<GUI> {
   } else {
     for (const t of terrain.authored) if (t.name) dest[t.name] = go(t.x, t.z);
     const R = terrain.r;
-    const bridge = R.island.bridgeZ;
-    dest['Suspension bridge (mainland end)'] = go(terrain.coastX(bridge) - 250, bridge + 150);
+    const b = R.island.bridge ?? [terrain.coastX(R.island.bridgeZ) - 40, R.island.bridgeZ];
+    dest['Suspension bridge (mainland end)'] = go(b[0], b[1]);
     dest['Broadcast tower'] = go(R.broadcastTower.x, R.broadcastTower.z + 200);
     dest['Stadium'] = go(R.stadium.x, R.stadium.z + 260);
-    dest[R.alps.name] = go(-1200, (R.alps.startZ + R.alps.fullZ) / 2);
+    const mid = (R.alps.startZ + R.alps.fullZ) / 2;
+    dest[R.alps.name] = R.alps.dir ? go(R.alps.dir[0] * mid, R.alps.dir[1] * mid) : go(-1200, mid);
   }
   for (const name of Object.keys(dest)) tp.add(dest, name);
   const mil = gui.addFolder('Military & upgrades').close();

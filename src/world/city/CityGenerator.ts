@@ -193,7 +193,7 @@ export class CityGenerator {
     const cx = x0 + S / 2;
     const cz = z0 + S / 2;
     const h = t.heightAt(cx, cz);
-    const rocky = Math.min(1, t.alpsWeight(cz) + Math.max(0, (h - 100) / 150));
+    const rocky = Math.min(1, t.alpsWeight(cx, cz) + Math.max(0, (h - 100) / 150));
     for (let k = rng.int(0, 3) + Math.round(rocky * 10); k > 0; k--) {
       const x = x0 + rng.range(8, S - 8);
       const z = z0 + rng.range(8, S - 8);

@@ -83,7 +83,9 @@ lil-gui (dev-only, dynamic import). Commands: `npm run dev | build | test | type
   Footprints/heights real; positions compressed 3.5x.
 - Open world: a new seed every game (`?seed=`, random if absent and written to the URL;
   `seed=classic` = hand-made `config/regions.ts`). `terrain.reseed()` reseeds noise/towns;
-  `regionsGen.ts` places regions, rivers and landmarks under placement rules; `findSpawn()`
+  `regionsGen.ts` picks a coastline (coast / bay / strait / peninsula at any angle, shore.ts;
+  `terrain.seaDist()` is the only sea test) and places regions, rivers and landmarks from
+  coast points in any direction under placement rules; `findSpawn()`
   picks a dry street corner. Satellite towns fill the rest; airport/plant are flat sites;
   set pieces come from `Sites`; streets bridge rivers on every other street.
 - Structure size classes: `large` (collider + HP, collapses), `small` (houses/shops/barns,

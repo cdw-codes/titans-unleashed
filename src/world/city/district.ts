@@ -9,7 +9,7 @@ import type { District, UrbanDistrict } from './types';
 export function townDistrict(town: Town, f: number, x: number, z: number, terrain: Terrain, c: CityConfig): UrbanDistrict | 'airport' | 'plant' {
   if (town.kind === 'airport') return 'airport';
   if (town.kind === 'plant') return 'plant';
-  if (town.kind !== 'island' && x > terrain.coastX(z) - c.docksWidth) return 'docks';
+  if (town.kind !== 'island' && terrain.seaDist(x, z) > -c.docksWidth) return 'docks';
   switch (town.kind) {
     case 'city':
       if (f < c.downtownFraction) return 'downtown';

@@ -5,6 +5,7 @@ import { REGIONS, type RegionsConfig } from '../../config/regions';
 import { CITY } from '../../config/city';
 import { LAND } from '../maps/format';
 import { generateRegions } from './regionsGen';
+import { coastPoint, shoreDistance, type CoastPoint } from './shore';
 import type { CityMap } from '../maps/CityMap';
 
 /**
@@ -86,7 +87,7 @@ export class Terrain {
    */
   reseed(seed: number): void {
     this.c = { ...this.c, seed };
-    this.r = generateRegions(seed, (z) => this.coastX(z));
+    this.r = generateRegions(seed);
     this.townCache.clear();
     this.buildLayout();
     this.spawn = this.findSpawn();
@@ -109,7 +110,9 @@ export class Terrain {
       this.island,
       { x: r.riverCity.x, z: r.riverCity.z, radius: r.riverCity.radius, kind: 'metro', name: r.riverCity.name },
       { x: r.airport.x, z: r.airport.z, radius: r.airport.radius, kind: 'airport', name: r.airport.name },
-      { x: this.coastX(pp.z) - pp.inland - pp.radius, z: pp.z, radius: pp.radius, kind: 'plant', name: pp.name },
+      pp.at
+        ? { x: pp.at[0], z: pp.at[1], radius: pp.radius, kind: 'plant', name: pp.name }
+        : { x: this.coastX(pp.z) - pp.inland - pp.radius, z: pp.z, radius: pp.radius, kind: 'plant', name: pp.name },
     ];
   }
 
@@ -152,7 +155,8 @@ export class Terrain {
 
   /** Westmost the coast can reach: safe inland bound for spawns. */
   get minCoastX(): number {
-    if (this.map) return Infinity;
+    // Coasts in any direction (generated worlds, city maps): callers rely on water checks.
+    if (this.map || this.r.shore) return Infinity;
     return this.c.coastX - this.c.coastWave * 1.2;
   }
 
@@ -196,10 +200,10 @@ export class Terrain {
       if (this.townEdge(a, x, z) < gap + radius) return null;
     }
     // Not in the mountains or on a river.
-    if (this.alpsWeight(z) > 0.05 || this.riverDistance(x, z) < radius + 150) return null;
-    const coast = this.coastX(z);
-    if (x > coast - radius * 0.6) return null;
-    const kind: TownKind = x > coast - radius - 350 ? 'port' : rng.chance(c.worksChance) ? 'works' : 'village';
+    if (this.alpsWeight(x, z) > 0.05 || this.riverDistance(x, z) < radius + 150) return null;
+    const sea = this.seaDist(x, z);
+    if (sea > -radius * 0.6) return null;
+    const kind: TownKind = sea > -radius - 350 ? 'port' : rng.chance(c.worksChance) ? 'works' : 'village';
     return { x, z, radius, kind };
   }
 
@@ -255,14 +259,26 @@ export class Terrain {
   regionAt(x: number, z: number): string | null {
     if (this.map) return this.map.placeAt(x, z);
     for (const t of this.authored) if (t.name && this.townEdge(t, x, z) < 250) return t.name;
-    if (this.alpsWeight(z) > 0.3) return this.r.alps.name;
+    if (this.alpsWeight(x, z) > 0.3) return this.r.alps.name;
     return null;
   }
 
   /** 0 south of the Alps, 1 deep in them. */
-  alpsWeight(z: number): number {
+  alpsWeight(x: number, z: number): number {
     const a = this.r.alps;
-    return smoothstep(a.startZ, a.fullZ, z);
+    const d = a.dir ? x * a.dir[0] + z * a.dir[1] : z;
+    return smoothstep(a.startZ, a.fullZ, d);
+  }
+
+  /** Signed distance (m) past the coastline: positive at sea, negative inland. */
+  seaDist(x: number, z: number): number {
+    const shore = this.r.shore;
+    return shore ? shoreDistance(shore, this.c.seed, x, z) : x - this.coastX(z);
+  }
+
+  /** Where the coast is reached walking out from the origin along `angle` (null: open land). */
+  coastPointToward(angle: number): CoastPoint | null {
+    return coastPoint((x, z) => this.seaDist(x, z), angle);
   }
 
   /** Distance (m) to the nearest river centerline. */
@@ -348,11 +364,11 @@ export class Terrain {
     const c = this.c;
     const u = this.urbanWeight(x, z);
     let h = u < 1 ? this.hills(x, z) * (1 - u) : 0;
-    const alps = this.alpsWeight(z) * (1 - u);
+    const alps = this.alpsWeight(x, z) * (1 - u);
     if (alps > 0) h += alps * this.peaks(x, z) * this.r.alps.height;
     const lake = this.lakeWeight(x, z) * (1 - u) * (1 - alps);
     if (lake > 0) h = lerp(h, -c.lakeDepth, lake);
-    const dx = x - this.coastX(z);
+    const dx = this.seaDist(x, z);
     if (dx > -2 * c.beachWidth) {
       h = lerp(h, Math.min(h, 1), smoothstep(-2 * c.beachWidth, -c.beachWidth * 0.2, dx));
       h = lerp(h, -c.seaDepth, smoothstep(0, c.shelfWidth, dx));
@@ -371,7 +387,7 @@ export class Terrain {
 
   isSea(x: number, z: number): boolean {
     if (this.map) return this.map.classAt(x, z) === LAND.sea;
-    return x > this.coastX(z) && this.islandWeight(x, z) < 0.5;
+    return this.seaDist(x, z) > 0 && this.islandWeight(x, z) < 0.5;
   }
 
   /** 0..1 forest density (0 in towns and water). */

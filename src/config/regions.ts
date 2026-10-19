@@ -5,6 +5,8 @@
  * Positions in m (x east, z south: north is -z). Procedural satellite towns fill
  * the rest of the world outside these regions.
  */
+import type { ShoreDef } from '../world/terrain/shore';
+
 export interface RiverDef {
   readonly name: string;
   /** Polyline from source to mouth. */
@@ -24,25 +26,33 @@ export interface RegionsConfig {
     readonly halfWidth: number;
     /** Rotation (rad) of the long axis away from north-south. */
     readonly angle: number;
-    /** z of the suspension bridge to the mainland. */
+    /** z of the suspension bridge to the mainland (classic layout: the bridge runs east-west). */
     readonly bridgeZ: number;
+    /** Generated worlds: bridge end points [mainland x, z, island x, z] at any angle. */
+    readonly bridge?: readonly [number, number, number, number];
   };
   /** River city to the west: dense mid-rise, few towers, many bridges. */
   readonly riverCity: { readonly name: string; readonly x: number; readonly z: number; readonly radius: number };
   /** Mountain range across the north. */
   readonly alps: {
     readonly name: string;
-    /** Mountains start rising north of this z and reach full height by `fullZ`. */
+    /**
+     * Mountains start rising at `startZ` and reach full height by `fullZ`, measured along
+     * `dir` (unit [x, z]) from the origin; without `dir` they are plain z values.
+     */
     readonly startZ: number;
     readonly fullZ: number;
+    readonly dir?: readonly [number, number];
     readonly height: number;
     readonly size: number;
     /** Snow above this height (m). */
     readonly snowLine: number;
   };
   readonly airport: { readonly name: string; readonly x: number; readonly z: number; readonly radius: number };
-  /** Coastal power station: placed at this z, just inland of the coastline. */
-  readonly powerPlant: { readonly name: string; readonly z: number; readonly radius: number; readonly inland: number };
+  /** Coastal power station: at this z just inland of the coastline, or at `at` (generated worlds). */
+  readonly powerPlant: { readonly name: string; readonly z: number; readonly radius: number; readonly inland: number; readonly at?: readonly [number, number] };
+  /** Generated worlds: the coastline (see world/terrain/shore.ts); classic = straight east coast. */
+  readonly shore?: ShoreDef;
   readonly rivers: readonly RiverDef[];
   /** Depth (m) of river beds below town level. */
   readonly riverDepth: number;
