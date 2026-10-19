@@ -155,7 +155,8 @@ async function bake(def: CityMapDef): Promise<void> {
     if (h < 100 || !at) continue;
     const [x, z] = project(p, at.lat, at.lon);
     // An antenna on top of a skyscraper (One WTC's spire): the building wins.
-    const freestanding = t['man_made'] === 'communications_tower' || !!def.towerHeights?.[name ?? ''];
+    // Named broadcast towers (BT Tower, Tokyo Tower) stand on their own even if also tagged as buildings.
+    const freestanding = t['man_made'] === 'communications_tower' || !!def.towerHeights?.[name ?? ''] || (!!name && t['tower:type'] === 'communication');
     if (!freestanding && candidates.some((b) => b.h >= h * 0.6 && Math.hypot(b.x - x, b.z - z) < 60)) continue;
     towers.push({ x: Math.round(x), z: Math.round(z), h: Math.round(h), ...(name ? { name } : {}) });
   }
